@@ -236,13 +236,13 @@ test('inbox: saving a tag with the assignment sorts the other waiting images too
 
 test('inbox: a file name is shown as text, never as HTML', () =>
   withSorter(
-    (lib) => put(path.join(lib, '<b>bold</b> & "quotes".png')),
+    (lib) => put(path.join(lib, '<img src=x onerror=alert(1)> & "quotes".png')),
     '#/inbox',
     async (ui) => {
       const cell = await waitFor(() => ui.q('.cell'), 'the image');
-      assert.equal(ui.qa('.grid b').length, 0, 'no element was made from the name');
-      assert.ok(cell.textContent.includes('<b>bold</b> & "quotes".png'));
-      assert.equal(cell.getAttribute('aria-label'), '<b>bold</b> & "quotes".png');
+      assert.equal(ui.qa('.grid [onerror]').length, 0, 'no element was made from the name');
+      assert.ok(cell.textContent.includes('<img src=x onerror=alert(1)> & "quotes".png'));
+      assert.equal(cell.getAttribute('aria-label'), '<img src=x onerror=alert(1)> & "quotes".png');
     }
   ));
 
