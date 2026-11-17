@@ -247,12 +247,107 @@
     return page(
       'Overview',
       `${st.counts.library_images} images in ${st.library}`,
-      null,
+      h('a', { class: 'btn', href: '#/resort', text: 'Re-sort library' }),
       h('div', { class: 'stats' }, stat(st.counts.inbox, 'waiting in the Inbox', '#/inbox'), stat(st.counts.library_images, 'images in the library', '#/library'), stat(st.counts.duplicates, 'in Duplicates', '#/duplicates'), stat(st.counts.records, 'records of where images came from', '#/data')),
       h('h3', { text: 'Recent activity' }),
       act.length ? WS.activityRows(act, st.library, true) : WS.empty('Nothing yet', 'Sorted images show up here, with an Undo button.'),
       h('h3', { text: 'Watched folders' }),
       h('div', { class: 'panel watched-folders' }, h('div', { class: 'watched-list' }, watchedEntry(st.library, [WS.badge('library, top level', 'good')]), ...st.intake.map((i) => watchedEntry(i.path, [i.exists ? WS.badge('watching', 'good') : WS.badge('folder not found yet', 'warn')]))))
+    );
+  };
+
+  // ---------- Re-sort
+  // Kept outside the page function because changing scope or returning after an undo should not
+  // silently discard a preview until the user asks for a new one.
+  const resortState = { folder: '', preview: null };
+  function resortPath(path) {
+    const root = WS.status && WS.status.library;
+    return root && path.startsWith(root + '/') ? path.slice(root.length + 1) : path;
+  }
+  WS.pages.resort = async function () {
+    const dup = dupFolder();
+    const folders = (await WS.get('/api/folders')).filter((f) => f.path !== dup && !f.path.startsWith(dup + '/'));
+    if (resortState.folder && !folders.some((f) => f.path === resortState.folder)) {
+      resortState.folder = '';
+      resortState.preview = null;
+    }
+    const scope = h(
+      'select',
+      {
+        class: 'select',
+        'aria-label': 'Re-sort scope',
+        onchange: (e) => {
+          resortState.folder = e.target.value;
+          resortState.preview = null;
+          WS.refresh();
+        },
+      },
+      h('option', { value: '', text: 'Whole library' }),
+      ...folders.map((f) => h('option', { value: f.path, text: f.path }))
+    );
+    scope.value = resortState.folder;
+    const note = h('p', { class: 'muted', text: resortState.folder ? `Includes ${resortState.folder} and its subfolders. Duplicates are never re-sorted.` : 'Applies current tags to every image already in the library. Duplicates are never re-sorted.' });
+    const output = h('div', { class: 'resort-output' });
+    const previewButton = h('button', { class: 'btn primary', text: 'Scan and preview' });
+
+    function showPreview() {
+      const preview = resortState.preview;
+      if (!preview) {
+        output.replaceChildren();
+        return;
+      }
+      const changing = preview.items.filter((i) => i.kind !== 'leave' && i.kind !== 'ignore');
+      const waiting = preview.items.filter((i) => i.kind === 'leave');
+      const kindLabel = { move: 'Move and rename', rename: 'Rename', duplicate: 'Duplicate', leave: 'Leave here', ignore: 'Ignore' };
+      const row = (item) => {
+        const from = item.from || item.path;
+        const detail = item.to ? `${resortPath(from)} → ${item.to}` : resortPath(from);
+        const why = item.reason || item.duplicate_of || item.rule || '';
+        return h('div', { class: 'resort-row' }, h('span', { class: `badge ${item.kind === 'leave' ? 'warn' : item.kind === 'duplicate' ? 'bad' : 'good'}`, text: kindLabel[item.kind] || item.kind }), h('span', { class: 'm grow', text: detail }), why ? h('span', { class: 'muted', text: why }) : null);
+      };
+      const apply = h('button', { class: 'btn primary', text: `Apply ${WS.plural(changing.length, 'change')}`, disabled: changing.length === 0 });
+      apply.addEventListener('click', async () => {
+        if (!(await WS.confirmBox(`Apply ${WS.plural(changing.length, 'change')}? The result is saved as one activity batch and can be undone.`, 'Apply re-sort', true))) return;
+        apply.disabled = true;
+        try {
+          const result = await WS.post('/api/resort', resortState.folder ? { folder: resortState.folder } : {});
+          resortState.preview = null;
+          WS.toast(`Re-sorted ${WS.plural(result.done.length, 'file')}`, { undo: () => WS.undoBatch(result.batch) });
+          WS.refresh();
+        } catch (e) {
+          apply.disabled = false;
+          WS.toast(e.message, { error: true });
+        }
+      });
+      output.replaceChildren(
+        h('div', { class: 'resort-summary' }, h('b', { text: `${WS.plural(changing.length, 'change')} ready` }), h('span', { class: 'muted', text: waiting.length ? `${WS.plural(waiting.length, 'image')} will stay where it is.` : 'Every matching image has a destination.' }), apply),
+        changing.length ? h('h3', { text: 'Changes' }) : null,
+        changing.length ? h('div', { class: 'resort-list' }, ...changing.map(row)) : null,
+        waiting.length ? h('h3', { text: 'Needs a decision' }) : null,
+        waiting.length ? h('div', { class: 'resort-list' }, ...waiting.map(row)) : null,
+        preview.items.length === 0 ? WS.empty('No images in this scope') : null
+      );
+    }
+    previewButton.addEventListener('click', async () => {
+      previewButton.disabled = true;
+      previewButton.textContent = 'Scanning…';
+      try {
+        resortState.preview = await WS.get('/api/resort' + (resortState.folder ? `?folder=${enc(resortState.folder)}` : ''));
+        showPreview();
+      } catch (e) {
+        WS.toast(e.message, { error: true });
+      } finally {
+        previewButton.disabled = false;
+        previewButton.textContent = 'Scan and preview';
+      }
+    });
+    showPreview();
+    return page(
+      'Re-sort',
+      'Apply current tags to images that are already in the library. Nothing changes until you apply.',
+      null,
+      h('section', { class: 'panel resort-scope' }, h('div', { class: 'field' }, h('label', { text: 'Scope' }), scope), note, h('div', { class: 'row' }, previewButton)),
+      output
     );
   };
 

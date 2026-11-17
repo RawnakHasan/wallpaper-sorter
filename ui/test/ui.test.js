@@ -181,7 +181,7 @@ test('the overview shows counts, the menu and the connection', () =>
     },
     '',
     async (ui) => {
-      assert.equal(ui.qa('.rail .nv').length, 8);
+      assert.equal(ui.qa('.rail .nv').length, 9);
       await waitFor(() => ui.qa('.stat').length === 4, 'the four counts');
       const stats = ui.qa('.stat').map((s) => s.textContent);
       assert.match(stats[0], /1.*waiting in the Inbox/);
@@ -384,6 +384,34 @@ test('library: delete asks first, goes to the trash, and can be undone', () =>
       ui.click(ui.byText('#toast button', 'Undo'));
       await waitFor(() => ui.qa('.cell').length === 2, 'both back');
       assert.equal((await api(s, 'GET', '/api/images?folder=Nature')).length, 2);
+    }
+  ));
+
+test('re-sort: previews a folder, applies it, and offers batch undo', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Archive/Chisa original.png'));
+      put(path.join(lib, 'Archive/mystery.png'));
+      put(path.join(lib, 'Wuthering-Waves/Chisa/Chisa 1.png'));
+    },
+    '#/resort',
+    async (ui, s) => {
+      const scope = await waitFor(() => ui.q('select[aria-label="Re-sort scope"]'), 'the scope picker');
+      scope.value = 'Archive';
+      scope.dispatchEvent(new ui.w.Event('change', { bubbles: true }));
+      await waitFor(() => ui.byText('button', 'Scan and preview'), 'the preview button');
+      ui.click(ui.byText('button', 'Scan and preview'));
+      await waitFor(() => /1 change ready/.test(ui.q('.resort-summary').textContent), 'the re-sort preview');
+      assert.match(ui.q('.resort-list').textContent, /Chisa 2\.png/);
+      assert.match(ui.q('.resort-output').textContent, /Needs a decision/);
+      assert.ok(fs.existsSync(path.join(s.lib, 'Archive/Chisa original.png')), 'preview does not move the file');
+      ui.click(ui.byText('.resort-summary button', 'Apply 1 change'));
+      const dialog = await waitFor(() => ui.q('.dialog'), 'the confirmation');
+      ui.click(ui.byText('button', 'Apply re-sort', dialog));
+      await waitFor(() => /Re-sorted 1 file/.test(ui.toast()), 'the confirmation toast');
+      assert.ok(fs.existsSync(path.join(s.lib, 'Wuthering-Waves/Chisa/Chisa 2.png')));
+      ui.click(ui.byText('#toast button', 'Undo'));
+      await waitFor(() => fs.existsSync(path.join(s.lib, 'Archive/Chisa original.png')), 'the batch undo');
     }
   ));
 

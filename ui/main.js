@@ -10,10 +10,11 @@
     ['/tags', 'Tags', 'tags'],
     ['/duplicates', 'Duplicates', 'duplicates'],
     ['/data', 'Data', 'data'],
+    ['/resort', 'Re-sort', 'resort'],
     ['/activity', 'Activity', 'activity'],
     ['/settings', 'Settings', 'settings'],
   ];
-  const PAGES = { '/': 'overview', '/inbox': 'inbox', '/library': 'library', '/tags': 'tags', '/duplicates': 'duplicates', '/data': 'data', '/activity': 'activity', '/settings': 'settings' };
+  const PAGES = { '/': 'overview', '/inbox': 'inbox', '/library': 'library', '/tags': 'tags', '/duplicates': 'duplicates', '/data': 'data', '/resort': 'resort', '/activity': 'activity', '/settings': 'settings' };
 
   const ICONS = {
     overview: ['M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'],
@@ -22,6 +23,7 @@
     tags: ['M4 4h9l7 7-9 9-7-7z', 'M8 8h.01'],
     duplicates: ['M7 7h11v11H7zM3 3h11v4M3 3v11h4'],
     data: ['M4 5c0-2 16-2 16 0v14c0 2-16 2-16 0zm0 0c0 2 16 2 16 0M4 12c0 2 16 2 16 0'],
+    resort: ['M4 7h11l-3-3m3 3-3 3M20 17H9l3 3m-3-3 3-3'],
     activity: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2'],
     settings: ['M4 7h16M4 12h16M4 17h16M8 5v4M16 10v4M11 15v4'],
   };
