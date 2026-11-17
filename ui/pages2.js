@@ -365,13 +365,15 @@
         }
       },
     });
+    const watchedEntry = (path, badges) =>
+      h('div', { class: 'watched-entry' }, h('span', { class: 'm watched-path', text: path }), h('span', { class: 'watched-badges' }, ...badges));
 
     return page(
       'Settings',
       `version ${st.version}`,
       null,
       h('div', { class: 'panel' }, h('h2', { text: 'Numbering' }), h('div', { class: 'field' }, h('label', { text: 'Gaps in the numbering' }), gap, note)),
-      h('div', { class: 'panel watched-folders' }, h('h2', { text: 'Watched folders' }), h('div', { class: 'row' }, h('span', { class: 'm', text: st.library }), WS.badge('library, top level')), ...st.intake.map((i) => h('div', { class: 'row' }, h('span', { class: 'm', text: i.path }), WS.badge('includes subfolders'), i.exists ? null : WS.badge('not found yet', 'warn'))), h('p', { class: 'faint', text: `Edit these in the config file: ${st.config_file || 'not available'}` })),
+      h('div', { class: 'panel watched-folders' }, h('h2', { text: 'Watched folders' }), h('div', { class: 'watched-list' }, watchedEntry(st.library, [WS.badge('library, top level', 'good')]), ...st.intake.map((i) => watchedEntry(i.path, [WS.badge('includes subfolders'), i.exists ? null : WS.badge('not found yet', 'warn')]))), h('p', { class: 'faint', text: `Edit these in the config file: ${st.config_file || 'not available'}` })),
       h('div', { class: 'panel' }, h('h2', { text: 'Images' }), h('div', { class: 'row' }, ...s.image_extensions.map((e) => h('span', { class: 'tagchip', text: e }))), h('p', { class: 'faint', text: `Copies of images you already have go to the “${s.duplicates_folder}” folder.` })),
       h('div', { class: 'panel' }, h('h2', { text: 'Appearance' }), seg),
       h('div', { class: 'panel' }, h('h2', { text: 'Trash' }), h('p', { class: 'muted', text: 'Deleted images wait in a hidden folder inside the library until you empty it.' }), trash),
