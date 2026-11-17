@@ -52,7 +52,8 @@ to change it, `--no-web` to turn it off). The page there is the real UI (plain H
 
 What it does: it watches the library folder (top level only) and every folder listed under `[[intake]]` in the
 config (subfolders included, also ones created later). Files already waiting are sorted at start. Images in the
-library's subfolders are never touched; re-sorting them is a separate feature that is not built yet.
+library's subfolders are never touched automatically; the Re-sort page previews applying current tags to existing
+images, then applies the result as one undoable batch.
 It keeps its own files in `<library>/.sorter/` (hash cache, origin records, log); even `--dry-run` creates that folder.
 Try it on a copy of your library first: `--library /some/copy`.
 
@@ -112,5 +113,5 @@ To change a matching rule: edit `spec/ref_matcher.py`, run `cd spec && python3 g
 - `Cargo.lock` pins `indexmap`, `hashbrown`, `blake3` and `image` to older releases so the project also builds with Rust 1.75.
   BLAKE3 is built with its `pure` feature, so no C compiler is needed.
   On a current toolchain you can run `cargo update` to take the newest versions.
-- Not built yet: the re-sort page and its API (preview, apply, undo as one batch), the first-run welcome flow, creating/renaming/merging folders and changing a folder's prefix, "restore a duplicate as a new
+- Not built yet: the first-run welcome flow, creating/renaming/merging folders and changing a folder's prefix, "restore a duplicate as a new
   image", a size cap for the thumbnail cache, a size cap for the log.

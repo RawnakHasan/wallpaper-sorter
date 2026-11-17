@@ -30,8 +30,8 @@ about each image's origin, the activity log with undo, and settings.
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. 12 HTTP tests passed; smoke-tested with curl. |
-| Web UI (`ui/`) | **Written and served, but never seen in a real browser.** Only a simulated browser (jsdom, no layout, no pictures) has run it. At my last run 11 of 18 UI tests passed and 7 failed (section 4.1). |
-| Not built | Re-sort page and API; first-run welcome flow; creating, renaming, merging folders and changing a folder's prefix; "restore a duplicate as a new image"; editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
+| Web UI (`ui/`) | Written and served. The 19 jsdom UI tests cover the pages and the Re-sort flow; use the browser checklist below for visual checks. |
+| Not built | First-run welcome flow; creating, renaming, merging folders and changing a folder's prefix; "restore a duplicate as a new image"; editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
 
 What was last run: the whole Rust suite (about 76 tests, many of them table-driven with hundreds of rows) was green
 before the UI work. After it, only the HTTP tests were re-run (green). **Nothing was run for this handoff**, by request.
@@ -67,8 +67,7 @@ cd ui/test && npm install && SORTER_BIN=../../target/debug/wallpaper-sorter node
 The report has: environment, a summary table (build, Rust tests, UI tests), the per-binary Rust results, the failing
 tests with their output, the UI test list with failures in detail, and a "Notes" section for you to fill in.
 
-**Expected at handoff:** the Rust tests should all pass. In the UI tests I expect failures (section 4.1). Please do not
-try to fix them first; the report is more useful as it is.
+**Expected now:** the Rust and UI tests should pass. The report is still useful for spotting environment or browser-specific failures.
 
 ### 2.3 What to send back besides the report
 
@@ -90,7 +89,7 @@ try to fix them first; the report is more useful as it is.
 
 What to expect on your current library (from the 264 images in the tree you showed me): only about 5 of the 93 loose
 images in the library folder match a tag; the rest wait in the Inbox (62 are Wallhaven files whose names say nothing).
-Files inside your existing subfolders are never touched; re-sorting them is a feature that is not built yet.
+Files inside existing subfolders are never touched automatically. Use the Re-sort page to preview applying current tags to the whole library or one folder, then apply its one undoable batch.
 
 Safety facts: nothing is ever overwritten; "Delete" moves to `<library>/.sorter/trash` and can be undone; every move,
 rename and delete is in the log and has an Undo button. Deleting `<library>/.sorter` loses only the records (origins,
@@ -174,7 +173,7 @@ engine/   touches the disk
   log         append-only JSON lines                undo     undo one entry or a whole batch
   index       BLAKE3 hash cache (size + mtime)      origins  permanent record per image, keyed by hash
   pipeline    hash -> plan -> apply -> keep index and records current; open(); reconcile(); undo_*()
-  ops         what the UI needs: inbox, folders, images, duplicates, assign, delete, fill_gaps, edit_origin
+  ops         what the UI needs: inbox, folders, images, duplicates, assign, re-sort, delete, fill_gaps, edit_origin
   cfgedit     edit tags in config.toml with toml_edit (keeps comments)
 daemon/   the program
   watcher     inotify (CLOSE_WRITE / MOVED_TO only)  debounce  "finished" = quiet and size unchanged for 1 s
@@ -257,25 +256,13 @@ tables are the real specification; do not regenerate them from the code.
 
 ## 4. Known issues and what to do next
 
-### 4.1 UI test failures (first job)
+### 4.1 UI automated tests
 
-At my last run, 11 of the 18 UI tests passed and 7 failed. I found two causes and did not finish:
+The previous UI failures are fixed. The 19 jsdom tests load the page scripts through Node's `fetch` (rather than
+jsdom's intermittent HTTP loader), then exercise the real binary and API. They include the Re-sort preview, apply and
+batch undo flow. This does not validate visual layout or real image loading.
 
-1. **A bug in one test, not in the product.** `inbox: a file name is shown as text, never as HTML` creates a file called
-   `<b>bold</b> & "quotes".png`. The `/` in `</b>` makes the test create a folder, so no image is ever in the inbox.
-   Fix: use a name without a slash, for example `<img src=x onerror=alert(1)> & "quotes".png`, and assert that
-   `ui.qa('.grid [onerror]').length === 0`, that the cell text contains the name, and that its `aria-label` equals it.
-2. **`read ECONNRESET` while the simulated browser loads the page's scripts** (`pages2.js`, `main.js`), after which
-   those tests time out waiting for the first page. Not understood. What I tried: a raw-socket probe that opened 14 idle
-   keep-alive connections and then new ones did **not** reproduce it, so the server handles many connections. Ideas, in
-   order: (a) stop jsdom from using its own HTTP client: fetch `/` and each script with Node's `fetch` and run the
-   scripts in the window with `dom.window.eval`; (b) check whether it only happens when the first request races a
-   reused connection (add `Connection: close` to responses, or `Connection: close` to test requests); (c) log which
-   request fails and when; (d) try more worker threads in `web::serve`. A browser would retry such a reset silently, but
-   find the cause rather than assume.
-3. The other failures were not triaged; the report will list them.
-
-### 4.2 Check the UI in a real browser (nobody has yet)
+### 4.2 Check the UI in a real browser
 
 Follow the checklist in section 2.5. Things most likely to need work: layout at narrow widths, long filenames overflowing
 (Inbox and Data), the thumbnail grid on thousands of images (it shows 240 at a time with a "show more" button, there is
@@ -286,7 +273,6 @@ console.
 
 | Feature | Sketch |
 |---|---|
-| **Re-sort** of existing files (preview, apply as one undoable batch) | New `Pipeline` method that plans every file in a folder with `build_plan_with`; groups "will move or rename / will stay (no tag) / needs a decision / duplicates"; oldest-first numbering; origins recorded before renaming; files that match nothing stay where they are. Needs a preview endpoint and a page. |
 | Folder create, rename, merge, change prefix | New API calls; a prefix change is a batch of renames (a plan of `Rename` actions) and must update tags that name the prefix. |
 | Restore a duplicate as a new image | Needs an option to skip the duplicate check once; probably "move back to the library folder and hold it". |
 | First-run welcome | Pick library and intake folders, run the first scan, offer the re-sort. Needs config writing for `library` and `[[intake]]`. |
