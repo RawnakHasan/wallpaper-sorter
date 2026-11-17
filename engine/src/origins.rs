@@ -44,7 +44,10 @@ impl OriginStore {
                     continue;
                 }
                 let o: Origin = serde_json::from_str(&line).map_err(|e| {
-                    io::Error::new(io::ErrorKind::InvalidData, format!("{}: line {}: {e}", path.display(), i + 1))
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{}: line {}: {e}", path.display(), i + 1),
+                    )
                 })?;
                 map.insert(o.hash.clone(), o);
             }
@@ -55,7 +58,10 @@ impl OriginStore {
     pub fn save(&self) -> io::Result<()> {
         let mut text = String::new();
         for o in self.map.values() {
-            text.push_str(&serde_json::to_string(o).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?);
+            text.push_str(
+                &serde_json::to_string(o)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            );
             text.push('\n');
         }
         write_atomic(&self.path, &text)
@@ -87,8 +93,14 @@ impl OriginStore {
 
     /// Updates the path of the record that currently has `old`.
     pub fn set_path(&mut self, old: &str, new: &str) {
-        if let Some(o) = self.map.values_mut().find(|o| o.path == old) {
-            o.path = new.to_string();
+        for o in self.map.values_mut() {
+            if o.path == old
+                || o.path
+                    .strip_prefix(old)
+                    .map_or(false, |tail| tail.starts_with('/'))
+            {
+                o.path = format!("{new}{}", o.path.strip_prefix(old).unwrap_or_default());
+            }
         }
     }
 

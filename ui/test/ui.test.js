@@ -362,6 +362,75 @@ test('library: browse a folder and close the gaps', () =>
     }
   ));
 
+test('library: create folders and manage prefix, rename, and merge', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Nature/Nature 1.png'));
+      put(path.join(lib, 'Archive/old.png'));
+    },
+    '#/library?folder=Nature',
+    async (ui, s) => {
+      await waitFor(() => ui.qa('.cell').length === 1, 'the Nature image');
+      ui.click(ui.byText('button', 'New folder'));
+      let sheet = await waitFor(() => ui.q('.sheet'), 'the create folder sheet');
+      ui.type(ui.q('input[aria-label="New folder path"]', sheet), 'Originals/Empty');
+      ui.click(ui.byText('footer button', 'Create folder', sheet));
+      await waitFor(() => (ui.q('.page') || {}).textContent.includes('No images'), 'the empty folder page');
+      assert.equal((await api(s, 'GET', '/api/folders')).some((f) => f.path === 'Originals/Empty'), true);
+
+      ui.go('#/library?folder=Nature');
+      await waitFor(() => ui.q('.page-head h1').textContent === 'Nature', 'Nature folder');
+      ui.click(ui.byText('button', 'Manage folder'));
+      sheet = await waitFor(() => ui.q('.sheet'), 'the folder management sheet');
+      ui.type(ui.q('input[aria-label="File prefix"]', sheet), 'Scenery');
+      ui.click(ui.byText('button', 'Preview prefix', sheet));
+      const prefixPreview = () => ui.qa('.folder-preview', sheet)[2];
+      await waitFor(() => prefixPreview().textContent, 'prefix preview');
+      assert.match(prefixPreview().textContent, /1 file will change/);
+      ui.click(ui.byText('button', 'Save prefix', sheet));
+      let dialog = await waitFor(() => ui.q('.dialog'), 'prefix confirmation');
+      ui.click(ui.byText('button', 'Save prefix', dialog));
+      await waitFor(() => /Prefix changed/.test(ui.toast()), 'prefix update');
+      assert.ok(fs.existsSync(path.join(s.lib, 'Nature/Scenery 1.png')));
+      ui.click(ui.byText('#toast button', 'Undo'));
+      await waitFor(() => fs.existsSync(path.join(s.lib, 'Nature/Nature 1.png')), 'prefix undo');
+
+      ui.click(ui.byText('button', 'Manage folder'));
+      sheet = await waitFor(() => ui.q('.sheet'), 'the folder management sheet');
+      ui.type(ui.q('input[aria-label="File prefix"]', sheet), 'Scenery');
+      ui.click(ui.byText('button', 'Preview prefix', sheet));
+      await waitFor(() => /1 file will change/.test(ui.qa('.folder-preview', sheet)[2].textContent), 'prefix preview again');
+      ui.click(ui.byText('button', 'Save prefix', sheet));
+      dialog = await waitFor(() => ui.q('.dialog'), 'prefix confirmation again');
+      ui.click(ui.byText('button', 'Save prefix', dialog));
+      await waitFor(() => fs.existsSync(path.join(s.lib, 'Nature/Scenery 1.png')), 'prefix reapply');
+
+      ui.click(ui.byText('button', 'Manage folder'));
+      sheet = await waitFor(() => ui.q('.sheet'), 'the folder management sheet');
+      ui.type(ui.q('input[aria-label="New folder path"]', sheet), 'Nature-Scenes');
+      ui.click(ui.byText('button', 'Preview rename', sheet));
+      await waitFor(() => /Nature → Nature-Scenes/.test(ui.q('.folder-preview', sheet).textContent), 'rename preview');
+      ui.click(ui.byText('button', 'Rename folder', sheet));
+      dialog = await waitFor(() => ui.q('.dialog'), 'rename confirmation');
+      ui.click(ui.byText('button', 'Rename folder', dialog));
+      await waitFor(() => /Renamed Nature/.test(ui.toast()), 'rename update');
+      assert.ok(fs.existsSync(path.join(s.lib, 'Nature-Scenes/Scenery 1.png')));
+
+      await waitFor(() => ui.q('.page-head h1').textContent === 'Nature-Scenes', 'the renamed folder page');
+      ui.click(ui.byText('button', 'Manage folder'));
+      sheet = await waitFor(() => ui.q('.sheet'), 'the folder management sheet');
+      ui.q('select[aria-label="Merge destination"]', sheet).value = 'Archive';
+      ui.click(ui.byText('button', 'Preview merge', sheet));
+      await waitFor(() => /1 file will change/.test(ui.qa('.folder-preview', sheet)[1].textContent), 'merge preview');
+      ui.click(ui.byText('button', 'Merge folders', sheet));
+      dialog = await waitFor(() => ui.q('.dialog'), 'merge confirmation');
+      ui.click(ui.byText('button', 'Merge folders', dialog));
+      await waitFor(() => /Merged Nature-Scenes/.test(ui.toast()), 'merge update');
+      assert.ok(fs.existsSync(path.join(s.lib, 'Archive/Archive 1.png')));
+      await waitFor(() => ui.q('.page-head h1').textContent === 'Archive', 'the merge destination page');
+    }
+  ));
+
 test('library: delete asks first, goes to the trash, and can be undone', () =>
   withSorter(
     (lib) => {
@@ -401,6 +470,8 @@ test('re-sort: previews a folder, applies it, and offers batch undo', () =>
       scope.dispatchEvent(new ui.w.Event('change', { bubbles: true }));
       await waitFor(() => ui.byText('button', 'Scan and preview'), 'the preview button');
       ui.click(ui.byText('button', 'Scan and preview'));
+      await waitFor(() => ui.q('.resort-summary') || ui.toast(), 'the re-sort response');
+      assert.ok(ui.q('.resort-summary'), ui.toast());
       await waitFor(() => /1 change ready/.test(ui.q('.resort-summary').textContent), 'the re-sort preview');
       assert.match(ui.q('.resort-list').textContent, /Chisa 2\.png/);
       assert.match(ui.q('.resort-output').textContent, /Needs a decision/);
@@ -410,8 +481,10 @@ test('re-sort: previews a folder, applies it, and offers batch undo', () =>
       ui.click(ui.byText('button', 'Apply re-sort', dialog));
       await waitFor(() => /Re-sorted 1 file/.test(ui.toast()), 'the confirmation toast');
       assert.ok(fs.existsSync(path.join(s.lib, 'Wuthering-Waves/Chisa/Chisa 2.png')));
+      const beforeUndoRefresh = ui.q('.resort-output');
       ui.click(ui.byText('#toast button', 'Undo'));
       await waitFor(() => fs.existsSync(path.join(s.lib, 'Archive/Chisa original.png')), 'the batch undo');
+      await waitFor(() => ui.q('.resort-output') !== beforeUndoRefresh, 'the restored Re-sort page');
     }
   ));
 

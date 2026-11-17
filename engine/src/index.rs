@@ -43,9 +43,12 @@ pub fn file_stat(path: &Path) -> io::Result<(u64, u64)> {
 }
 
 pub fn rel_inside(root: &Path, p: &Path) -> Option<String> {
-    p.strip_prefix(root)
-        .ok()
-        .map(|r| r.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect::<Vec<_>>().join("/"))
+    p.strip_prefix(root).ok().map(|r| {
+        r.components()
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .collect::<Vec<_>>()
+            .join("/")
+    })
 }
 
 pub struct Index {
@@ -64,7 +67,10 @@ impl Index {
                     continue;
                 }
                 let e: IndexEntry = serde_json::from_str(&line).map_err(|e| {
-                    io::Error::new(io::ErrorKind::InvalidData, format!("{}: line {}: {e}", path.display(), i + 1))
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{}: line {}: {e}", path.display(), i + 1),
+                    )
                 })?;
                 entries.insert(e.path.clone(), e);
             }
@@ -75,7 +81,10 @@ impl Index {
     pub fn save(&self) -> io::Result<()> {
         let mut text = String::new();
         for e in self.entries.values() {
-            text.push_str(&serde_json::to_string(e).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?);
+            text.push_str(
+                &serde_json::to_string(e)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            );
             text.push('\n');
         }
         write_atomic(&self.path, &text)
@@ -106,14 +115,30 @@ impl Index {
     }
 
     pub fn rename(&mut self, old: &str, new: &str) {
-        if let Some(mut e) = self.entries.remove(old) {
-            e.path = new.to_string();
-            self.entries.insert(new.to_string(), e);
+        let moved: Vec<IndexEntry> = self
+            .entries
+            .values()
+            .filter(|e| {
+                e.path == old
+                    || e.path
+                        .strip_prefix(old)
+                        .map_or(false, |tail| tail.starts_with('/'))
+            })
+            .cloned()
+            .collect();
+        for mut e in moved {
+            self.entries.remove(&e.path);
+            e.path = format!("{new}{}", e.path.strip_prefix(old).unwrap_or_default());
+            self.entries.insert(e.path.clone(), e);
         }
     }
 
     pub fn paths_for_hash(&self, hash: &str) -> Vec<&str> {
-        self.entries.values().filter(|e| e.hash == hash).map(|e| e.path.as_str()).collect()
+        self.entries
+            .values()
+            .filter(|e| e.hash == hash)
+            .map(|e| e.path.as_str())
+            .collect()
     }
 
     /// hash -> path of the first file with that content, leaving out the Duplicates folder
@@ -124,7 +149,11 @@ impl Index {
 
     /// Like `library_hashes`, but ignoring the given paths. Used when files that are already in the library
     /// are looked at again: a file must never count as the original of itself.
-    pub fn library_hashes_except(&self, duplicates_folder: &str, except: &BTreeSet<String>) -> HashMap<String, String> {
+    pub fn library_hashes_except(
+        &self,
+        duplicates_folder: &str,
+        except: &BTreeSet<String>,
+    ) -> HashMap<String, String> {
         let dup_prefix = format!("{duplicates_folder}/");
         let mut out = HashMap::new();
         for e in self.entries.values() {
@@ -140,10 +169,21 @@ impl Index {
     pub fn existing_duplicates(&self, duplicates_folder: &str) -> Vec<(String, Vec<String>)> {
         let dup_prefix = format!("{duplicates_folder}/");
         let mut by_hash: BTreeMap<&str, Vec<String>> = BTreeMap::new();
-        for e in self.entries.values().filter(|e| !e.path.starts_with(&dup_prefix)) {
-            by_hash.entry(e.hash.as_str()).or_default().push(e.path.clone());
+        for e in self
+            .entries
+            .values()
+            .filter(|e| !e.path.starts_with(&dup_prefix))
+        {
+            by_hash
+                .entry(e.hash.as_str())
+                .or_default()
+                .push(e.path.clone());
         }
-        by_hash.into_iter().filter(|(_, v)| v.len() > 1).map(|(h, v)| (h.to_string(), v)).collect()
+        by_hash
+            .into_iter()
+            .filter(|(_, v)| v.len() > 1)
+            .map(|(h, v)| (h.to_string(), v))
+            .collect()
     }
 
     /// Walks the library (hidden folders are skipped), keeps the cached hash of every image whose size and
@@ -181,13 +221,26 @@ impl Index {
                     Some(old) if old.size == size && old.mtime_ns == mtime_ns => stats.reused += 1,
                     _ => {
                         let hash = hash_file(&entry.path())?;
-                        self.entries.insert(rel.clone(), IndexEntry { path: rel, size, mtime_ns, hash });
+                        self.entries.insert(
+                            rel.clone(),
+                            IndexEntry {
+                                path: rel,
+                                size,
+                                mtime_ns,
+                                hash,
+                            },
+                        );
                         stats.hashed += 1;
                     }
                 }
             }
         }
-        let gone: Vec<String> = self.entries.keys().filter(|k| !seen.contains(*k)).cloned().collect();
+        let gone: Vec<String> = self
+            .entries
+            .keys()
+            .filter(|k| !seen.contains(*k))
+            .cloned()
+            .collect();
         stats.removed = gone.len();
         for g in gone {
             self.entries.remove(&g);

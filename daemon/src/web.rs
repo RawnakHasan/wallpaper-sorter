@@ -8,7 +8,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sorter_core::matcher::{split_name, tokens};
 use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site};
-use sorter_engine::cfgedit::{add_tag, delete_tag, set_gap_mode, update_tag, TagSpec};
+use sorter_engine::cfgedit::{
+    add_folder, add_tag, delete_tag, merge_folder as edit_merge_folder,
+    rename_folder as edit_rename_folder, set_folder_prefix, set_gap_mode, update_tag, TagSpec,
+};
 use sorter_engine::{Origin, Outcome, UndoError};
 use std::collections::HashMap;
 use std::io::{self, Read};
@@ -42,10 +45,19 @@ struct Ctx {
 
 /// Starts the server on 127.0.0.1:`port` (0 picks a free port) in background threads.
 pub fn serve(shared: Arc<Shared>, port: u16, thumbs: Thumbs) -> io::Result<WebServer> {
-    let server = Server::http(("127.0.0.1", port)).map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-    let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or(port);
+    let server = Server::http(("127.0.0.1", port))
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+    let port = server
+        .server_addr()
+        .to_ip()
+        .map(|a| a.port())
+        .unwrap_or(port);
     let server = Arc::new(server);
-    let ctx = Arc::new(Ctx { shared, thumbs, port });
+    let ctx = Arc::new(Ctx {
+        shared,
+        thumbs,
+        port,
+    });
     for _ in 0..6 {
         let (server, ctx) = (server.clone(), ctx.clone());
         std::thread::spawn(move || {
@@ -67,18 +79,42 @@ struct Resp {
 
 impl Resp {
     fn json(status: u16, v: &impl Serialize) -> Resp {
-        Resp { status, content_type: "application/json", cache: "no-store", csp: None, body: serde_json::to_vec(v).unwrap_or_default() }
+        Resp {
+            status,
+            content_type: "application/json",
+            cache: "no-store",
+            csp: None,
+            body: serde_json::to_vec(v).unwrap_or_default(),
+        }
     }
     /// The design mock-up: it has its own inline script, so it gets no page policy.
     fn html(body: &'static str) -> Resp {
-        Resp { status: 200, content_type: "text/html; charset=utf-8", cache: "no-store", csp: None, body: body.as_bytes().to_vec() }
+        Resp {
+            status: 200,
+            content_type: "text/html; charset=utf-8",
+            cache: "no-store",
+            csp: None,
+            body: body.as_bytes().to_vec(),
+        }
     }
     /// A file of the UI itself.
     fn asset(content_type: &'static str, body: &'static [u8], cache: &'static str) -> Resp {
-        Resp { status: 200, content_type, cache, csp: Some(PAGE_CSP), body: body.to_vec() }
+        Resp {
+            status: 200,
+            content_type,
+            cache,
+            csp: Some(PAGE_CSP),
+            body: body.to_vec(),
+        }
     }
     fn image(content_type: &'static str, body: Vec<u8>) -> Resp {
-        Resp { status: 200, content_type, cache: "public, max-age=31536000, immutable", csp: None, body }
+        Resp {
+            status: 200,
+            content_type,
+            cache: "public, max-age=31536000, immutable",
+            csp: None,
+            body,
+        }
     }
 }
 
@@ -89,7 +125,10 @@ struct ApiError {
 
 impl ApiError {
     fn new(status: u16, msg: impl Into<String>) -> ApiError {
-        ApiError { status, msg: msg.into() }
+        ApiError {
+            status,
+            msg: msg.into(),
+        }
     }
 }
 
@@ -109,7 +148,9 @@ impl From<UndoError> for ApiError {
     fn from(e: UndoError) -> ApiError {
         let status = match e {
             UndoError::NotFound(_) => 404,
-            UndoError::AlreadyUndone(_) | UndoError::NotUndoable(_) | UndoError::FileMovedSince(_) => 409,
+            UndoError::AlreadyUndone(_)
+            | UndoError::NotUndoable(_)
+            | UndoError::FileMovedSince(_) => 409,
             _ => 500,
         };
         ApiError::new(status, e.to_string())
@@ -121,7 +162,8 @@ fn header(name: &str, value: &str) -> Header {
 }
 
 fn handle(ctx: &Ctx, mut req: Request) {
-    let resp = route(ctx, &mut req).unwrap_or_else(|e| Resp::json(e.status, &json!({ "error": e.msg })));
+    let resp =
+        route(ctx, &mut req).unwrap_or_else(|e| Resp::json(e.status, &json!({ "error": e.msg })));
     let mut r = Response::from_data(resp.body).with_status_code(resp.status);
     r.add_header(header("Content-Type", resp.content_type));
     r.add_header(header("Cache-Control", resp.cache));
@@ -133,13 +175,19 @@ fn handle(ctx: &Ctx, mut req: Request) {
 }
 
 fn header_value(req: &Request, name: &str) -> Option<String> {
-    req.headers().iter().find(|h| h.field.to_string().eq_ignore_ascii_case(name)).map(|h| h.value.as_str().to_string())
+    req.headers()
+        .iter()
+        .find(|h| h.field.to_string().eq_ignore_ascii_case(name))
+        .map(|h| h.value.as_str().to_string())
 }
 
 /// Only pages served from this very address may talk to the API. This keeps other websites (and DNS tricks)
 /// from reaching it through the browser.
 fn check_request(ctx: &Ctx, req: &Request) -> Result<(), ApiError> {
-    let hosts = [format!("127.0.0.1:{}", ctx.port), format!("localhost:{}", ctx.port)];
+    let hosts = [
+        format!("127.0.0.1:{}", ctx.port),
+        format!("localhost:{}", ctx.port),
+    ];
     if !header_value(req, "Host").map_or(false, |h| hosts.contains(&h)) {
         return Err(ApiError::new(403, "unexpected Host header"));
     }
@@ -152,7 +200,10 @@ fn check_request(ctx: &Ctx, req: &Request) -> Result<(), ApiError> {
         }
     }
     if !header_value(req, "Content-Type").map_or(false, |c| c.starts_with("application/json")) {
-        return Err(ApiError::new(415, "send JSON with Content-Type: application/json"));
+        return Err(ApiError::new(
+            415,
+            "send JSON with Content-Type: application/json",
+        ));
     }
     Ok(())
 }
@@ -164,7 +215,9 @@ fn percent_decode(s: &str, plus_is_space: bool) -> String {
     while i < b.len() {
         match b[i] {
             b'%' if i + 2 < b.len() => {
-                let hex = std::str::from_utf8(&b[i + 1..i + 3]).ok().and_then(|h| u8::from_str_radix(h, 16).ok());
+                let hex = std::str::from_utf8(&b[i + 1..i + 3])
+                    .ok()
+                    .and_then(|h| u8::from_str_radix(h, 16).ok());
                 match hex {
                     Some(v) => {
                         out.push(v);
@@ -191,7 +244,11 @@ fn percent_decode(s: &str, plus_is_space: bool) -> String {
 
 fn split_url(url: &str) -> (Vec<String>, HashMap<String, String>) {
     let (path, query) = url.split_once('?').unwrap_or((url, ""));
-    let segs = path.trim_matches('/').split('/').map(|s| percent_decode(s, false)).collect();
+    let segs = path
+        .trim_matches('/')
+        .split('/')
+        .map(|s| percent_decode(s, false))
+        .collect();
     let q = query
         .split('&')
         .filter(|s| !s.is_empty())
@@ -205,7 +262,10 @@ fn split_url(url: &str) -> (Vec<String>, HashMap<String, String>) {
 
 fn read_json<T: DeserializeOwned>(req: &mut Request) -> Result<T, ApiError> {
     let mut buf = Vec::new();
-    req.as_reader().take(2_000_000).read_to_end(&mut buf).map_err(|e| ApiError::new(400, e.to_string()))?;
+    req.as_reader()
+        .take(2_000_000)
+        .read_to_end(&mut buf)
+        .map_err(|e| ApiError::new(400, e.to_string()))?;
     serde_json::from_slice(&buf).map_err(|e| ApiError::new(400, format!("bad JSON: {e}")))
 }
 
@@ -252,6 +312,20 @@ struct ResortBody {
     #[serde(default)]
     folder: Option<String>,
 }
+#[derive(Deserialize)]
+struct FolderBody {
+    folder: String,
+}
+#[derive(Deserialize)]
+struct FolderChangeBody {
+    from: String,
+    to: String,
+}
+#[derive(Deserialize)]
+struct FolderPrefixBody {
+    folder: String,
+    prefix: String,
+}
 
 fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
     check_request(ctx, req)?;
@@ -259,37 +333,114 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
     let (segs, query) = split_url(req.url());
     let segs: Vec<&str> = segs.iter().map(|s| s.as_str()).collect();
     match (method, segs.as_slice()) {
-        (Method::Get, [""]) => Ok(Resp::asset("text/html; charset=utf-8", INDEX_HTML.as_bytes(), "no-cache")),
-        (Method::Get, ["app.css"]) => Ok(Resp::asset("text/css; charset=utf-8", APP_CSS.as_bytes(), "no-cache")),
-        (Method::Get, ["core.js"]) => Ok(Resp::asset("text/javascript; charset=utf-8", CORE_JS.as_bytes(), "no-cache")),
-        (Method::Get, ["pages.js"]) => Ok(Resp::asset("text/javascript; charset=utf-8", PAGES_JS.as_bytes(), "no-cache")),
-        (Method::Get, ["pages2.js"]) => Ok(Resp::asset("text/javascript; charset=utf-8", PAGES2_JS.as_bytes(), "no-cache")),
-        (Method::Get, ["main.js"]) => Ok(Resp::asset("text/javascript; charset=utf-8", MAIN_JS.as_bytes(), "no-cache")),
-        (Method::Get, ["fonts", "hanken-grotesk.woff2"]) => Ok(Resp::asset("font/woff2", FONT_TEXT, "public, max-age=86400")),
-        (Method::Get, ["fonts", "jetbrains-mono.woff2"]) => Ok(Resp::asset("font/woff2", FONT_MONO, "public, max-age=86400")),
+        (Method::Get, [""]) => Ok(Resp::asset(
+            "text/html; charset=utf-8",
+            INDEX_HTML.as_bytes(),
+            "no-cache",
+        )),
+        (Method::Get, ["app.css"]) => Ok(Resp::asset(
+            "text/css; charset=utf-8",
+            APP_CSS.as_bytes(),
+            "no-cache",
+        )),
+        (Method::Get, ["core.js"]) => Ok(Resp::asset(
+            "text/javascript; charset=utf-8",
+            CORE_JS.as_bytes(),
+            "no-cache",
+        )),
+        (Method::Get, ["pages.js"]) => Ok(Resp::asset(
+            "text/javascript; charset=utf-8",
+            PAGES_JS.as_bytes(),
+            "no-cache",
+        )),
+        (Method::Get, ["pages2.js"]) => Ok(Resp::asset(
+            "text/javascript; charset=utf-8",
+            PAGES2_JS.as_bytes(),
+            "no-cache",
+        )),
+        (Method::Get, ["main.js"]) => Ok(Resp::asset(
+            "text/javascript; charset=utf-8",
+            MAIN_JS.as_bytes(),
+            "no-cache",
+        )),
+        (Method::Get, ["fonts", "hanken-grotesk.woff2"]) => Ok(Resp::asset(
+            "font/woff2",
+            FONT_TEXT,
+            "public, max-age=86400",
+        )),
+        (Method::Get, ["fonts", "jetbrains-mono.woff2"]) => Ok(Resp::asset(
+            "font/woff2",
+            FONT_MONO,
+            "public, max-age=86400",
+        )),
         (Method::Get, ["design"]) => Ok(Resp::html(DESIGN_HTML)),
 
         (Method::Get, ["api", "status"]) => status(ctx),
         (Method::Get, ["api", "inbox"]) => Ok(Resp::json(200, &ctx.shared.lock().inbox()?)),
         (Method::Get, ["api", "folders"]) => Ok(Resp::json(200, &ctx.shared.lock().folders()?)),
         (Method::Get, ["api", "images"]) => {
-            let folder = query.get("folder").ok_or_else(|| ApiError::new(400, "folder is required"))?;
+            let folder = query
+                .get("folder")
+                .ok_or_else(|| ApiError::new(400, "folder is required"))?;
             Ok(Resp::json(200, &ctx.shared.lock().images(folder)?))
         }
-        (Method::Get, ["api", "duplicates"]) => Ok(Resp::json(200, &ctx.shared.lock().duplicates()?)),
+        (Method::Get, ["api", "duplicates"]) => {
+            Ok(Resp::json(200, &ctx.shared.lock().duplicates()?))
+        }
         (Method::Get, ["api", "data"]) => data(ctx, &query),
         (Method::Get, ["api", "activity"]) => activity(ctx, &query),
         (Method::Get, ["api", "tags"]) => Ok(Resp::json(200, &tags_json(ctx))),
         (Method::Get, ["api", "settings"]) => Ok(Resp::json(200, &ctx.shared.lock().cfg.settings)),
         (Method::Get, ["api", "gap-fill"]) => {
-            let folder = query.get("folder").ok_or_else(|| ApiError::new(400, "folder is required"))?;
+            let folder = query
+                .get("folder")
+                .ok_or_else(|| ApiError::new(400, "folder is required"))?;
             let mode = parse_mode(query.get("mode").map(|s| s.as_str()).unwrap_or(""))?;
             let renames = ctx.shared.lock().gap_fill_preview(folder, mode)?;
-            Ok(Resp::json(200, &renames.iter().map(|r| json!({ "from": r.from, "to": r.to })).collect::<Vec<_>>()))
+            Ok(Resp::json(
+                200,
+                &renames
+                    .iter()
+                    .map(|r| json!({ "from": r.from, "to": r.to }))
+                    .collect::<Vec<_>>(),
+            ))
         }
         (Method::Get, ["api", "resort"]) => {
-            let folder = query.get("folder").filter(|s| !s.is_empty()).map(String::as_str);
+            let folder = query
+                .get("folder")
+                .filter(|s| !s.is_empty())
+                .map(String::as_str);
             let plan = ctx.shared.lock().resort_preview(folder)?;
+            Ok(Resp::json(200, &resort_json(&plan)))
+        }
+        (Method::Get, ["api", "folder-rename"]) => {
+            let from = query
+                .get("from")
+                .ok_or_else(|| ApiError::new(400, "from is required"))?;
+            let to = query
+                .get("to")
+                .ok_or_else(|| ApiError::new(400, "to is required"))?;
+            let plan = ctx.shared.lock().rename_folder_preview(from, to)?;
+            Ok(Resp::json(200, &resort_json(&plan)))
+        }
+        (Method::Get, ["api", "folder-merge"]) => {
+            let from = query
+                .get("from")
+                .ok_or_else(|| ApiError::new(400, "from is required"))?;
+            let to = query
+                .get("to")
+                .ok_or_else(|| ApiError::new(400, "to is required"))?;
+            let plan = ctx.shared.lock().merge_folder_preview(from, to)?;
+            Ok(Resp::json(200, &resort_json(&plan)))
+        }
+        (Method::Get, ["api", "folder-prefix"]) => {
+            let folder = query
+                .get("folder")
+                .ok_or_else(|| ApiError::new(400, "folder is required"))?;
+            let prefix = query
+                .get("prefix")
+                .ok_or_else(|| ApiError::new(400, "prefix is required"))?;
+            let plan = ctx.shared.lock().prefix_change_preview(folder, prefix)?;
             Ok(Resp::json(200, &resort_json(&plan)))
         }
         (Method::Get, ["api", "thumb", hash]) => {
@@ -309,7 +460,9 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 p.assign(&files, &b.folder)?
             };
             if let Some(spec) = b.tag {
-                ctx.shared.edit_config(|t| add_tag(t, &spec)).map_err(|e| ApiError::new(400, e))?;
+                ctx.shared
+                    .edit_config(|t| add_tag(t, &spec))
+                    .map_err(|e| ApiError::new(400, e))?;
                 ctx.shared.request_rescan();
             }
             Ok(Resp::json(200, &outcome_json(&out)))
@@ -328,11 +481,18 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 (None, Some(id)) => vec![ctx.shared.undo_entry(id)?],
                 _ => return Err(ApiError::new(400, "send either batch or id")),
             };
-            Ok(Resp::json(200, &json!({ "undone": entries.iter().map(|e| json!({"id": e.id, "from": e.from, "to": e.to})).collect::<Vec<_>>() })))
+            Ok(Resp::json(
+                200,
+                &json!({ "undone": entries.iter().map(|e| json!({"id": e.id, "from": e.from, "to": e.to})).collect::<Vec<_>>() }),
+            ))
         }
         (Method::Post, ["api", "duplicates", "empty"]) => {
             let mut p = ctx.shared.lock();
-            let files: Vec<PathBuf> = p.duplicates()?.iter().map(|d| p.root.join(&d.path)).collect();
+            let files: Vec<PathBuf> = p
+                .duplicates()?
+                .iter()
+                .map(|d| p.root.join(&d.path))
+                .collect();
             let out = p.delete(&files)?;
             Ok(Resp::json(200, &outcome_json(&out)))
         }
@@ -351,6 +511,99 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             let out = ctx.shared.lock().resort(b.folder.as_deref())?;
             Ok(Resp::json(200, &outcome_json(&out)))
         }
+        (Method::Post, ["api", "folders"]) => {
+            let b: FolderBody = read_json(req)?;
+            if ctx.shared.config_path.is_none() {
+                return Err(ApiError::new(
+                    400,
+                    "creating folders requires a config file",
+                ));
+            }
+            ctx.shared.lock().create_folder(&b.folder)?;
+            if let Err(e) = ctx
+                .shared
+                .edit_config(|text| add_folder(text, &b.folder, None))
+            {
+                let _ = std::fs::remove_dir(ctx.shared.lock().root.join(&b.folder));
+                return Err(ApiError::new(400, e));
+            }
+            Ok(Resp::json(200, &json!({ "folder": b.folder })))
+        }
+        (Method::Post, ["api", "folder-rename"]) => {
+            let b: FolderChangeBody = read_json(req)?;
+            if ctx.shared.config_path.is_none() {
+                return Err(ApiError::new(400, "folder renames require a config file"));
+            }
+            let plan = ctx.shared.lock().rename_folder_preview(&b.from, &b.to)?;
+            if plan.actions.is_empty()
+                || plan
+                    .actions
+                    .iter()
+                    .any(|a| matches!(a, Action::Leave { .. }))
+            {
+                return Err(ApiError::new(
+                    409,
+                    "folder rename has no movable images or contains destination conflicts",
+                ));
+            }
+            let config_before = ctx
+                .shared
+                .config_text()
+                .map_err(|e| ApiError::new(400, e))?;
+            let out = ctx.shared.lock().rename_folder(&b.from, &b.to)?;
+            finish_folder_change(ctx, &out, config_before, |text| {
+                edit_rename_folder(text, &b.from, &b.to)
+            })?;
+            Ok(Resp::json(200, &outcome_json(&out)))
+        }
+        (Method::Post, ["api", "folder-merge"]) => {
+            let b: FolderChangeBody = read_json(req)?;
+            if ctx.shared.config_path.is_none() {
+                return Err(ApiError::new(400, "folder merges require a config file"));
+            }
+            let plan = ctx.shared.lock().merge_folder_preview(&b.from, &b.to)?;
+            if plan.actions.is_empty() {
+                return Err(ApiError::new(409, "source folder has no images to merge"));
+            }
+            let config_before = ctx
+                .shared
+                .config_text()
+                .map_err(|e| ApiError::new(400, e))?;
+            let out = ctx.shared.lock().merge_folder(&b.from, &b.to)?;
+            finish_folder_change(ctx, &out, config_before, |text| {
+                edit_merge_folder(text, &b.from, &b.to)
+            })?;
+            Ok(Resp::json(200, &outcome_json(&out)))
+        }
+        (Method::Put, ["api", "folder-prefix"]) => {
+            let b: FolderPrefixBody = read_json(req)?;
+            if ctx.shared.config_path.is_none() {
+                return Err(ApiError::new(400, "folder prefixes require a config file"));
+            }
+            let plan = ctx
+                .shared
+                .lock()
+                .prefix_change_preview(&b.folder, &b.prefix)?;
+            if plan
+                .actions
+                .iter()
+                .any(|a| matches!(a, Action::Leave { .. }))
+            {
+                return Err(ApiError::new(
+                    409,
+                    "prefix change contains destination conflicts",
+                ));
+            }
+            let config_before = ctx
+                .shared
+                .config_text()
+                .map_err(|e| ApiError::new(400, e))?;
+            let out = ctx.shared.lock().change_prefix(&b.folder, &b.prefix)?;
+            finish_folder_change(ctx, &out, config_before, |text| {
+                set_folder_prefix(text, &b.folder, &b.prefix)
+            })?;
+            Ok(Resp::json(200, &outcome_json(&out)))
+        }
         (Method::Post, ["api", "rescan"]) => {
             ctx.shared.request_rescan();
             Ok(Resp::json(200, &json!({ "ok": true })))
@@ -361,25 +614,36 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
         }
         (Method::Post, ["api", "tags"]) => {
             let spec: TagSpec = read_json(req)?;
-            ctx.shared.edit_config(|t| add_tag(t, &spec)).map_err(|e| ApiError::new(400, e))?;
+            ctx.shared
+                .edit_config(|t| add_tag(t, &spec))
+                .map_err(|e| ApiError::new(400, e))?;
             ctx.shared.request_rescan();
             Ok(Resp::json(200, &tags_json(ctx)))
         }
         (Method::Put, ["api", "tags", i]) => {
-            let i: usize = i.parse().map_err(|_| ApiError::new(400, "bad tag number"))?;
+            let i: usize = i
+                .parse()
+                .map_err(|_| ApiError::new(400, "bad tag number"))?;
             let spec: TagSpec = read_json(req)?;
-            ctx.shared.edit_config(|t| update_tag(t, i, &spec)).map_err(|e| ApiError::new(400, e))?;
+            ctx.shared
+                .edit_config(|t| update_tag(t, i, &spec))
+                .map_err(|e| ApiError::new(400, e))?;
             ctx.shared.request_rescan();
             Ok(Resp::json(200, &tags_json(ctx)))
         }
         (Method::Delete, ["api", "tags", i]) => {
-            let i: usize = i.parse().map_err(|_| ApiError::new(400, "bad tag number"))?;
-            ctx.shared.edit_config(|t| delete_tag(t, i)).map_err(|e| ApiError::new(400, e))?;
+            let i: usize = i
+                .parse()
+                .map_err(|_| ApiError::new(400, "bad tag number"))?;
+            ctx.shared
+                .edit_config(|t| delete_tag(t, i))
+                .map_err(|e| ApiError::new(400, e))?;
             Ok(Resp::json(200, &tags_json(ctx)))
         }
         (Method::Put, ["api", "origins"]) => {
             let b: OriginBody = read_json(req)?;
-            let site = Site::from_label(&b.site).ok_or_else(|| ApiError::new(400, "unknown site"))?;
+            let site =
+                Site::from_label(&b.site).ok_or_else(|| ApiError::new(400, "unknown site"))?;
             if !ctx.shared.lock().edit_origin(&b.hash, site, b.id.trim())? {
                 return Err(ApiError::new(404, "no record with that hash"));
             }
@@ -388,7 +652,9 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
         (Method::Put, ["api", "settings"]) => {
             let b: SettingsBody = read_json(req)?;
             if let Some(mode) = b.gap_mode {
-                ctx.shared.edit_config(|t| set_gap_mode(t, &mode)).map_err(|e| ApiError::new(400, e))?;
+                ctx.shared
+                    .edit_config(|t| set_gap_mode(t, &mode))
+                    .map_err(|e| ApiError::new(400, e))?;
             }
             Ok(Resp::json(200, &ctx.shared.lock().cfg.settings))
         }
@@ -419,6 +685,37 @@ fn resolve_all(p: &sorter_engine::Pipeline, paths: &[String]) -> Result<Vec<Path
     Ok(out)
 }
 
+fn finish_folder_change(
+    ctx: &Ctx,
+    out: &Outcome,
+    config_before: String,
+    change: impl FnOnce(&str) -> Result<String, String>,
+) -> Result<(), ApiError> {
+    let has_file_changes = !out.report.done.is_empty();
+    if out.report.error.is_some() {
+        if has_file_changes {
+            ctx.shared.undo_batch(out.report.batch)?;
+        }
+        return Ok(());
+    }
+    if let Err(e) = ctx.shared.edit_config(change) {
+        if has_file_changes {
+            ctx.shared.undo_batch(out.report.batch)?;
+        }
+        return Err(ApiError::new(400, e));
+    }
+    if has_file_changes {
+        if let Err(e) = ctx
+            .shared
+            .record_config_undo(out.report.batch, config_before)
+        {
+            ctx.shared.undo_batch(out.report.batch)?;
+            return Err(ApiError::new(500, e));
+        }
+    }
+    Ok(())
+}
+
 fn leave_text(r: &LeaveReason) -> String {
     match r {
         LeaveReason::NoMatch => "no match".to_string(),
@@ -442,18 +739,32 @@ fn resort_json(plan: &Plan) -> Value {
         .actions
         .iter()
         .map(|action| match action {
-            Action::Move { from, to, rule, matched } => json!({
+            Action::Move {
+                from,
+                to,
+                rule,
+                matched,
+            } => json!({
                 "kind": "move", "from": from, "to": to, "rule": rule.label(), "matched": matched,
             }),
             Action::Rename { from, to } => json!({ "kind": "rename", "from": from, "to": to }),
-            Action::ToDuplicates { from, to, duplicate_of } => json!({
+            Action::ToDuplicates {
+                from,
+                to,
+                duplicate_of,
+            } => json!({
                 "kind": "duplicate", "from": from, "to": to, "duplicate_of": duplicate_of,
             }),
-            Action::Leave { path, reason } => json!({ "kind": "leave", "path": path, "reason": leave_text(reason) }),
+            Action::Leave { path, reason } => {
+                json!({ "kind": "leave", "path": path, "reason": leave_text(reason) })
+            }
             Action::Ignore { path } => json!({ "kind": "ignore", "path": path }),
         })
         .collect();
-    let changes = items.iter().filter(|item| item["kind"] != "leave" && item["kind"] != "ignore").count();
+    let changes = items
+        .iter()
+        .filter(|item| item["kind"] != "leave" && item["kind"] != "ignore")
+        .count();
     json!({ "items": items, "changes": changes })
 }
 
@@ -506,14 +817,23 @@ fn origin_json(o: &Origin) -> Value {
 
 fn data(ctx: &Ctx, q: &HashMap<String, String>) -> Result<Resp, ApiError> {
     let p = ctx.shared.lock();
-    let text = q.get("q").map(|s| s.to_lowercase()).filter(|s| !s.is_empty());
+    let text = q
+        .get("q")
+        .map(|s| s.to_lowercase())
+        .filter(|s| !s.is_empty());
     let site = q.get("site").filter(|s| !s.is_empty());
     let folder = q.get("folder").filter(|s| !s.is_empty());
     let unknown = q.get("unknown").map_or(false, |v| v == "1" || v == "true");
     let mut recs: Vec<&Origin> = p
         .origins
         .all()
-        .filter(|o| site.map_or(true, |s| o.sources.iter().any(|x| x.site.label().eq_ignore_ascii_case(s))))
+        .filter(|o| {
+            site.map_or(true, |s| {
+                o.sources
+                    .iter()
+                    .any(|x| x.site.label().eq_ignore_ascii_case(s))
+            })
+        })
         .filter(|o| !unknown || o.sources.iter().all(|x| x.site == Site::Unknown))
         .filter(|o| folder.map_or(true, |f| o.path.starts_with(&format!("{f}/"))))
         .filter(|o| {
@@ -524,17 +844,35 @@ fn data(ctx: &Ctx, q: &HashMap<String, String>) -> Result<Resp, ApiError> {
             })
         })
         .collect();
-    recs.sort_by(|a, b| (std::cmp::Reverse(a.added), &a.path).cmp(&(std::cmp::Reverse(b.added), &b.path)));
+    recs.sort_by(|a, b| {
+        (std::cmp::Reverse(a.added), &a.path).cmp(&(std::cmp::Reverse(b.added), &b.path))
+    });
     let total = recs.len();
     let offset: usize = q.get("offset").and_then(|v| v.parse().ok()).unwrap_or(0);
-    let limit: usize = q.get("limit").and_then(|v| v.parse().ok()).unwrap_or(100).min(500);
-    let items: Vec<Value> = recs.into_iter().skip(offset).take(limit).map(origin_json).collect();
-    Ok(Resp::json(200, &json!({ "total": total, "offset": offset, "items": items })))
+    let limit: usize = q
+        .get("limit")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(100)
+        .min(500);
+    let items: Vec<Value> = recs
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(origin_json)
+        .collect();
+    Ok(Resp::json(
+        200,
+        &json!({ "total": total, "offset": offset, "items": items }),
+    ))
 }
 
 fn activity(ctx: &Ctx, q: &HashMap<String, String>) -> Result<Resp, ApiError> {
     let p = ctx.shared.lock();
-    let limit: usize = q.get("limit").and_then(|v| v.parse().ok()).unwrap_or(100).min(1000);
+    let limit: usize = q
+        .get("limit")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(100)
+        .min(1000);
     let items: Vec<Value> = p
         .log
         .entries()
@@ -587,7 +925,11 @@ fn image_source(ctx: &Ctx, hash: &str) -> Result<PathBuf, ApiError> {
         }
     }
     if let Some(o) = p.origins.get(hash) {
-        let abs = if Path::new(&o.path).is_absolute() { PathBuf::from(&o.path) } else { p.root.join(&o.path) };
+        let abs = if Path::new(&o.path).is_absolute() {
+            PathBuf::from(&o.path)
+        } else {
+            p.root.join(&o.path)
+        };
         if abs.is_file() && p.resolve(&abs.to_string_lossy()).is_ok() {
             return Ok(abs);
         }
@@ -596,7 +938,11 @@ fn image_source(ctx: &Ctx, hash: &str) -> Result<PathBuf, ApiError> {
 }
 
 fn content_type_for(path: &Path) -> &'static str {
-    match path.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).as_deref() {
+    match path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .as_deref()
+    {
         Some("png") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
         Some("webp") => "image/webp",

@@ -11,8 +11,8 @@ use crate::util::unix_now;
 use serde::Serialize;
 use sorter_core::numbering::{gaps, next_number, parse_numbered};
 use sorter_core::{
-    classify, expand_home, plan_gap_fill, plan_new_file, Action, Config, Dest, GapMode, Plan, PlanOptions, Rename, Rule,
-    Site, Source,
+    classify, expand_home, plan_gap_fill, plan_new_file, Action, Config, Dest, GapMode, Plan,
+    PlanOptions, Rename, Rule, Site, Source,
 };
 use std::collections::{BTreeSet, HashMap};
 use std::fs;
@@ -84,7 +84,11 @@ pub fn check_folder(folder: &str) -> io::Result<()> {
 }
 
 fn mtime_secs(m: &fs::Metadata) -> u64 {
-    m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0)
+    m.modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 impl Pipeline {
@@ -93,19 +97,30 @@ impl Pipeline {
     }
 
     pub fn intake_dirs(&self) -> Vec<PathBuf> {
-        self.cfg.intake.iter().map(|i| expand_home(&i.path)).collect()
+        self.cfg
+            .intake
+            .iter()
+            .map(|i| expand_home(&i.path))
+            .collect()
     }
 
     /// Absolute path for a path the UI sent: relative paths are inside the library. It must lie inside the
     /// library or an intake folder, and contain no "..".
     pub fn resolve(&self, p: &str) -> io::Result<PathBuf> {
-        let path = if Path::new(p).is_absolute() { PathBuf::from(p) } else { self.root.join(p) };
+        let path = if Path::new(p).is_absolute() {
+            PathBuf::from(p)
+        } else {
+            self.root.join(p)
+        };
         if path.components().any(|c| matches!(c, Component::ParentDir)) {
             return Err(invalid("path must not contain .."));
         }
-        let inside = path.starts_with(&self.root) || self.intake_dirs().iter().any(|d| path.starts_with(d));
+        let inside =
+            path.starts_with(&self.root) || self.intake_dirs().iter().any(|d| path.starts_with(d));
         if !inside {
-            return Err(invalid("path is outside the library and the intake folders"));
+            return Err(invalid(
+                "path is outside the library and the intake folders",
+            ));
         }
         Ok(path)
     }
@@ -129,7 +144,9 @@ impl Pipeline {
                 for e in rd.flatten() {
                     match e.file_type() {
                         Ok(t) if t.is_dir() => stack.push(e.path()),
-                        Ok(t) if t.is_file() => found.push((e.path(), dir.to_string_lossy().to_string())),
+                        Ok(t) if t.is_file() => {
+                            found.push((e.path(), dir.to_string_lossy().to_string()))
+                        }
                         _ => {}
                     }
                 }
@@ -148,7 +165,11 @@ impl Pipeline {
                 _ => "no_match",
             };
             let origin = match rel_inside(&self.root, &path) {
-                Some(rel) => self.index.get(&rel).and_then(|e| self.origins.get(&e.hash)).cloned(),
+                Some(rel) => self
+                    .index
+                    .get(&rel)
+                    .and_then(|e| self.origins.get(&e.hash))
+                    .cloned(),
                 None => self.origins.get_by_path(&path.to_string_lossy()).cloned(),
             };
             let meta = fs::metadata(&path).ok();
@@ -212,7 +233,9 @@ impl Pipeline {
                 name,
             });
         }
-        out.sort_by(|a, b| (a.number.is_none(), a.number, &a.name).cmp(&(b.number.is_none(), b.number, &b.name)));
+        out.sort_by(|a, b| {
+            (a.number.is_none(), a.number, &a.name).cmp(&(b.number.is_none(), b.number, &b.name))
+        });
         Ok(out)
     }
 
@@ -255,9 +278,15 @@ impl Pipeline {
         let snap = library_snapshot(&self.root)?;
         let files = snap.folders.get(folder).cloned().unwrap_or_default();
         let prefix = self.cfg.prefix_for(folder);
-        plan_new_file(&files, &prefix, ext, self.cfg.settings.gap_mode, &self.cfg.settings.image_extensions)
-            .map(|p| p.name)
-            .map_err(|e| invalid(e.to_string()))
+        plan_new_file(
+            &files,
+            &prefix,
+            ext,
+            self.cfg.settings.gap_mode,
+            &self.cfg.settings.image_extensions,
+        )
+        .map(|p| p.name)
+        .map_err(|e| invalid(e.to_string()))
     }
 
     /// Put these files in `folder` (created if needed), numbered like any other arrival. Copies of files we
@@ -267,19 +296,29 @@ impl Pipeline {
         if folder.split('/').next() == Some(self.cfg.settings.duplicates_folder.as_str()) {
             return Err(invalid("the Duplicates folder is not a place to sort into"));
         }
-        self.process_with(files, &PlanOptions { forced_dest: Some(folder.to_string()) })
+        self.process_with(
+            files,
+            &PlanOptions {
+                forced_dest: Some(folder.to_string()),
+            },
+        )
     }
 
     /// Creates an empty destination folder. There is no image action to undo here; folder rename,
     /// merge and prefix changes below are all logged as file batches.
     pub fn create_folder(&self, folder: &str) -> io::Result<()> {
         check_folder(folder)?;
-        if folder == self.cfg.settings.duplicates_folder || folder.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/")) {
+        if folder == self.cfg.settings.duplicates_folder
+            || folder.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/"))
+        {
             return Err(invalid("the Duplicates folder is managed by the sorter"));
         }
         let dir = self.root.join(folder);
         if dir.exists() {
-            return Err(io::Error::new(io::ErrorKind::AlreadyExists, format!("{folder} already exists")));
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("{folder} already exists"),
+            ));
         }
         fs::create_dir_all(dir)
     }
@@ -288,22 +327,20 @@ impl Pipeline {
     /// the entire rename can be undone. Existing destination files are reported and left alone.
     pub fn rename_folder_preview(&self, from: &str, to: &str) -> io::Result<Plan> {
         self.check_folder_change(from, to)?;
-        let files = self.folder_files(from)?;
-        let own: BTreeSet<String> = files.iter().filter_map(|p| rel_inside(&self.root, p)).collect();
-        let mut targets = BTreeSet::new();
-        let mut actions = Vec::new();
-        for file in files {
-            let rel = rel_inside(&self.root, &file).expect("folder file stays inside library");
-            let tail = rel.strip_prefix(&(from.to_string() + "/")).unwrap_or_default();
-            let target = format!("{to}/{tail}");
-            let target_path = self.root.join(&target);
-            if !targets.insert(target.clone()) || (target_path.exists() && !own.contains(&target)) {
-                actions.push(Action::Leave { path: file.to_string_lossy().to_string(), reason: sorter_core::LeaveReason::Problem(format!("{target} already exists")) });
-            } else {
-                actions.push(Action::Rename { from: rel, to: target });
-            }
+        if self.root.join(to).exists() {
+            return Ok(Plan {
+                actions: vec![Action::Leave {
+                    path: from.to_string(),
+                    reason: sorter_core::LeaveReason::Problem(format!("{to} already exists")),
+                }],
+            });
         }
-        Ok(Plan { actions })
+        Ok(Plan {
+            actions: vec![Action::Rename {
+                from: from.to_string(),
+                to: to.to_string(),
+            }],
+        })
     }
 
     pub fn rename_folder(&mut self, from: &str, to: &str) -> io::Result<Outcome> {
@@ -317,12 +354,53 @@ impl Pipeline {
     pub fn merge_folder_preview(&self, from: &str, to: &str) -> io::Result<Plan> {
         self.check_folder_change(from, to)?;
         let files = self.folder_files(from)?;
-        Ok(self.prepare_with(&files, &PlanOptions { forced_dest: Some(to.to_string()) })?.1)
+        Ok(self
+            .prepare_with(
+                &files,
+                &PlanOptions {
+                    forced_dest: Some(to.to_string()),
+                },
+            )?
+            .1)
     }
 
     pub fn merge_folder(&mut self, from: &str, to: &str) -> io::Result<Outcome> {
         let files = self.folder_files(from)?;
-        self.process_with(&files, &PlanOptions { forced_dest: Some(to.to_string()) })
+        let out = self.process_with(
+            &files,
+            &PlanOptions {
+                forced_dest: Some(to.to_string()),
+            },
+        )?;
+        self.remove_empty_folders(from)?;
+        Ok(out)
+    }
+
+    fn remove_empty_folders(&self, folder: &str) -> io::Result<()> {
+        fn prune(dir: &Path) -> io::Result<()> {
+            for entry in fs::read_dir(dir)? {
+                let entry = entry?;
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with('.') || !entry.file_type()?.is_dir() {
+                    continue;
+                }
+                prune(&entry.path())?;
+                match fs::remove_dir(entry.path()) {
+                    Ok(()) => {}
+                    Err(e)
+                        if e.raw_os_error() == Some(39) || e.kind() == io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(())
+        }
+        let root = self.root.join(folder);
+        prune(&root)?;
+        match fs::remove_dir(root) {
+            Ok(()) => Ok(()),
+            Err(e) if e.raw_os_error() == Some(39) || e.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 
     /// Preview changing a folder's numbering prefix. Only files which already follow the folder's
@@ -332,7 +410,10 @@ impl Pipeline {
         let prefix = self.valid_prefix(prefix)?;
         let dir = self.root.join(folder);
         if !dir.is_dir() {
-            return Err(io::Error::new(io::ErrorKind::NotFound, format!("{folder} is not a folder")));
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("{folder} is not a folder"),
+            ));
         }
         let old_prefix = self.cfg.prefix_for(folder);
         let mut existing = BTreeSet::new();
@@ -344,7 +425,9 @@ impl Pipeline {
             }
             let name = name_of(&entry.path());
             existing.insert(name.clone());
-            if let Some((number, ext)) = parse_numbered(&name, &old_prefix, &self.cfg.settings.image_extensions) {
+            if let Some((number, ext)) =
+                parse_numbered(&name, &old_prefix, &self.cfg.settings.image_extensions)
+            {
                 numbered.push((name, format!("{prefix} {number}.{ext}")));
             }
         }
@@ -354,10 +437,19 @@ impl Pipeline {
             .into_iter()
             .filter(|(from, to)| from != to)
             .map(|(from, to)| {
-                if !targets.insert(to.clone()) || (existing.contains(&to) && !moving.contains(&to)) {
-                    Action::Leave { path: format!("{folder}/{from}"), reason: sorter_core::LeaveReason::Problem(format!("{folder}/{to} already exists")) }
+                if !targets.insert(to.clone()) || (existing.contains(&to) && !moving.contains(&to))
+                {
+                    Action::Leave {
+                        path: format!("{folder}/{from}"),
+                        reason: sorter_core::LeaveReason::Problem(format!(
+                            "{folder}/{to} already exists"
+                        )),
+                    }
                 } else {
-                    Action::Rename { from: format!("{folder}/{from}"), to: format!("{folder}/{to}") }
+                    Action::Rename {
+                        from: format!("{folder}/{from}"),
+                        to: format!("{folder}/{to}"),
+                    }
                 }
             })
             .collect();
@@ -383,8 +475,10 @@ impl Pipeline {
         if from == to {
             return Err(invalid("source and destination folders are the same"));
         }
-        if from == self.cfg.settings.duplicates_folder || from.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/"))
-            || to == self.cfg.settings.duplicates_folder || to.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/"))
+        if from == self.cfg.settings.duplicates_folder
+            || from.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/"))
+            || to == self.cfg.settings.duplicates_folder
+            || to.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/"))
         {
             return Err(invalid("the Duplicates folder is managed by the sorter"));
         }
@@ -392,7 +486,10 @@ impl Pipeline {
             return Err(invalid("a folder cannot be moved into itself"));
         }
         if !self.root.join(from).is_dir() {
-            return Err(io::Error::new(io::ErrorKind::NotFound, format!("{from} is not a folder")));
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("{from} is not a folder"),
+            ));
         }
         Ok(())
     }
@@ -455,7 +552,10 @@ impl Pipeline {
             None => self.root.clone(),
         };
         if !dir.is_dir() {
-            return Err(io::Error::new(io::ErrorKind::NotFound, format!("{} is not a folder", dir.display())));
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("{} is not a folder", dir.display()),
+            ));
         }
 
         let mut found: Vec<(SystemTime, PathBuf)> = Vec::new();
@@ -476,14 +576,19 @@ impl Pipeline {
                     }
                     stack.push(entry.path());
                 } else if kind.is_file() && self.is_image(&name) {
-                    let modified = entry.metadata().and_then(|m| m.modified()).unwrap_or(SystemTime::UNIX_EPOCH);
+                    let modified = entry
+                        .metadata()
+                        .and_then(|m| m.modified())
+                        .unwrap_or(SystemTime::UNIX_EPOCH);
                     found.push((modified, entry.path()));
                 }
             }
         }
         // Number allocation follows the oldest images first. A path tie-break keeps the preview
         // deterministic on file systems whose timestamps have coarse resolution.
-        found.sort_by(|(a_time, a_path), (b_time, b_path)| a_time.cmp(b_time).then_with(|| a_path.cmp(b_path)));
+        found.sort_by(|(a_time, a_path), (b_time, b_path)| {
+            a_time.cmp(b_time).then_with(|| a_path.cmp(b_path))
+        });
         Ok(found.into_iter().map(|(_, path)| path).collect())
     }
 
@@ -494,7 +599,11 @@ impl Pipeline {
         let actions = files
             .iter()
             .enumerate()
-            .filter(|(_, f)| fs::symlink_metadata(f).map(|m| m.is_file()).unwrap_or(false))
+            .filter(|(_, f)| {
+                fs::symlink_metadata(f)
+                    .map(|m| m.is_file())
+                    .unwrap_or(false)
+            })
             .map(|(i, f)| Action::Move {
                 from: f.to_string_lossy().to_string(),
                 to: format!(".sorter/trash/{stamp}-{i}/{}", name_of(f)),
@@ -531,22 +640,32 @@ impl Pipeline {
         check_folder(folder)?;
         let snap = library_snapshot(&self.root)?;
         let files = snap.folders.get(folder).cloned().unwrap_or_default();
-        plan_gap_fill(&files, &self.cfg.prefix_for(folder), &self.cfg.settings.image_extensions, mode)
-            .map_err(|e| invalid(e.to_string()))
+        plan_gap_fill(
+            &files,
+            &self.cfg.prefix_for(folder),
+            &self.cfg.settings.image_extensions,
+            mode,
+        )
+        .map_err(|e| invalid(e.to_string()))
     }
 
     pub fn fill_gaps(&mut self, folder: &str, mode: GapMode) -> io::Result<Outcome> {
         let renames = self.gap_fill_preview(folder, mode)?;
         let actions = renames
             .into_iter()
-            .map(|r| Action::Rename { from: format!("{folder}/{}", r.from), to: format!("{folder}/{}", r.to) })
+            .map(|r| Action::Rename {
+                from: format!("{folder}/{}", r.from),
+                to: format!("{folder}/{}", r.to),
+            })
             .collect();
         self.run_plan(Plan { actions }, HashMap::new())
     }
 
     /// Sets the source of a record by hand (for images whose origin could not be read from the name).
     pub fn edit_origin(&mut self, hash: &str, site: Site, id: &str) -> io::Result<bool> {
-        let Some(mut o) = self.origins.get(hash).cloned() else { return Ok(false) };
+        let Some(mut o) = self.origins.get(hash).cloned() else {
+            return Ok(false);
+        };
         let src = Source::manual(site, id);
         if o.sources.is_empty() {
             o.sources.push(src);
@@ -561,5 +680,9 @@ impl Pipeline {
 
 /// One line per file that changed, for the API.
 pub fn summarize(report: &Report) -> Vec<(String, String)> {
-    report.done.iter().map(|e| (e.from.clone(), e.to.clone())).collect()
+    report
+        .done
+        .iter()
+        .map(|e| (e.from.clone(), e.to.clone()))
+        .collect()
 }

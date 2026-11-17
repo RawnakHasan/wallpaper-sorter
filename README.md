@@ -66,7 +66,8 @@ picked up when it appears; an empty subfolder of an intake folder is removed aft
 JSON over HTTP, on 127.0.0.1 only. Requests must carry the right `Host` header, and anything that changes
 something must be `Content-Type: application/json` (and, if it has an `Origin`, one from this address), which
 keeps other websites from using it through your browser. Paths are library-relative or absolute and must stay inside
-the library or an intake folder. Every change goes through the log and can be undone.
+the library or an intake folder. File moves and renames go through the log and can be undone; creating an empty
+folder is not a logged file action.
 
 | Request | What it does |
 |---|---|
@@ -86,6 +87,10 @@ the library or an intake folder. Every change goes through the log and can be un
 | `POST /api/gap-fill` `{folder, mode}` | do them |
 | `GET /api/resort?folder=` | preview applying current tags to every existing image, or one folder and its children |
 | `POST /api/resort` `{folder?}` | recompute and apply that preview as one undoable batch |
+| `POST /api/folders` `{folder}` | create an empty folder and add its config entry (creation itself is not undoable) |
+| `GET /api/folder-rename?from=&to=` / `POST /api/folder-rename` `{from, to}` | preview and rename a folder tree; tag and folder settings follow it |
+| `GET /api/folder-merge?from=&to=` / `POST /api/folder-merge` `{from, to}` | preview and move images into another folder using its numbering and duplicate rules |
+| `GET /api/folder-prefix?folder=&prefix=` / `PUT /api/folder-prefix` `{folder, prefix}` | preview and change a folder's numbering prefix |
 | `POST /api/undo` `{batch}` or `{id}` | undo a batch or one action |
 | `PUT /api/origins` `{hash, site, id}` | set an image's source by hand |
 | `GET/PUT /api/settings` | settings (`gap_mode` can be changed) |
@@ -113,5 +118,5 @@ To change a matching rule: edit `spec/ref_matcher.py`, run `cd spec && python3 g
 - `Cargo.lock` pins `indexmap`, `hashbrown`, `blake3` and `image` to older releases so the project also builds with Rust 1.75.
   BLAKE3 is built with its `pure` feature, so no C compiler is needed.
   On a current toolchain you can run `cargo update` to take the newest versions.
-- Not built yet: the first-run welcome flow, creating/renaming/merging folders and changing a folder's prefix, "restore a duplicate as a new
-  image", a size cap for the thumbnail cache, a size cap for the log.
+- Not built yet: the first-run welcome flow, "restore a duplicate as a new image", a size cap for the thumbnail
+  cache, a size cap for the log.

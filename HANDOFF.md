@@ -1,3 +1,5 @@
+| Web UI (`ui/`) | Written and served. The 20 jsdom UI tests cover the pages, Re-sort, and folder management; use the browser checklist below for visual checks. |
+The previous UI failures are fixed. The 20 jsdom tests load the page scripts through Node's `fetch` (rather than
 # Wallpaper Sorter: handoff guide
 
 For two readers: **the owner**, who builds and tests it on their own machine (part 2), and **another AI** that
@@ -30,8 +32,8 @@ about each image's origin, the activity log with undo, and settings.
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. 12 HTTP tests passed; smoke-tested with curl. |
-| Web UI (`ui/`) | Written and served. The 19 jsdom UI tests cover the pages and the Re-sort flow; use the browser checklist below for visual checks. |
-| Not built | First-run welcome flow; creating, renaming, merging folders and changing a folder's prefix; "restore a duplicate as a new image"; editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
+| Web UI (`ui/`) | Written and served. The 20 jsdom UI tests cover the pages, Re-sort, and folder management; use the browser checklist below for visual checks. |
+| Not built | First-run welcome flow; "restore a duplicate as a new image"; editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
 
 What was last run: the whole Rust suite (about 76 tests, many of them table-driven with hundreds of rows) was green
 before the UI work. After it, only the HTTP tests were re-run (green). **Nothing was run for this handoff**, by request.
@@ -127,7 +129,7 @@ journalctl --user -u wallpaper-sorter -f
 | What | Where |
 |---|---|
 | Config (tags, intake folders, settings) | `~/.config/wallpaper-sorter/config.toml` (the page edits tags and gap mode in place and keeps your comments) |
-| Records, hash cache, log, trash | `<library>/.sorter/` (`origins.jsonl`, `index.jsonl`, `log.jsonl`, `trash/`) |
+| Records, hash cache, log, trash, folder config undo | `<library>/.sorter/` (`origins.jsonl`, `index.jsonl`, `log.jsonl`, `folder-config-undo.json`, `trash/`) |
 | Thumbnails | `~/.cache/wallpaper-sorter/thumbs/` (safe to delete) |
 
 ### 2.8 If something goes wrong
@@ -258,7 +260,7 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 4.1 UI automated tests
 
-The previous UI failures are fixed. The 19 jsdom tests load the page scripts through Node's `fetch` (rather than
+The previous UI failures are fixed. The 20 jsdom tests load the page scripts through Node's `fetch` (rather than
 jsdom's intermittent HTTP loader), then exercise the real binary and API. They include the Re-sort preview, apply and
 batch undo flow. This does not validate visual layout or real image loading.
 
@@ -273,7 +275,7 @@ console.
 
 | Feature | Sketch |
 |---|---|
-| Folder create, rename, merge, change prefix | New API calls; a prefix change is a batch of renames (a plan of `Rename` actions) and must update tags that name the prefix. |
+| Folder create, rename, merge, change prefix | Implemented in the Library page and JSON API. File changes are previewed and logged; config paths and prefixes follow folder operations, and config edits are restored when the associated file batch is undone. |
 | Restore a duplicate as a new image | Needs an option to skip the duplicate check once; probably "move back to the library folder and hold it". |
 | First-run welcome | Pick library and intake folders, run the first scan, offer the re-sort. Needs config writing for `library` and `[[intake]]`. |
 | Size caps | Thumbnail cache (delete oldest), `log.jsonl` (keep recent entries; origin records stay forever). |

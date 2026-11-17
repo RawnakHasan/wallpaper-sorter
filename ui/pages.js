@@ -279,7 +279,10 @@
         onchange: (e) => {
           resortState.folder = e.target.value;
           resortState.preview = null;
-          WS.refresh();
+          note.textContent = resortState.folder
+            ? `Includes ${resortState.folder} and its subfolders. Duplicates are never re-sorted.`
+            : 'Applies current tags to every image already in the library. Duplicates are never re-sorted.';
+          output.replaceChildren();
         },
       },
       h('option', { value: '', text: 'Whole library' }),
@@ -402,7 +405,7 @@
   WS.pages.library = async function (params) {
     const dup = dupFolder();
     const folders = (await WS.get('/api/folders')).filter((f) => f.path !== dup && !f.path.startsWith(dup + '/'));
-    if (!folders.length) return page('Library', '', null, WS.empty('No folders yet', 'Folders appear here when images are sorted into them.'));
+    if (!folders.length) return page('Library', '', h('button', { class: 'btn primary', text: 'New folder', onclick: () => openCreateFolder('') }), WS.empty('No folders yet', 'Folders appear here when images are sorted into them.'));
     let current = params.get('folder');
     if (!current || !folders.some((f) => f.path === current)) current = folders[0].path;
     const info = folders.find((f) => f.path === current);
@@ -441,9 +444,88 @@
 
     const facts = h('div', { class: 'facts' }, h('span', {}, 'Prefix ', h('b', { text: info.prefix })), h('span', {}, 'Next number ', h('b', { text: String(info.next_number) })), h('span', {}, 'Images ', h('b', { text: String(images.length) })), info.gaps.length ? h('span', {}, 'Gaps ', h('b', { text: info.gaps.length > 6 ? `${info.gaps.length} (${info.gaps.slice(0, 6).join(', ')}, …)` : `${info.gaps.length} (${info.gaps.join(', ')})` })) : null);
     const fill = info.gaps.length ? h('button', { class: 'btn', text: 'Close gaps…', onclick: () => openFillGaps(current) }) : null;
+    const actions = h('div', { class: 'row' },
+      h('button', { class: 'btn', text: 'New folder', onclick: () => openCreateFolder(current + '/') }),
+      h('button', { class: 'btn', text: 'Manage folder…', onclick: () => openFolderManagement(current, info, folders) }),
+      fill
+    );
 
-    return h('div', { class: 'page' }, h('div', { class: 'lib' }, tree, h('div', { class: 'lib-main' }, h('div', { class: 'page-head' }, h('h1', { text: info.name }), h('span', { class: 'spacer' }), fill), crumbs, facts, images.length === 0 ? WS.empty('No images in this folder') : null, bar.el, images.length ? grid.el : null)));
+    return h('div', { class: 'page' }, h('div', { class: 'lib' }, tree, h('div', { class: 'lib-main' }, h('div', { class: 'page-head' }, h('h1', { text: info.name }), h('span', { class: 'spacer' }), actions), crumbs, facts, images.length === 0 ? WS.empty('No images in this folder') : null, bar.el, images.length ? grid.el : null)));
   };
+
+  function openCreateFolder(defaultPath) {
+    const input = h('input', { class: 'input wide', value: defaultPath, placeholder: 'Folder path, for example Series/Violet', 'aria-label': 'New folder path' });
+    const problem = h('div', { class: 'error', role: 'alert' });
+    const create = h('button', { class: 'btn primary', text: 'Create folder' });
+    create.addEventListener('click', async () => {
+      problem.textContent = '';
+      create.disabled = true;
+      try {
+        const result = await WS.post('/api/folders', { folder: input.value.trim() });
+        WS.closeLayer();
+        WS.toast(`Created ${result.folder}`);
+        location.hash = `#/library?folder=${enc(result.folder)}`;
+        WS.refresh();
+      } catch (e) {
+        problem.textContent = e.message;
+        create.disabled = false;
+      }
+    });
+    WS.openSheet('New folder', h('div', {}, h('div', { class: 'field' }, h('label', { for: 'new-folder', text: 'Folder path' }), input), problem), [h('button', { class: 'btn', text: 'Cancel', onclick: WS.closeLayer }), create]);
+  }
+
+  function openFolderManagement(folder, info, folders) {
+    const renameInput = h('input', { class: 'input wide', value: folder, 'aria-label': 'New folder path' });
+    const mergeSelect = h('select', { class: 'select', 'aria-label': 'Merge destination' }, ...folders.filter((f) => f.path !== folder && !f.path.startsWith(folder + '/')).map((f) => h('option', { value: f.path, text: f.path })));
+    const prefixInput = h('input', { class: 'input wide', value: info.prefix, 'aria-label': 'File prefix' });
+    const renamePreview = h('div', { class: 'folder-preview' });
+    const mergePreview = h('div', { class: 'folder-preview' });
+    const prefixPreview = h('div', { class: 'folder-preview' });
+
+    async function previewChange(kind, params, target, allowNoFiles) {
+      target.replaceChildren();
+      try {
+        const query = new URLSearchParams(params).toString();
+        const data = await WS.get(`/api/folder-${kind}?${query}`);
+        const blocked = data.items.some((i) => i.kind === 'leave');
+        const detail = data.items.slice(0, 30).map((i) => h('div', { class: 'resort-row' }, h('span', { class: 'm grow', text: i.to ? `${i.from} → ${i.to}` : i.path }), i.reason ? h('span', { class: 'muted', text: i.reason }) : null));
+        const note = h('p', { class: blocked ? 'error' : 'muted', text: blocked ? 'Some destinations are occupied. Resolve the conflicts before applying.' : `${data.changes} file${data.changes === 1 ? '' : 's'} will change.` });
+        const apply = h('button', { class: 'btn primary', text: kind === 'prefix' ? 'Save prefix' : kind === 'rename' ? 'Rename folder' : 'Merge folders', disabled: blocked || (!allowNoFiles && data.changes === 0) });
+        apply.addEventListener('click', async () => {
+          const label = kind === 'prefix' ? `Save the prefix “${params.prefix}”?` : kind === 'rename' ? `Rename ${params.from} to ${params.to}?` : `Merge ${params.from} into ${params.to}?`;
+          if (!(await WS.confirmBox(`${label} ${data.changes ? 'File changes are logged and can be undone.' : 'No files need renaming.'}`, apply.textContent, kind !== 'prefix'))) return;
+          apply.disabled = true;
+          try {
+            const body = kind === 'prefix' ? { folder: params.folder, prefix: params.prefix } : { from: params.from, to: params.to };
+            const result = kind === 'prefix' ? await WS.api('PUT', `/api/folder-${kind}`, body) : await WS.post(`/api/folder-${kind}`, body);
+            if (result.error) throw new Error(result.error);
+            WS.closeLayer();
+            const message = kind === 'prefix' ? `Prefix changed for ${params.folder}` : `${kind === 'rename' ? 'Renamed' : 'Merged'} ${params.from}`;
+            WS.toast(message, result.done.length ? { undo: () => WS.undoBatch(result.batch) } : undefined);
+            const next = kind === 'rename' ? params.to : kind === 'merge' ? params.to : params.folder;
+            location.hash = `#/library?folder=${enc(next)}`;
+            WS.refresh();
+          } catch (e) {
+            target.append(h('p', { class: 'error', role: 'alert', text: e.message }));
+            apply.disabled = false;
+          }
+        });
+        target.replaceChildren(note, ...detail, data.items.length > 30 ? h('p', { class: 'muted', text: `Showing 30 of ${data.items.length} changes.` }) : null, apply);
+      } catch (e) {
+        target.replaceChildren(h('p', { class: 'error', role: 'alert', text: e.message }));
+      }
+    }
+
+    const renameButton = h('button', { class: 'btn', text: 'Preview rename', onclick: () => previewChange('rename', { from: folder, to: renameInput.value.trim() }, renamePreview, false) });
+    const mergeButton = h('button', { class: 'btn', text: 'Preview merge', onclick: () => previewChange('merge', { from: folder, to: mergeSelect.value }, mergePreview, false) });
+    const prefixButton = h('button', { class: 'btn', text: 'Preview prefix', onclick: () => previewChange('prefix', { folder, prefix: prefixInput.value.trim() }, prefixPreview, true) });
+    const section = (title, control, button, output) => h('section', { class: 'folder-manage-section' }, h('h3', { text: title }), control, button, output);
+    WS.openSheet(`Manage ${folder}`, h('div', {},
+      section('Rename', renameInput, renameButton, renamePreview),
+      section('Merge into', mergeSelect, mergeButton, mergePreview),
+      section('Numbering prefix', prefixInput, prefixButton, prefixPreview)
+    ), [h('button', { class: 'btn', text: 'Done', onclick: WS.closeLayer })]);
+  }
 
   function openFillGaps(folder) {
     let mode = 'last';
