@@ -1,0 +1,6 @@
+/target/
+/ui/test/node_modules/
+/test-report.md
+/test-report.*.log
+/cargo.log
+/ui.log

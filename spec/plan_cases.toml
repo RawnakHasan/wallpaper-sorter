@@ -1,0 +1,201 @@
+# Hand-written expectations for build_plan, using tags.starter.toml.
+# library:          folder -> file names already there
+# hashes:           content hash -> where that content lives
+# incoming:         files that just arrived, in order
+# incoming_hashes:  path of an incoming file -> its content hash (a file without one cannot be a duplicate)
+# gap_mode:         optional override: keep | lowest | last | renumber
+
+[[case]]
+name = "sorts into an existing character folder"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.jpg", "Chisa 2.png"] }
+incoming = ["/dl/Kuchiba.Chisa.full.4511113.png"]
+expect = ["move: /dl/Kuchiba.Chisa.full.4511113.png -> Wuthering-Waves/Chisa/Chisa 3.png"]
+
+[[case]]
+name = "a new folder starts at 1"
+incoming = ["/lib/Skadi.full.4542157.jpg"]
+expect = ["move: /lib/Skadi.full.4542157.jpg -> Arknights/Skadi/Skadi 1.jpg"]
+
+[[case]]
+name = "the extension keeps its case"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.jpg"] }
+incoming = ["/dl/CHISA.PNG"]
+expect = ["move: /dl/CHISA.PNG -> Wuthering-Waves/Chisa/Chisa 2.PNG"]
+
+[[case]]
+name = "two files for one folder in one batch"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 4.jpg"] }
+incoming = ["/dl/Chisa one.png", "/dl/Chisa two.jpg"]
+expect = [
+  "move: /dl/Chisa one.png -> Wuthering-Waves/Chisa/Chisa 5.png",
+  "move: /dl/Chisa two.jpg -> Wuthering-Waves/Chisa/Chisa 6.jpg",
+]
+
+[[case]]
+name = "two different folders"
+incoming = ["/dl/Skadi.full.1.jpg", "/dl/Sousou.no.Frieren.full.4038580.jpg"]
+expect = [
+  "move: /dl/Skadi.full.1.jpg -> Arknights/Skadi/Skadi 1.jpg",
+  "move: /dl/Sousou.no.Frieren.full.4038580.jpg -> Frieren/Frieren 1.jpg",
+]
+
+[[case]]
+name = "two characters of one game go to the parent folder"
+library = { "Wuthering-Waves" = ["Wuthering Waves 52.jpg"] }
+incoming = ["/dl/Chisa Aemeath.png"]
+expect = ["move: /dl/Chisa Aemeath.png -> Wuthering-Waves/Wuthering Waves 53.png"]
+
+[[case]]
+name = "no match stays where it is"
+incoming = ["/lib/wallhaven-1q2le9.jpg"]
+expect = ["leave: /lib/wallhaven-1q2le9.jpg (no match)"]
+
+[[case]]
+name = "a conflict stays where it is"
+incoming = ["/lib/Chisa Skadi.png"]
+expect = ["leave: /lib/Chisa Skadi.png (conflict: chisa;skadi)"]
+
+[[case]]
+name = "non-images are ignored"
+incoming = ["/lib/chisa.crdownload", "/lib/Chisa.mp4"]
+expect = ["ignore: /lib/chisa.crdownload", "ignore: /lib/Chisa.mp4"]
+
+[[case]]
+name = "a generic folder for a plain scenery name"
+incoming = ["/lib/naive-cloudy-landscape.jpg"]
+expect = ["move: /lib/naive-cloudy-landscape.jpg -> Nature/Nature 1.jpg"]
+
+[[case]]
+name = "a Pixiv extension path outside the library"
+incoming = ["/home/u/Downloads/pixiv/BLACKmeow-91709880/151861634_p0--.png"]
+expect = ["leave: /home/u/Downloads/pixiv/BLACKmeow-91709880/151861634_p0--.png (no match)"]
+
+[[case]]
+name = "a copy of a library file goes to Duplicates"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.jpg"] }
+hashes = { h1 = "Wuthering-Waves/Chisa/Chisa 1.jpg" }
+incoming = ["/dl/Kuchiba.Chisa.full.4511113.png"]
+incoming_hashes = { "/dl/Kuchiba.Chisa.full.4511113.png" = "h1" }
+expect = ["dup: /dl/Kuchiba.Chisa.full.4511113.png -> Duplicates/Kuchiba.Chisa.full.4511113.png (of Wuthering-Waves/Chisa/Chisa 1.jpg)"]
+
+[[case]]
+name = "without a hash there is no duplicate check"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.jpg"] }
+hashes = { h1 = "Wuthering-Waves/Chisa/Chisa 1.jpg" }
+incoming = ["/dl/Kuchiba.Chisa.full.4511113.png"]
+expect = ["move: /dl/Kuchiba.Chisa.full.4511113.png -> Wuthering-Waves/Chisa/Chisa 2.png"]
+
+[[case]]
+name = "a taken name in Duplicates gets a suffix"
+library = { "Duplicates" = ["Kuchiba.Chisa.full.4511113.png"] }
+hashes = { h1 = "Wuthering-Waves/Chisa/Chisa 1.jpg" }
+incoming = ["/dl/Kuchiba.Chisa.full.4511113.png"]
+incoming_hashes = { "/dl/Kuchiba.Chisa.full.4511113.png" = "h1" }
+expect = ["dup: /dl/Kuchiba.Chisa.full.4511113.png -> Duplicates/Kuchiba.Chisa.full.4511113 (2).png (of Wuthering-Waves/Chisa/Chisa 1.jpg)"]
+
+[[case]]
+name = "duplicates inside one batch"
+incoming = ["/dl/a Chisa.png", "/dl/b Chisa.png"]
+incoming_hashes = { "/dl/a Chisa.png" = "hx", "/dl/b Chisa.png" = "hx" }
+expect = [
+  "move: /dl/a Chisa.png -> Wuthering-Waves/Chisa/Chisa 1.png",
+  "dup: /dl/b Chisa.png -> Duplicates/b Chisa.png (of Wuthering-Waves/Chisa/Chisa 1.png)",
+]
+
+[[case]]
+name = "a copy of an unsorted file is a duplicate too"
+incoming = ["/lib/wallhaven-1q2le9.jpg", "/dl/wallhaven-1q2le9.jpg"]
+incoming_hashes = { "/lib/wallhaven-1q2le9.jpg" = "hw", "/dl/wallhaven-1q2le9.jpg" = "hw" }
+expect = [
+  "leave: /lib/wallhaven-1q2le9.jpg (no match)",
+  "dup: /dl/wallhaven-1q2le9.jpg -> Duplicates/wallhaven-1q2le9.jpg (of /lib/wallhaven-1q2le9.jpg)",
+]
+
+[[case]]
+name = "duplicates are checked before matching"
+hashes = { hq = "Nature/Nature 3.jpg" }
+incoming = ["/lib/wallhaven-1q2le9.jpg"]
+incoming_hashes = { "/lib/wallhaven-1q2le9.jpg" = "hq" }
+expect = ["dup: /lib/wallhaven-1q2le9.jpg -> Duplicates/wallhaven-1q2le9.jpg (of Nature/Nature 3.jpg)"]
+
+[[case]]
+name = "last into gap renames first, then the new file goes after"
+gap_mode = "last"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.jpg", "Chisa 3.jpg", "Chisa 4.jpg"] }
+incoming = ["/dl/Chisa x.png"]
+expect = [
+  "rename: Wuthering-Waves/Chisa/Chisa 4.jpg -> Wuthering-Waves/Chisa/Chisa 2.jpg",
+  "move: /dl/Chisa x.png -> Wuthering-Waves/Chisa/Chisa 4.png",
+]
+
+[[case]]
+name = "lowest free takes the gap and renames nothing"
+gap_mode = "lowest"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.jpg", "Chisa 2.jpg", "Chisa 4.jpg"] }
+incoming = ["/dl/Chisa x.png"]
+expect = ["move: /dl/Chisa x.png -> Wuthering-Waves/Chisa/Chisa 3.png"]
+
+[[case]]
+name = "renumber once, then later files just continue"
+gap_mode = "renumber"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.jpg", "Chisa 3.jpg", "Chisa 6.jpg"] }
+incoming = ["/dl/Chisa a.png", "/dl/Chisa b.png"]
+expect = [
+  "rename: Wuthering-Waves/Chisa/Chisa 3.jpg -> Wuthering-Waves/Chisa/Chisa 2.jpg",
+  "rename: Wuthering-Waves/Chisa/Chisa 6.jpg -> Wuthering-Waves/Chisa/Chisa 3.jpg",
+  "move: /dl/Chisa a.png -> Wuthering-Waves/Chisa/Chisa 4.png",
+  "move: /dl/Chisa b.png -> Wuthering-Waves/Chisa/Chisa 5.png",
+]
+
+[[case]]
+name = "renumber refuses when two files share a number"
+gap_mode = "renumber"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.jpg", "Chisa 1.png"] }
+incoming = ["/dl/Chisa a.png"]
+expect = ["leave: /dl/Chisa a.png (problem: Wuthering-Waves/Chisa: duplicate number 1)"]
+
+[[case]]
+name = "a renamed file keeps its place in the duplicate index"
+gap_mode = "last"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.jpg", "Chisa 3.jpg"] }
+hashes = { h1 = "Wuthering-Waves/Chisa/Chisa 3.jpg" }
+incoming = ["/dl/Chisa x.png", "/dl/Chisa y.png"]
+incoming_hashes = { "/dl/Chisa y.png" = "h1" }
+expect = [
+  "rename: Wuthering-Waves/Chisa/Chisa 3.jpg -> Wuthering-Waves/Chisa/Chisa 2.jpg",
+  "move: /dl/Chisa x.png -> Wuthering-Waves/Chisa/Chisa 3.png",
+  "dup: /dl/Chisa y.png -> Duplicates/Chisa y.png (of Wuthering-Waves/Chisa/Chisa 2.jpg)",
+]
+
+[[case]]
+name = "assigning puts a file in the chosen folder"
+assign_to = "Nature"
+incoming = ["/lib/wallhaven-1q2le9.jpg"]
+expect = ["move: /lib/wallhaven-1q2le9.jpg -> Nature/Nature 1.jpg"]
+
+[[case]]
+name = "assigned files are numbered like any other"
+assign_to = "Nature"
+library = { "Nature" = ["Nature 7.jpg"] }
+incoming = ["/lib/a.jpg", "/lib/b.png"]
+expect = ["move: /lib/a.jpg -> Nature/Nature 8.jpg", "move: /lib/b.png -> Nature/Nature 9.png"]
+
+[[case]]
+name = "assigning overrides what the name says"
+assign_to = "Space"
+incoming = ["/lib/Chisa.png"]
+expect = ["move: /lib/Chisa.png -> Space/Space 1.png"]
+
+[[case]]
+name = "assigning still sends copies to Duplicates"
+assign_to = "Nature"
+hashes = { h1 = "Wuthering-Waves/Chisa/Chisa 1.jpg" }
+incoming = ["/lib/copy.jpg"]
+incoming_hashes = { "/lib/copy.jpg" = "h1" }
+expect = ["dup: /lib/copy.jpg -> Duplicates/copy.jpg (of Wuthering-Waves/Chisa/Chisa 1.jpg)"]
+
+[[case]]
+name = "assigning ignores non-images"
+assign_to = "Nature"
+incoming = ["/lib/notes.txt"]
+expect = ["ignore: /lib/notes.txt"]

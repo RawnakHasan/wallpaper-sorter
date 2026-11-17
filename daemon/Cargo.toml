@@ -1,0 +1,23 @@
+[package]
+name = "wallpaper-sorter"
+version = "0.1.0"
+edition = "2021"
+description = "Watches your wallpaper folders and sorts new images into place."
+
+[lib]
+name = "sorter_daemon"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wallpaper-sorter"
+path = "src/main.rs"
+
+[dependencies]
+sorter-core = { path = "../core" }
+sorter-engine = { path = "../engine" }
+inotify = { version = "0.10", default-features = false }
+libc = "0.2"
+tiny_http = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }

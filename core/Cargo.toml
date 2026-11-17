@@ -1,0 +1,12 @@
+[package]
+name = "sorter-core"
+version = "0.1.0"
+edition = "2021"
+description = "Pure logic for Wallpaper Sorter: tags, matching, naming. No file system access."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+[dev-dependencies]
+csv = "1"

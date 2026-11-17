@@ -1,0 +1,7 @@
+{
+  "name": "wallpaper-sorter-ui-tests",
+  "private": true,
+  "description": "Drives the real program and its page in a simulated browser (jsdom). Run: cargo build, then node --test",
+  "scripts": { "test": "node --test" },
+  "devDependencies": { "jsdom": "^25.0.0" }
+}

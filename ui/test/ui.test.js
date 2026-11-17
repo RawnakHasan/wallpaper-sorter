@@ -1,0 +1,482 @@
+'use strict';
+// Drives the real program (the compiled binary) and its page in jsdom, the way a person would.
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const zlib = require('node:zlib');
+const { JSDOM } = require('jsdom');
+
+const BIN = process.env.SORTER_BIN || path.join(__dirname, '../../target/debug/wallpaper-sorter');
+const STARTER = path.join(__dirname, '../../spec/tags.starter.toml');
+
+// ---------- a minimal valid PNG, different for every seed
+const crcTable = (() => {
+  const t = [];
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+const crc32 = (buf) => {
+  let c = 0xffffffff;
+  for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+function chunk(type, data) {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([len, body, crc]);
+}
+function png(seed, w = 64, h = 36) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  const row = Buffer.alloc(1 + w * 3);
+  for (let x = 0; x < w; x++) {
+    row[1 + x * 3] = (x * 3 + seed) % 256;
+    row[2 + x * 3] = (seed * 7) % 256;
+    row[3 + x * 3] = 120;
+  }
+  const raw = Buffer.concat(Array.from({ length: h }, () => row));
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+let seedCounter = 1;
+function put(file, seed) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, png(seed || seedCounter++));
+}
+
+// ---------- start the program on a temporary library
+async function startSorter(prep) {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-ui-'));
+  const lib = path.join(base, 'lib');
+  const intake = path.join(base, 'pixiv');
+  fs.mkdirSync(lib);
+  fs.mkdirSync(intake);
+  prep(lib, intake);
+  const text = fs
+    .readFileSync(STARTER, 'utf8')
+    .replace('library = "~/Pictures/Wallpapers"', `library = "${lib}"`)
+    .replace('path = "~/Downloads/pixiv"', `path = "${intake}"`);
+  const cfg = path.join(base, 'config.toml');
+  fs.writeFileSync(cfg, text);
+  const child = spawn(BIN, ['--config', cfg, '--port', '0'], { env: { ...process.env, XDG_CACHE_HOME: path.join(base, 'cache') } });
+  const url = await new Promise((resolve, reject) => {
+    let buf = '';
+    child.stdout.on('data', (d) => {
+      buf += d;
+      const m = buf.match(/http:\/\/127\.0\.0\.1:\d+\//);
+      if (m) resolve(m[0]);
+    });
+    child.stderr.on('data', (d) => (buf += d));
+    child.on('exit', (c) => reject(new Error(`program exited (${c}): ${buf}`)));
+    setTimeout(() => reject(new Error('program did not start: ' + buf)), 15000);
+  });
+  return {
+    base, lib, intake, cfg, url,
+    stop() {
+      child.kill('SIGINT');
+      fs.rmSync(base, { recursive: true, force: true });
+    },
+  };
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function waitFor(fn, what, ms = 8000) {
+  const end = Date.now() + ms;
+  let last;
+  while (Date.now() < end) {
+    try {
+      last = fn();
+      if (last) return last;
+    } catch (e) {
+      /* not there yet */
+    }
+    await sleep(25);
+  }
+  throw new Error('timed out waiting for ' + what);
+}
+
+async function openPage(sorter, hash) {
+  const dom = await JSDOM.fromURL(sorter.url + (hash || ''), {
+    runScripts: 'dangerously',
+    resources: 'usable',
+    pretendToBeVisual: true,
+    beforeParse(w) {
+      w.fetch = (u, init) => fetch(new URL(u, w.location.href).href, init);
+    },
+  });
+  const w = dom.window;
+  const d = w.document;
+  const ui = {
+    dom, w, d,
+    q: (sel, root) => (root || d).querySelector(sel),
+    qa: (sel, root) => [...(root || d).querySelectorAll(sel)],
+    byText: (sel, text, root) => [...(root || d).querySelectorAll(sel)].find((e) => e.textContent.trim() === text || e.textContent.trim().startsWith(text)),
+    click(el, init) {
+      assert.ok(el, 'element to click exists');
+      el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true, ...(init || {}) }));
+    },
+    type(el, value) {
+      el.value = value;
+      el.dispatchEvent(new w.Event('input', { bubbles: true }));
+    },
+    key(el, key, init) {
+      el.dispatchEvent(new w.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...(init || {}) }));
+    },
+    toast: () => (ui.q('#toast') && !ui.q('#toast').hidden ? ui.q('#toast').textContent : ''),
+    go(hash) {
+      w.location.hash = hash;
+    },
+    close: () => w.close(),
+  };
+  await waitFor(() => ui.q('#main .page'), 'the first page');
+  return ui;
+}
+
+const api = (s, method, p, body) =>
+  fetch(s.url + p.replace(/^\//, ''), { method, headers: { 'Content-Type': 'application/json' }, body: method === 'GET' ? undefined : JSON.stringify(body || {}) }).then((r) => r.json());
+
+async function withSorter(prep, hash, fn) {
+  const s = await startSorter(prep);
+  let ui;
+  try {
+    ui = await openPage(s, hash);
+    await fn(ui, s);
+  } finally {
+    if (ui) ui.close();
+    s.stop();
+  }
+}
+
+// ---------- the tests
+test('the overview shows counts, the menu and the connection', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Wuthering-Waves/Chisa/Chisa 1.png'));
+      put(path.join(lib, 'wallhaven-1q2le9.png'));
+    },
+    '',
+    async (ui) => {
+      assert.equal(ui.qa('.rail .nv').length, 8);
+      await waitFor(() => ui.qa('.stat').length === 4, 'the four counts');
+      const stats = ui.qa('.stat').map((s) => s.textContent);
+      assert.match(stats[0], /1.*waiting in the Inbox/);
+      assert.match(stats[1], /2.*images in the library/);
+      await waitFor(() => ui.q('.status').textContent.includes('Watching'), 'the connection chip');
+      await waitFor(() => ui.q('#inbox-count').textContent === '1', 'the inbox badge');
+    }
+  ));
+
+test('inbox: select an image, assign it to a folder, undo', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'wallhaven-1q2le9.png'));
+      put(path.join(lib, 'wallhaven-2zzzzz.png'));
+    },
+    '#/inbox',
+    async (ui, s) => {
+      await waitFor(() => ui.qa('.cell').length === 2, 'two images');
+      assert.equal(ui.q('.selbar').hidden, true);
+      ui.click(ui.qa('.cell')[0]);
+      assert.match(ui.q('.selbar').textContent, /1 selected/);
+      ui.click(ui.byText('.selbar button', 'Assign to folder'));
+      const sheet = await waitFor(() => ui.q('.sheet'), 'the assign sheet');
+      const folder = ui.q('input[aria-label="Folder"]', sheet);
+      ui.type(folder, 'Nature');
+      assert.match(ui.q('.preview-line', sheet).textContent, /Nature 1\.png/);
+      ui.click(ui.byText('footer button', 'Assign', sheet));
+      await waitFor(() => /Moved 1 image to Nature/.test(ui.toast()), 'the confirmation');
+      assert.equal((await api(s, 'GET', '/api/images?folder=Nature')).length, 1);
+      await waitFor(() => ui.qa('.cell').length === 1, 'one image left in the inbox');
+
+      ui.click(ui.byText('#toast button', 'Undo'));
+      await waitFor(() => ui.qa('.cell').length === 2, 'both back in the inbox');
+      assert.equal((await api(s, 'GET', '/api/images?folder=Nature')).length, 0);
+    }
+  ));
+
+test('inbox: saving a tag with the assignment sorts the other waiting images too', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Violet Evergarden.png'));
+      put(path.join(lib, 'Violet.full.1234.png'));
+    },
+    '#/inbox',
+    async (ui, s) => {
+      await waitFor(() => ui.qa('.cell').length === 2, 'two images');
+      ui.click(ui.byText('.cell', 'Violet Evergarden') || ui.qa('.cell')[0]);
+      ui.click(ui.byText('.selbar button', 'Assign to folder'));
+      const sheet = await waitFor(() => ui.q('.sheet'), 'the sheet');
+      ui.type(ui.q('input[aria-label="Folder"]', sheet), 'Series/Violet');
+      const box = ui.q('#also-tag', sheet);
+      box.checked = true;
+      box.dispatchEvent(new ui.w.Event('change', { bubbles: true }));
+      const chips = ui.q('.chip-in', sheet);
+      ui.type(chips, 'violet');
+      ui.key(chips, 'Enter');
+      assert.ok(ui.byText('.tagchip', 'violet', sheet), 'the keyword became a chip');
+      ui.click(ui.byText('footer button', 'Assign', sheet));
+      await waitFor(() => /Moved 1 image/.test(ui.toast()), 'the confirmation');
+      await waitFor(() => ui.q('.empty') && /Inbox clear/.test(ui.q('.empty').textContent), 'an empty inbox: the new tag sorted the other file');
+      assert.equal((await api(s, 'GET', '/api/images?folder=Series/Violet')).length, 2);
+      assert.match(fs.readFileSync(s.cfg, 'utf8'), /keywords = \["violet"\]/);
+    }
+  ));
+
+test('inbox: a file name is shown as text, never as HTML', () =>
+  withSorter(
+    (lib) => put(path.join(lib, '<b>bold</b> & "quotes".png')),
+    '#/inbox',
+    async (ui) => {
+      const cell = await waitFor(() => ui.q('.cell'), 'the image');
+      assert.equal(ui.qa('.grid b').length, 0, 'no element was made from the name');
+      assert.ok(cell.textContent.includes('<b>bold</b> & "quotes".png'));
+      assert.equal(cell.getAttribute('aria-label'), '<b>bold</b> & "quotes".png');
+    }
+  ));
+
+test('inbox: keyboard shortcuts select everything and clear it', () =>
+  withSorter(
+    (lib) => {
+      for (const n of ['wallhaven-aaaaaa.png', 'wallhaven-bbbbbb.png', 'wallhaven-cccccc.png']) put(path.join(lib, n));
+    },
+    '#/inbox',
+    async (ui) => {
+      await waitFor(() => ui.qa('.cell').length === 3, 'three images');
+      ui.key(ui.d.body, 'a', { ctrlKey: true });
+      assert.match(ui.q('.selbar').textContent, /3 selected/);
+      ui.key(ui.d.body, 'Escape');
+      await waitFor(() => ui.q('.selbar').hidden, 'the selection to clear');
+      ui.click(ui.qa('.cell')[0]);
+      ui.click(ui.qa('.cell')[2], { shiftKey: true });
+      assert.match(ui.q('.selbar').textContent, /3 selected/, 'shift-click selects the range');
+    }
+  ));
+
+test('inbox: files in the intake folder wait there with their artist', () =>
+  withSorter(
+    (lib, intake) => put(path.join(intake, 'BLACKmeow-91709880/151861634_p0--.png')),
+    '#/inbox',
+    async (ui) => {
+      const cell = await waitFor(() => ui.q('.cell'), 'the Pixiv image');
+      assert.match(cell.textContent, /Pixiv/);
+      ui.click(ui.q('.open', cell));
+      const sheet = await waitFor(() => ui.q('.sheet'), 'the details');
+      assert.match(sheet.textContent, /BLACKmeow \(91709880\)/);
+      const link = ui.q('a[href^="https://www.pixiv.net/artworks/151861634"]', sheet);
+      assert.ok(link && link.rel.includes('noopener'));
+    }
+  ));
+
+test('tags: the filename tester follows the rules', () =>
+  withSorter(() => {}, '#/tags', async (ui) => {
+    const input = await waitFor(() => ui.q('#tester-in'), 'the tester');
+    ui.type(input, 'Chisa Skadi.png');
+    await waitFor(() => /Conflict/.test(ui.q('.tester .result').textContent), 'the conflict');
+    assert.match(ui.q('.tester .result').textContent, /Stays in the Inbox/);
+    ui.type(input, 'Chisa waterfall.png');
+    await waitFor(() => /Specific beats generic/.test(ui.q('.tester .result').textContent), 'the generic rule');
+    assert.match(ui.q('.tester .result').textContent, /Wuthering-Waves\/Chisa/);
+    assert.match(ui.q('.tester .result').textContent, /Chisa 1\.png/);
+    assert.ok(ui.byText('.tester .tagchip.hit', 'chisa'), 'the word that matched is marked');
+  }));
+
+test('tags: add a tag and delete it again', () =>
+  withSorter(() => {}, '#/tags', async (ui, s) => {
+    await waitFor(() => ui.byText('button', 'Add tag'), 'the Add tag button');
+    ui.click(ui.byText('button', 'Add tag'));
+    const sheet = await waitFor(() => ui.q('.sheet'), 'the sheet');
+    const kw = ui.q('.chip-in', sheet);
+    ui.type(kw, 'lumi');
+    ui.key(kw, 'Enter');
+    ui.type(ui.q('input[aria-label="Folder"]', sheet), 'Originals/Lumi');
+    ui.click(ui.byText('footer button', 'Save', sheet));
+    await waitFor(() => /Tag saved/.test(ui.toast()), 'the confirmation');
+    await waitFor(() => ui.byText('.group-head h2', 'Originals/Lumi'), 'the new group');
+    assert.match(fs.readFileSync(s.cfg, 'utf8'), /Originals\/Lumi/);
+
+    const row = ui.qa('.tagrow').find((r) => r.textContent.includes('lumi'));
+    ui.click(ui.byText('button', 'Delete', row));
+    const dialog = await waitFor(() => ui.q('.dialog'), 'the confirmation dialog');
+    ui.click(ui.byText('button', 'Delete tag', dialog));
+    await waitFor(() => !ui.byText('.group-head h2', 'Originals/Lumi'), 'the group to go');
+  }));
+
+test('tags: a bad folder is explained, not silently ignored', () =>
+  withSorter(() => {}, '#/tags', async (ui) => {
+    await waitFor(() => ui.byText('button', 'Add tag'), 'the button');
+    ui.click(ui.byText('button', 'Add tag'));
+    const sheet = await waitFor(() => ui.q('.sheet'), 'the sheet');
+    const kw = ui.q('.chip-in', sheet);
+    ui.type(kw, 'x');
+    ui.key(kw, 'Enter');
+    ui.type(ui.q('input[aria-label="Folder"]', sheet), '../escape');
+    ui.click(ui.byText('footer button', 'Save', sheet));
+    await waitFor(() => ui.q('[role="alert"]', sheet).textContent.length > 0, 'an error message');
+    assert.ok(ui.q('.sheet'), 'the sheet stays open');
+  }));
+
+test('library: browse a folder and close the gaps', () =>
+  withSorter(
+    (lib) => {
+      for (const n of [1, 3, 4]) put(path.join(lib, `Wuthering-Waves/Chisa/Chisa ${n}.png`));
+    },
+    '#/library?folder=Wuthering-Waves%2FChisa',
+    async (ui, s) => {
+      await waitFor(() => ui.qa('.cell').length === 3, 'three images');
+      assert.match(ui.q('.facts').textContent, /Prefix\s*Chisa/);
+      assert.match(ui.q('.facts').textContent, /Next number\s*5/);
+      assert.match(ui.q('.facts').textContent, /Gaps\s*1 \(2\)/);
+      ui.click(ui.byText('button', 'Close gaps'));
+      const sheet = await waitFor(() => ui.q('.sheet'), 'the sheet');
+      await waitFor(() => /Chisa 4\.png → Chisa 2\.png/.test(sheet.textContent), 'the preview of renames');
+      ui.click(ui.byText('footer button', 'Apply', sheet));
+      await waitFor(() => /Renamed 1 file/.test(ui.toast()), 'the confirmation');
+      const names = (await api(s, 'GET', '/api/images?folder=Wuthering-Waves/Chisa')).map((i) => i.name);
+      assert.deepEqual(names, ['Chisa 1.png', 'Chisa 2.png', 'Chisa 3.png']);
+      await waitFor(() => !ui.byText('button', 'Close gaps'), 'the button to go once there are no gaps');
+    }
+  ));
+
+test('library: delete asks first, goes to the trash, and can be undone', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Nature/Nature 1.png'));
+      put(path.join(lib, 'Nature/Nature 2.png'));
+    },
+    '#/library?folder=Nature',
+    async (ui, s) => {
+      await waitFor(() => ui.qa('.cell').length === 2, 'two images');
+      ui.click(ui.qa('.cell')[0]);
+      ui.click(ui.byText('.selbar button', 'Delete'));
+      const dialog = await waitFor(() => ui.q('.dialog'), 'the confirmation');
+      assert.match(dialog.textContent, /trash and can be undone/);
+      ui.click(ui.byText('button', 'Cancel', dialog));
+      assert.equal(ui.qa('.cell').length, 2, 'cancel changes nothing');
+      ui.click(ui.byText('.selbar button', 'Delete'));
+      ui.click(ui.byText('.dialog button', 'Delete'));
+      await waitFor(() => /Deleted 1 image/.test(ui.toast()), 'the confirmation');
+      await waitFor(() => ui.qa('.cell').length === 1, 'one image left');
+      ui.click(ui.byText('#toast button', 'Undo'));
+      await waitFor(() => ui.qa('.cell').length === 2, 'both back');
+      assert.equal((await api(s, 'GET', '/api/images?folder=Nature')).length, 2);
+    }
+  ));
+
+test('duplicates: a copy is listed with its original and can be cleared', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Wuthering-Waves/Chisa/Chisa 1.png'), 77);
+      put(path.join(lib, 'Chisa copy.png'), 77);
+    },
+    '#/duplicates',
+    async (ui) => {
+      const row = await waitFor(() => ui.q('.list > div'), 'the copy');
+      assert.match(row.textContent, /Chisa copy\.png/);
+      assert.match(row.textContent, /Same as Wuthering-Waves\/Chisa\/Chisa 1\.png/);
+      assert.ok(ui.q('a[href="#/library?folder=Wuthering-Waves%2FChisa"]', row));
+      ui.click(ui.byText('button', 'Empty Duplicates folder'));
+      const dialog = await waitFor(() => ui.q('.dialog'), 'the confirmation');
+      ui.click(ui.byText('button', 'Move to trash', dialog));
+      await waitFor(() => ui.q('.empty') && /No duplicates/.test(ui.q('.empty').textContent), 'an empty list');
+    }
+  ));
+
+test('data: filter, find unknown sources and set one by hand', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'wallhaven-1q2le9.png'));
+      put(path.join(lib, 'Arknights/Skadi/Skadi 1.png'));
+      put(path.join(lib, 'Wuthering-Waves/Chisa/Chisa 1.png'));
+    },
+    '#/data',
+    async (ui, s) => {
+      await waitFor(() => ui.qa('.tbl tbody tr').length === 3, 'three records');
+      ui.click(ui.byText('button', 'Unknown source (2)'));
+      await waitFor(() => ui.qa('.tbl tbody tr').length === 2, 'only the unknown ones');
+      ui.click(ui.qa('.tbl tbody tr')[0]);
+      const sheet = await waitFor(() => ui.q('.sheet'), 'the record');
+      ui.q('select[aria-label="Site"]', sheet).value = 'Wallhaven';
+      ui.type(ui.q('input[aria-label="Id on the site"]', sheet), 'abc123');
+      ui.click(ui.byText('button', 'Save source', sheet));
+      await waitFor(() => /Source saved/.test(ui.toast()), 'the confirmation');
+      await waitFor(() => ui.byText('button', 'Unknown source (1)'), 'the unknown count to drop');
+      const found = await api(s, 'GET', '/api/data?q=abc123');
+      assert.equal(found.total, 1);
+      assert.equal(found.items[0].sources[0].url, 'https://wallhaven.cc/w/abc123');
+    }
+  ));
+
+test('search in the top bar opens the data page filtered', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'wallhaven-1q2le9.png'));
+      put(path.join(lib, 'Arknights/Skadi/Skadi 1.png'));
+    },
+    '',
+    async (ui) => {
+      const box = ui.q('input[type="search"]');
+      box.value = 'skadi';
+      ui.key(box, 'Enter');
+      await waitFor(() => ui.qa('.tbl tbody tr').length === 1, 'one matching record');
+      assert.match(ui.q('.tbl tbody').textContent, /Skadi 1\.png/);
+      assert.equal(ui.q('#data-q').value, 'skadi');
+    }
+  ));
+
+test('activity: the log lists what happened and undoes it', () =>
+  withSorter(
+    (lib) => put(path.join(lib, 'wallhaven-1q2le9.png')),
+    '',
+    async (ui, s) => {
+      const inbox = await api(s, 'GET', '/api/inbox');
+      await api(s, 'POST', '/api/assign', { paths: [inbox[0].path], folder: 'Nature' });
+      ui.go('#/activity');
+      const row = await waitFor(() => ui.q('.act'), 'a log row');
+      assert.match(row.textContent, /Assigned/);
+      assert.match(row.textContent, /Nature\/Nature 1\.png/);
+      ui.click(ui.byText('.act button', 'Undo'));
+      await waitFor(() => /Undone/.test(ui.toast()), 'the confirmation');
+      await waitFor(() => ui.qa('.act').some((r) => /Undone/.test(r.textContent)) && ui.byText('.badge', 'undone'), 'the row to show it was undone');
+      assert.equal((await api(s, 'GET', '/api/images?folder=Nature')).length, 0);
+    }
+  ));
+
+test('settings: change how gaps are handled, and the theme', () =>
+  withSorter(() => {}, '#/settings', async (ui, s) => {
+    const gap = await waitFor(() => ui.q('select[aria-label="Gaps in the numbering"]'), 'the select');
+    assert.equal(gap.value, 'keep');
+    gap.value = 'last';
+    gap.dispatchEvent(new ui.w.Event('change', { bubbles: true }));
+    await waitFor(() => /Saved/.test(ui.toast()), 'the confirmation');
+    assert.equal((await api(s, 'GET', '/api/settings')).gap_mode, 'last');
+    ui.click(ui.byText('.seg button', 'Dark'));
+    assert.equal(ui.d.documentElement.dataset.theme, 'dark');
+    ui.click(ui.byText('.seg button', 'System'));
+    assert.equal(ui.d.documentElement.dataset.theme, undefined);
+  }));
+
+test('the page follows the sorter: a file that arrives shows up without reloading', () =>
+  withSorter(() => {}, '#/inbox', async (ui, s) => {
+    await waitFor(() => ui.q('.empty') && /Inbox clear/.test(ui.q('.empty').textContent), 'an empty inbox');
+    put(path.join(s.lib, 'wallhaven-1q2le9.png'));
+    await waitFor(() => ui.qa('.cell').length === 1, 'the new image (the page checks every few seconds)', 12000);
+  }));
+
+test('the page says so when the sorter stops', () =>
+  withSorter(() => {}, '', async (ui, s) => {
+    await waitFor(() => ui.q('.status').textContent.includes('Watching'), 'the chip');
+    s.stop();
+    await waitFor(() => ui.q('.status').textContent.includes('Not connected'), 'the chip to change', 12000);
+  }));

@@ -1,0 +1,158 @@
+# Wallpaper Sorter: starter tags, drafted from your folder tree.
+# Edit freely; later the web UI edits this same file.
+#
+# Each [[tag]]:
+#   keywords      words to look for in a filename (whole words, any case; several words = a phrase)
+#   dest          folder inside ~/Pictures/Wallpapers (created on first use)
+#   prefix        optional file prefix; default is the folder name with hyphens turned into spaces
+#   match         "word" (default) or "substring"
+#   strict_words  optional; the tag only applies if at least one of these words is also in the name
+#   generic       optional (true/false); a generic tag only applies if no specific tag matched
+#                 and the cleaned name is short (see generic_max_words)
+
+library = "~/Pictures/Wallpapers"
+
+# Folders whose new images are sorted into the library (the Pixiv extension's folder, for example).
+[[intake]]
+path = "~/Downloads/pixiv"
+recursive = true              # also watch artist subfolders, including new ones
+remove_empty_folders = true   # remove an artist folder once it has been empty for a while
+
+[settings]
+image_extensions = ["jpg", "jpeg", "png", "webp", "avif", "gif", "bmp"]
+duplicates_folder = "Duplicates"
+generic_max_words = 4   # generic tags only apply to names with this many words or fewer
+gap_mode = "keep"       # keep | lowest | last | renumber  (what to do about gaps in the numbering)
+
+# ---------- Wuthering Waves ----------
+[[tag]]
+keywords = ["wuthering waves", "wuwa"]
+dest = "Wuthering-Waves"
+
+[[tag]]
+keywords = ["aemeath"]
+dest = "Wuthering-Waves/Aemeath"
+
+[[tag]]
+keywords = ["brant"]
+dest = "Wuthering-Waves/Brant"
+
+[[tag]]
+keywords = ["cartethyia"]
+dest = "Wuthering-Waves/Cartethyia"
+
+[[tag]]
+keywords = ["chisa"]
+dest = "Wuthering-Waves/Chisa"
+
+[[tag]]
+keywords = ["denia"]
+dest = "Wuthering-Waves/Denia"
+
+[[tag]]
+keywords = ["hiyuki"]
+dest = "Wuthering-Waves/Hiyuki"
+
+[[tag]]
+keywords = ["hsin"]
+dest = "Wuthering-Waves/Hsin"
+
+[[tag]]
+keywords = ["jinhsi"]
+dest = "Wuthering-Waves/Jinhsi"
+
+[[tag]]
+keywords = ["lucilla"]
+dest = "Wuthering-Waves/Lucilla"
+
+[[tag]]
+keywords = ["qingxiao"]
+dest = "Wuthering-Waves/Qingxiao"
+
+[[tag]]
+keywords = ["qiuyuan"]
+dest = "Wuthering-Waves/Qiuyuan"
+
+[[tag]]
+keywords = ["rover"]
+dest = "Wuthering-Waves/Rover"
+
+[[tag]]
+keywords = ["shorekeeper"]
+dest = "Wuthering-Waves/Shorekeeper"
+
+[[tag]]
+keywords = ["suisui"]
+dest = "Wuthering-Waves/Suisui"
+
+[[tag]]
+keywords = ["yangyang"]
+dest = "Wuthering-Waves/Yangyang"
+
+# ---------- Arknights ----------
+[[tag]]
+keywords = ["arknights"]
+dest = "Arknights"
+
+[[tag]]
+keywords = ["angelina"]
+dest = "Arknights/Angelina"
+
+[[tag]]
+keywords = ["gladiia"]
+dest = "Arknights/Gladiia"
+
+[[tag]]
+keywords = ["skadi"]
+dest = "Arknights/Skadi"
+
+[[tag]]
+keywords = ["specter"]
+dest = "Arknights/Specter"
+
+# ---------- Honkai Star Rail ----------
+[[tag]]
+keywords = ["honkai star rail", "hsr"]
+dest = "Honkai-Star-Rail"
+
+[[tag]]
+keywords = ["robin"]
+dest = "Honkai-Star-Rail/Robin"
+strict_words = ["honkai"]
+
+[[tag]]
+keywords = ["sparkle"]
+dest = "Honkai-Star-Rail/Sparkle"
+
+[[tag]]
+keywords = ["sparxie"]
+dest = "Honkai-Star-Rail/Sparxie"
+
+# ---------- Honkai Impact ----------
+[[tag]]
+keywords = ["honkai impact", "hi3"]
+dest = "Honkai-Impact-3D"
+
+[[tag]]
+keywords = ["elysia"]
+dest = "Honkai-Impact-3D/Elysia"
+
+# ---------- Series ----------
+[[tag]]
+keywords = ["frieren"]
+dest = "Frieren"
+
+[[tag]]
+keywords = ["harry potter", "wizarding world"]
+dest = "Harry Potter"
+
+# ---------- Generic folders ----------
+[[tag]]
+keywords = ["nature", "waterfall", "waterfalls", "forest", "mountain", "mountains", "landscape"]
+dest = "Nature"
+generic = true
+
+[[tag]]
+keywords = ["space", "galaxy", "nebula"]
+dest = "Space"
+generic = true

@@ -1,0 +1,14 @@
+# Install:  cargo install --path daemon
+#           mkdir -p ~/.config/systemd/user && cp contrib/wallpaper-sorter.service ~/.config/systemd/user/
+#           systemctl --user enable --now wallpaper-sorter
+# Logs:     journalctl --user -u wallpaper-sorter -f
+[Unit]
+Description=Wallpaper Sorter
+
+[Service]
+ExecStart=%h/.cargo/bin/wallpaper-sorter
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

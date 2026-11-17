@@ -1,0 +1,305 @@
+section,input,current_folder,expected_dest,rule,status,matched,note
+edge,Chisa.png,,Wuthering-Waves/Chisa,One folder,edge,chisa,plain single tag
+edge,CHISA.PNG,,Wuthering-Waves/Chisa,One folder,edge,chisa,case-insensitive name and extension
+edge,chisa.jpeg,,Wuthering-Waves/Chisa,One folder,edge,chisa,jpeg extension accepted
+edge,Chisa waterfall.png,,Wuthering-Waves/Chisa,Specific beats generic,edge,chisa,a generic tag never beats a specific one
+edge,Chisa Aemeath.png,,Wuthering-Waves,Shared parent,edge,aemeath;chisa,two characters of one game go to the game folder
+edge,Chisa Skadi.png,,INBOX,Conflict,edge,chisa;skadi,characters from different games
+edge,Chisa Wuthering Waves.png,,Wuthering-Waves/Chisa,Deepest folder wins,edge,wuthering waves;chisa,game tag is an ancestor of the character
+edge,Wuthering.Waves.full.4690373.png,,Wuthering-Waves,One folder,edge,wuthering waves,"game-level tag, Zerochan style"
+edge,wuwa wallpaper.jpg,,Wuthering-Waves,One folder,edge,wuwa,game alias
+edge,Chisa1.png,,Wuthering-Waves/Chisa,One folder,edge,chisa,digit boundary splits the word
+edge,ChisaWallpaper.png,,Wuthering-Waves/Chisa,One folder,edge,chisa,camelCase boundary splits the word
+edge,chisawallpaper.png,,INBOX,No match,edge,,glued words do not match in whole-word mode
+edge,workspace.png,,INBOX,No match,edge,,'space' must not match inside 'workspace'
+edge,my space wallpaper.png,,Space,One folder,edge,space,whole word 'space'
+edge,Robin.full.4129629.jpg,,INBOX,No match,edge,,strict tag: needs 'honkai' in the name
+edge,robin honkai.png,,Honkai-Star-Rail/Robin,One folder,edge,robin,strict tag satisfied
+edge,__robin_honkai_and_1_more_drawn_by_chisa__66b60ada665db2ba13e3aec46e6b756a.png,,Honkai-Star-Rail/Robin,One folder,edge,robin,artist name after drawn_by is ignored
+edge,__original_drawn_by_chisa__66b60ada665db2ba13e3aec46e6b756a.jpg,,INBOX,No match,edge,,only the artist is 'chisa'
+edge,__sparkle_and_sparxie_honkai_and_1_more_drawn_by_x__1223c6db9e3741acb14354649f7bf88b.jpg,,Honkai-Star-Rail,Shared parent,edge,sparkle;sparxie,two Honkai Star Rail characters
+edge,Konachan.com - 999999 arknights gladiia_(arknights) skadi_(arknights) specter_(arknights) water.jpg,,Arknights,Shared parent,edge,arknights;gladiia;skadi;specter,three Arknights characters
+edge,Konachan.com - 999998 skadi_(arknights) water waterfall.jpg,,Arknights/Skadi,Deepest folder wins,edge,arknights;skadi,game + character both match; the waterfall is ignored
+edge,skadi waterfall.png,,Arknights/Skadi,Specific beats generic,edge,skadi,character beats waterfall background
+edge,Konachan.com - 999997 waterfall forest.jpg,,Nature,One folder,edge,waterfall,"short name, two generic keywords, same folder"
+edge,Konachan.com - 999996 solo long_hair dress sky clouds waterfall.jpg,,INBOX,No match,edge,,generic tag ignored: name has too many words
+edge,Konachan.com - 999995 wuthering_waves forest.jpg,,Wuthering-Waves,Specific beats generic,edge,wuthering waves,game tag beats a generic tag at the same depth
+edge,waterfall space.png,,INBOX,Conflict,edge,waterfall;space,"two generic folders, no shared parent"
+edge,naive-cloudy-landscape.jpg,,Nature,One folder,edge,landscape,plain scenery name
+edge,wallhaven-1q2le9.jpg,,INBOX,No match,edge,,opaque Wallhaven id
+edge,wallhaven-ex.png,,INBOX,No match,edge,,short Wallhaven id
+edge,138032536_p0.jpg,,INBOX,No match,edge,,Pixiv id only
+edge,151861634_p0--.png,,INBOX,No match,edge,,"Pixiv extension style, no words"
+edge,1b3006020fef5585363280d7d5722beecb199e58.png,,INBOX,No match,edge,,hex hash name
+edge,naive-chisa-wuthering-waves-wuwa-art-4k-wallpaper-uhdpaper.com-19@3@d.jpg,,Wuthering-Waves/Chisa,Deepest folder wins,edge,wuthering waves;chisa,character + game words
+edge,Hiyuki.(Wuthering.Waves).full.4698402.jpg,,Wuthering-Waves/Hiyuki,Deepest folder wins,edge,wuthering waves;hiyuki,character + game in brackets
+edge,__cecilia_immergreen_and_malfoid_hololive_and_3_more_drawn_by_ducveagle__290b0866c6b46fe1c6a59d833ed0d8b1.jpg,,INBOX,No match,edge,,Danbooru hid the series behind 'and_3_more'
+edge,honkai_(series) tattoo.png,,INBOX,No match,edge,,'honkai' alone is not a game
+edge,Chisa 12.png,,Wuthering-Waves/Chisa,One folder,edge,chisa,an already numbered name still matches
+edge,chisa.crdownload,,IGNORE,Not an image,edge,,partial download
+edge,chisa.png.part,,IGNORE,Not an image,edge,,partial download (Firefox)
+edge,Chisa.mp4,,IGNORE,Not an image,edge,,videos come later
+real,1004017-colorized.png,(root),INBOX,No match,inbox,,
+real,138032536_p0.jpg,(root),INBOX,No match,inbox,,
+real,139396752_p0.jpg,(root),INBOX,No match,inbox,,
+real,Angel1.png,(root),INBOX,No match,inbox,,
+real,Anime.png,(root),INBOX,No match,inbox,,
+real,b2117665942648f7c8750c3ea431a6a7d675d6ba.jpg,(root),INBOX,No match,inbox,,
+real,cornelius-dammrich-2003-mainshot-crop-hd-04.jpg,(root),INBOX,No match,inbox,,
+real,G5uBmitWkAAyk8s.jpg,(root),INBOX,No match,inbox,,
+real,Konachan.com - 389240 blue_eyes bow braids breasts bunnygirl choker clouds dress gloves hat hood long_hair necklace pantyhose ponytail ribbons signed sky topless witch_hat.jpg,(root),INBOX,No match,inbox,,
+real,Konachan.com - 407462 animal arknights bird boots brown_hair clouds dress foxgirl gloves hood long_hair newnand paper red_eyes see_through sky thighhighs twintails.jpg,(root),Arknights,One folder,would-sort,arknights,
+real,Konachan.com - 407545 angelina_(arknights) animal_ears arknights brown_hair clouds dress foxgirl headband long_hair mr.yu paper red_eyes sky summer_dress twintails.png,(root),Arknights/Angelina,Deepest folder wins,would-sort,arknights;angelina,
+real,Konachan.com - 407649 boots building city dress gloves group guitar instrument long_hair male rain red_eyes ruins scarf suit thighhighs umbrella vocaloid water z_05.png,(root),INBOX,No match,inbox,,
+real,Konachan.com - 408670 barefoot blue_eyes bow brown_hair dress leaves long_hair original qiususu.png,(root),INBOX,No match,inbox,,
+real,Konachan.com - 408733 anthropomorphism flat_chest gentoo linux logo navel necklace os-tan pink_eyes purple ravimo short_hair sports_bra white_hair.png,(root),INBOX,No match,inbox,,
+real,miku.png,(root),INBOX,No match,inbox,,
+real,MXBpbZp.png,(root),INBOX,No match,inbox,,
+real,naive-0263.jpg,(root),INBOX,No match,inbox,,
+real,naive-0385.jpg,(root),INBOX,No match,inbox,,
+real,naive-1284594.jpg,(root),INBOX,No match,inbox,,
+real,naive-1355193.jpg,(root),INBOX,No match,inbox,,
+real,naive-1B35D392-74BD-4CAB-93FE-833AD9A9974A.png,(root),INBOX,No match,inbox,,
+real,naive-403.jpg,(root),INBOX,No match,inbox,,
+real,naive-a_cartoon_of_a_street_with_buildings.jpg,(root),INBOX,No match,inbox,,
+real,naive-chisa-wuthering-waves-wuwa-art-4k-wallpaper-uhdpaper.com-19@3@d.jpg,(root),Wuthering-Waves/Chisa,Deepest folder wins,would-sort,wuthering waves;chisa,
+real,naive-cloudy-landscape.jpg,(root),Nature,One folder,would-sort,landscape,
+real,naive-Frieren-4.png,(root),Frieren,One folder,would-sort,frieren,
+real,naive-red pianist.jpg,(root),INBOX,No match,inbox,,
+real,naive-wallhaven-212pky.png,(root),INBOX,No match,inbox,,
+real,naive-wallhaven-rqddem.jpg,(root),INBOX,No match,inbox,,
+real,naive-wallhaven-rqod21.png,(root),INBOX,No match,inbox,,
+real,naive-wallhaven-x6128o.jpg,(root),INBOX,No match,inbox,,
+real,qs-niri.jpg,(root),INBOX,No match,inbox,,
+real,Violet Evergarden.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-1q2le9.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-1q2mxg.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-1qg5zv.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-211xrg.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-212yyg.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-2ewqvy.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-2k2wex.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-3q6m6y.png,(root),INBOX,No match,inbox,,
+real,wallhaven-5y33j5.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-5y3r18.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-5y3wp3.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-5yzd98.png,(root),INBOX,No match,inbox,,
+real,wallhaven-6lpr3w.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-6lyex6.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-7je5ve.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-7jl2lv.png,(root),INBOX,No match,inbox,,
+real,wallhaven-7jljlv.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-8g9qy1.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-8g9y8k.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-8gjoky.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-9oggj8.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-9ogp2k.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-d69k3o.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-d8o98g.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-e86jr8.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-ex.png,(root),INBOX,No match,inbox,,
+real,wallhaven-gwde5e.png,(root),INBOX,No match,inbox,,
+real,wallhaven-gwdm3e.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-gwdz7d.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-gwmkpe.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-jed1ew.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-jeddgq.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-jeddoy.png,(root),INBOX,No match,inbox,,
+real,wallhaven-jeddpq.png,(root),INBOX,No match,inbox,,
+real,wallhaven-jeej1q.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-jeew7y.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-jey29y.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-k8d6rq.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-k8d7j7.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-k8loqq.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-k8loz7.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-lydk7r.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-mlg7qm.png,(root),INBOX,No match,inbox,,
+real,wallhaven-mlyoq8.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-mlyy39.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-ogjjpm.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-ogjjx9.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-ogjmdp.png,(root),INBOX,No match,inbox,,
+real,wallhaven-qrle55.png,(root),INBOX,No match,inbox,,
+real,wallhaven-qrmykq.png,(root),INBOX,No match,inbox,,
+real,wallhaven-qrol25.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-qrol6l.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-rq6151.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-vpejo3.png,(root),INBOX,No match,inbox,,
+real,wallhaven-vpeq6l.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-w55m8x.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-x866ko.jpg,(root),INBOX,No match,inbox,,
+real,wallhaven-yq96lx.png,(root),INBOX,No match,inbox,,
+real,yande.re 1267799 heels karenina_(punishing:_gray_raven) punishing:_gray_raven skirt_lift tagme thighhighs uniform wallpaper weapon.jpg,(root),INBOX,No match,inbox,,
+real,yande.re 1267815 garter headphones punishing:_gray_raven tagme uniform wallpaper.jpg,(root),INBOX,No match,inbox,,
+real,Arknights.full.4626796.jpg,Arknights,Arknights,One folder,agrees,arknights,
+real,Arknights.full.4633269.jpg,Arknights,Arknights,One folder,agrees,arknights,
+real,Konachan.com - 300877 animal arknights baseness fish long_hair skadi_(arknights) water.jpg,Arknights,Arknights/Skadi,Deepest folder wins,agrees,arknights;skadi,
+real,Konachan.com - 327066 arknights bubbles daylightallure gray_hair hat long_hair red_eyes skadi_(arknights) twintails underwater water watermark.jpg,Arknights,Arknights/Skadi,Deepest folder wins,agrees,arknights;skadi,
+real,Konachan.com - 335092 arknights kona_(konahana) polychromatic skadi_(arknights) tentacles.jpg,Arknights,Arknights/Skadi,Deepest folder wins,agrees,arknights;skadi,
+real,Konachan.com - 338523 arknights dress gray_hair long_hair navel no.aei red_eyes skadi_(arknights) staff underwater water weapon.png,Arknights,Arknights/Skadi,Deepest folder wins,agrees,arknights;skadi,
+real,Konachan.com - 340632 arknights makkuro skadi_(arknights).png,Arknights,Arknights/Skadi,Deepest folder wins,agrees,arknights;skadi,
+real,Konachan.com - 343486 arknights gladiia_(arknights) gray_hair hat logo long_hair novelance red_eyes ruins skadi_(arknights) specter_(arknights) sword weapon.jpg,Arknights,Arknights,Shared parent,agrees,arknights;gladiia;skadi;specter,
+real,Konachan.com - 344434 arknights gray_hair kurii89800727 long_hair red_eyes skadi_(arknights).png,Arknights,Arknights/Skadi,Deepest folder wins,agrees,arknights;skadi,
+real,Konachan.com - 353747 arknights nagito skadi_(arknights) stars.jpg,Arknights,Arknights/Skadi,Deepest folder wins,agrees,arknights;skadi,
+real,Konachan.com - 364636 arknights bubbles dress garter gloves gray_hair long_hair red_eyes skadi_(arknights) szh--- water wink.png,Arknights,Arknights/Skadi,Deepest folder wins,agrees,arknights;skadi,
+real,Skadi.full.4542157.jpg,Arknights,Arknights/Skadi,One folder,agrees,skadi,
+real,Skadi.full.4628038.png,Arknights,Arknights/Skadi,One folder,agrees,skadi,
+real,Skadi.The.Corrupting.Heart.full.4621023.jpg,Arknights,Arknights/Skadi,One folder,agrees,skadi,
+real,Skadi.The.Corrupting.Heart.full.4627529.jpg,Arknights,Arknights/Skadi,One folder,agrees,skadi,
+real,Skadi.The.Corrupting.Heart.full.4651473.png,Arknights,Arknights/Skadi,One folder,agrees,skadi,
+real,Sousou.no.Frieren.full.4038580.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4057264.png,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4068572.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4070907.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4108695.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4138543.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4157786.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4160910.png,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4172015.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4185012.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4265723.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4265725.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4518998.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4549252.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4572311.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4619704.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,Sousou.no.Frieren.full.4660257.jpg,Frieren,Frieren,One folder,agrees,frieren,
+real,__cecilia_immergreen_and_malfoid_hololive_and_3_more_drawn_by_ducveagle__290b0866c6b46fe1c6a59d833ed0d8b1.jpg,Harry Potter,INBOX,No match,stays,,no tag matches; re-sort leaves it in Harry Potter
+real,__malfoid_and_harry_potter_wizarding_world_and_1_more_drawn_by_sujeito_q__fbad0ef010f003748d2089b53bef4325.jpg,Harry Potter,Harry Potter,One folder,agrees,harry potter,
+real,__malfoid_wizarding_world_and_1_more_drawn_by_dusk_ming__9baf2fe96e7e728a9aa06a47cd2c02fb.png,Harry Potter,Harry Potter,One folder,agrees,wizarding world,
+real,__malfoid_wizarding_world_and_1_more_drawn_by_piki479__b7ae44d8774f84c76c49b4666aa00513.jpg,Harry Potter,Harry Potter,One folder,agrees,wizarding world,
+real,__malfoid_wizarding_world_and_1_more_drawn_by_wako_1194433260__5fec5ab43aaaf59584e85a9589a69aab.jpg,Harry Potter,Harry Potter,One folder,agrees,wizarding world,
+real,__elysia_honkai_and_1_more_drawn_by_gonnbe_fofo_and_kantya_gnsn__204a9fd6ac0f1b334771aefe88bac250.jpg,Honkai-Impact-3D,Honkai-Impact-3D/Elysia,One folder,agrees,elysia,
+real,__elysia_honkai_and_1_more_drawn_by_phant_ash__a2e90c6477c8b817ec621ff8791fd080.jpg,Honkai-Impact-3D,Honkai-Impact-3D/Elysia,One folder,agrees,elysia,
+real,__hatsune_miku_and_robin_vocaloid_and_2_more_drawn_by_q_llll4414_j__8445e64ae6ea713db5de00f5a951a41a.jpg,Honkai-Star-Rail,INBOX,No match,stays,,no tag matches; re-sort leaves it in Honkai-Star-Rail
+real,Honkai.Star.Rail.full.4730882.jpg,Honkai-Star-Rail,Honkai-Star-Rail,One folder,agrees,honkai star rail,
+real,Konachan.com - 373262 animal barefoot bell brown_hair clouds collar csyday fish gloves long_hair mask night purple_eyes signed sky tattoo twintails wristwear.png,Honkai-Star-Rail,INBOX,No match,stays,,no tag matches; re-sort leaves it in Honkai-Star-Rail
+real,Konachan.com - 373963 barefoot bell blush brown_hair collar dress gloves honkai_(series) long_hair magic mask pink_eyes ribbons twintails v-von water watermark wristwear.jpg,Honkai-Star-Rail,INBOX,No match,stays,,no tag matches; re-sort leaves it in Honkai-Star-Rail
+real,Konachan.com - 374100 animal barefoot bell bubbles building city collar dress fish gloves gun long_hair mask night ribbons signed tattoo twintails weapon wristwear.jpg,Honkai-Star-Rail,INBOX,No match,stays,,no tag matches; re-sort leaves it in Honkai-Star-Rail
+real,Konachan.com - 374104 2girls animal bell building city collar dress fish garter gloves gun long_hair mask night ribbons shirt signed skirt tattoo twintails weapon.jpg,Honkai-Star-Rail,INBOX,No match,stays,,no tag matches; re-sort leaves it in Honkai-Star-Rail
+real,Konachan.com - 380152 animal bell breasts brown_hair cardlit collar dress fish gloves honkai_(series) long_hair mask pink_eyes ribbons twintails water waterfall.png,Honkai-Star-Rail,INBOX,No match,stays,,"no tag matches; re-sort leaves it in Honkai-Star-Rail (generic ignored (21 words, limit 4): waterfall)"
+real,Konachan.com - 382371 animal bell brown_hair dress fish garter gloves honkai_(series) long_hair mask nopan pupil_g red_eyes rope sky twintails water wristwear.jpg,Honkai-Star-Rail,INBOX,No match,stays,,no tag matches; re-sort leaves it in Honkai-Star-Rail
+real,Konachan.com - 384659 2girls bell boots brown_hair collar dragon dress fireworks gloves gray_hair long_hair mask night pink_eyes sky tattoo thighhighs twintails wristwear.jpg,Honkai-Star-Rail,INBOX,No match,stays,,no tag matches; re-sort leaves it in Honkai-Star-Rail
+real,Konachan.com - 399296 2girls apron barefoot blush boots braids brown_hair building chibi city coria fang gloves gray_hair hat long_hair red_eyes shorts sky twintails.jpg,Honkai-Star-Rail,INBOX,No match,stays,,no tag matches; re-sort leaves it in Honkai-Star-Rail
+real,Konachan.com - 400175 amagasa_yun bow braids fang gloves gray_hair hat honkai:_star_rail honkai_(series) japanese_clothes long_hair purple_eyes wink.jpg,Honkai-Star-Rail,Honkai-Star-Rail,One folder,agrees,honkai star rail,
+real,Konachan.com - 407059 2girls bell black_hair blush collar gloves gray_hair honkai_(series) kimono kyusoukyu lolita_fashion long_hair mask purple_eyes twintails.png,Honkai-Star-Rail,INBOX,No match,stays,,no tag matches; re-sort leaves it in Honkai-Star-Rail
+real,__nihilux_honkai_and_1_more_drawn_by_irple__ec138b5b00951099c07275ba4aa00d92.png,Honkai-Star-Rail,INBOX,No match,stays,,no tag matches; re-sort leaves it in Honkai-Star-Rail
+real,__robin_honkai_and_1_more_drawn_by_ajeu914__66b60ada665db2ba13e3aec46e6b756a.png,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_colyba__30bc6332efd55a79df96ffbf5028b96b.png,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_cyan_yang__16dca01cc41dc174da197149a5c470d2.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_furioso__2d12d3e9da70e46bc39a744d62ee64fc.png,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_hitsuki_ruon__691153b968a0155bea9b1e408663fcc9.png,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_jndfh__a6463765cdf524161b25132ca429a3be.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_ktl_suda__c4903dae04ca6dc323980d713a3f000d.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_mizuasagi35181__3826328e672f9422a655bea929366842.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_oxo_tya__ca42b94287933372b81ddb3ccca600f2.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_peridot_periperi_8__8ba854831dfcef1fa66d7a65965e437f.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_qiuqiuku__621fb4449de7756f398006280d8b42d1.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__robin_honkai_and_1_more_drawn_by_sanmen__8e5b089f74334e300ad398ffa6a5b344.png,Honkai-Star-Rail,Honkai-Star-Rail/Robin,One folder,agrees,robin,
+real,__sparkle_and_sparxie_honkai_and_1_more_drawn_by_kurohasuuu__1223c6db9e3741acb14354649f7bf88b.jpg,Honkai-Star-Rail,Honkai-Star-Rail,Shared parent,agrees,sparkle;sparxie,
+real,Sparkle.full.4129629.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,One folder,agrees,sparkle,
+real,Sparkle.full.4700097.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,One folder,agrees,sparkle,
+real,Sparkle.full.4701517.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,One folder,agrees,sparkle,
+real,Sparkle.full.4702513.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,One folder,agrees,sparkle,
+real,Sparkle.full.4711154.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,One folder,agrees,sparkle,
+real,Sparkle.full.4713205.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,One folder,agrees,sparkle,
+real,Sparkle.full.4718339.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,One folder,agrees,sparkle,
+real,Sparkle.full.4718873.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,One folder,agrees,sparkle,
+real,Sparkle.full.4723417.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,One folder,agrees,sparkle,
+real,Sparkle.full.4730218.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,One folder,agrees,sparkle,
+real,Sparxie.full.4658366.png,Honkai-Star-Rail,Honkai-Star-Rail/Sparxie,One folder,agrees,sparxie,
+real,yande.re 1162282 atdan honkai:_star_rail japanese_clothes no_bra sparkle tattoo.jpg,Honkai-Star-Rail,Honkai-Star-Rail/Sparkle,Deepest folder wins,agrees,honkai star rail;sparkle,
+real,yande.re 1251734 honkai:_star_rail lolita_fashion sparkle sparxie tagme tattoo wa_lolita wallpaper.jpg,Honkai-Star-Rail,Honkai-Star-Rail,Shared parent,agrees,honkai star rail;sparkle;sparxie,
+real,1b3006020fef5585363280d7d5722beecb199e58.png,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,1fde2b79b9e795f7f600b709488f2a2b92469522.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,33355d08ff47b27aeac9d3200a19e9af5cbebcf7.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,3767321560d42979ecfb7e0f0c4342c1b25374c8.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,7f561ca110abc8f0bdbe1c233f11599a09215d48.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,813edbb7618ced818c45ee73df1219433998c5ff.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,839af680034d58efc01ae922cb82be5b7f86778d.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,8e34852f6f5923d8f8cc85a3fc16372f80493ec8.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Aemeath.full.4686750.jpg,Wuthering-Waves,Wuthering-Waves/Aemeath,One folder,agrees,aemeath,
+real,Aemeath.full.4692505.png,Wuthering-Waves,Wuthering-Waves/Aemeath,One folder,agrees,aemeath,
+real,Aemeath.full.4698453.jpg,Wuthering-Waves,Wuthering-Waves/Aemeath,One folder,agrees,aemeath,
+real,Aemeath.full.4698454.jpg,Wuthering-Waves,Wuthering-Waves/Aemeath,One folder,agrees,aemeath,
+real,Aemeath.full.4700748.png,Wuthering-Waves,Wuthering-Waves/Aemeath,One folder,agrees,aemeath,
+real,Aemeath.full.4703933.jpg,Wuthering-Waves,Wuthering-Waves/Aemeath,One folder,agrees,aemeath,
+real,Aemeath.full.4719180.jpg,Wuthering-Waves,Wuthering-Waves/Aemeath,One folder,agrees,aemeath,
+real,__aemeath_wuthering_waves_drawn_by_feather_pen113__1071d6e739163c9ef08a2393d8e82ab2.jpg,Wuthering-Waves,Wuthering-Waves/Aemeath,Deepest folder wins,agrees,wuthering waves;aemeath,
+real,cb762c9af788bab2639c753908c94858d319bf09.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,__chisa_aemeath_shorekeeper_and_brant_wuthering_waves_drawn_by_lita_ritaomochi__1ee0f629bd924bf189596b76c5d824f3.jpg,Wuthering-Waves,Wuthering-Waves,Shared parent,agrees,wuthering waves;aemeath;brant;chisa;shorekeeper,
+real,__chisa_aemeath_shorekeeper_cartethyia_jinhsi_and_1_more_wuthering_waves_drawn_by_rena31415926__042954fa24554dbcd259490f54211ab3.jpg,Wuthering-Waves,Wuthering-Waves,Shared parent,agrees,wuthering waves;aemeath;cartethyia;chisa;jinhsi;shorekeeper,
+real,Cross-Over.full.4695987.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Hiyuki.(Wuthering.Waves).full.4698402.jpg,Wuthering-Waves,Wuthering-Waves/Hiyuki,Deepest folder wins,agrees,wuthering waves;hiyuki,
+real,Hiyuki.(Wuthering.Waves).full.4701662.jpg,Wuthering-Waves,Wuthering-Waves/Hiyuki,Deepest folder wins,agrees,wuthering waves;hiyuki,
+real,Hiyuki.(Wuthering.Waves).full.4721268.jpg,Wuthering-Waves,Wuthering-Waves/Hiyuki,Deepest folder wins,agrees,wuthering waves;hiyuki,
+real,Hsin.(Wuthering.Waves).full.4707636.png,Wuthering-Waves,Wuthering-Waves/Hsin,Deepest folder wins,agrees,wuthering waves;hsin,
+real,Konachan.com - 392062 aqua_hair blue_eyes butterfly choker dress flowers long_hair pantyhose piano ponytail short_hair sketch sky stars swd3e2 watermark white_hair.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 399099 dress elbow_gloves garter gloves halo long_hair music night pink_hair ponytail sky stars sword weapon wuthering_waves yuki_miio.png,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Konachan.com - 402935 2girls flowers gray_hair katana long_hair moon night paper ponytail rain_sama red_eyes signed sky sword watermark weapon wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Konachan.com - 403290 animal blue_eyes braids dress forest garter gloves grass headdress long_hair orange_hair rabbit tattoo tree wristwear wuthering_waves yukoama.jpg,Wuthering-Waves,Wuthering-Waves,Specific beats generic,agrees,wuthering waves,generic ignored: forest
+real,Konachan.com - 404296 close gray_hair japanese_clothes katana kimono long_hair ponytail red_eyes ribbons sword tagme_(artist) third-party_edit weapon wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Konachan.com - 404420 bloomers bubbles denia_(wuthering_waves) doll dress echj gloves headband long_hair pink_hair purple_eyes skirt_lift wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves/Denia,Deepest folder wins,agrees,wuthering waves;denia,
+real,Konachan.com - 404421 breasts cleavage garter gray_hair japanese_clothes katana long_hair necklace no_bra paper ponytail red_eyes sword weapon wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Konachan.com - 404436 2girls boat breasts building cleavage clouds doll flowers gloves headband long_hair necklace no_bra pink_hair ponytail red_eyes sky sunset water xude.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 404497 ame_(2453323719) blue_eyes blue_hair breasts cleavage dress elbow_gloves garter gloves long_hair moon night sky twintails wristwear wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Konachan.com - 404513 chain choker dress gloves headband logo long_hair magic pink_hair purple_eyes rain_sama signed staff stairs stars watermark wink wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Konachan.com - 404570 black_hair dress elbow_gloves erikvarts gloves gray_hair group long_hair necklace pink_hair ponytail red_eyes tears thighhighs wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Konachan.com - 404729 999kun blush building choker garter halo long_hair navel pink_hair ponytail skirt sunglasses wristwear yellow_eyes.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 404991 breasts cleavage coierah flowers gray_hair hiyuki_(wuthering_waves) japanese_clothes kimono long_hair petals ponytail red_eyes water wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves/Hiyuki,Deepest folder wins,agrees,wuthering waves;hiyuki,
+real,Konachan.com - 405025 breasts dress garter gloves hat long_hair lucilla_(wuthering_waves) moruki purple_eyes purple_hair wristwear.png,Wuthering-Waves,Wuthering-Waves/Lucilla,Deepest folder wins,agrees,wuthering waves;lucilla,
+real,Konachan.com - 405070 2girls aliasing blush book bow breasts cleavage clouds computer drink gloves hat long_hair paper pink_eyes purple_eyes purple_hair skirt wristwear.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 405127 blue_hair bow building clouds flowers gloves hat hennnachoco long_hair lucilla_(wuthering_waves) ribbons scenic skirt sky wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves/Lucilla,Deepest folder wins,agrees,wuthering waves;lucilla,
+real,Konachan.com - 405678 dress elbow_gloves garter gloves long_hair mecha orange_eyes pink_hair ponytail purple_(jobseeking) stars thighhighs wristwear wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Konachan.com - 405978 2girls animal bird blue_eyes boat breasts cleavage clouds dress fan feathers flowers gloves leaves long_hair sky swd3e2 tree water wristwear.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 407056 2girls animal bandaid beach bikini blush braids breasts cherry choker clouds drink food fruit garter shorts skirt sky tree umbrella water wink.png,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 407070 2girls building flowers garter grass gray_hair katana kimono long_hair miko moon necklace night ponytail red_eyes sky sword torii tree weapon.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 407158 autumn bow braids building chun_ling dress garter leaves long_hair pink_hair sword thighhighs umbrella water weapon yellow_eyes zettai_ryouiki.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 407647 bell blush breasts camera cat_smile chibi choker cleavage collar drink garter hat headband long_hair male ponytail shirt shorts wink wristwear.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 407750 00608d animal bandaid bird blush braids clouds garter group hat male navel necklace pink_eyes pool shorts sketch skirt sky swim_ring swimsuit water.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 407772 animal apron auui bandage bell bow braids camera collar dress garter group heart maid pink_hair red_eyes shirt suit tie waitress wink wristwear.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Konachan.com - 408315 aliasing ayamekiki boots bow breasts dress drums gloves gray_hair halo kneehighs long_hair piano pink_eyes pink_hair ponytail red_eyes ribbons.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Kuchiba.Chisa.full.4511113.png,Wuthering-Waves,Wuthering-Waves/Chisa,One folder,agrees,chisa,
+real,Kuchiba.Chisa.full.4600885.jpg,Wuthering-Waves,Wuthering-Waves/Chisa,One folder,agrees,chisa,
+real,Kuchiba.Chisa.full.4623545.jpg,Wuthering-Waves,Wuthering-Waves/Chisa,One folder,agrees,chisa,
+real,Kuchiba.Chisa.full.4623583.jpg,Wuthering-Waves,Wuthering-Waves/Chisa,One folder,agrees,chisa,
+real,Kuchiba.Chisa.full.4623584.jpg,Wuthering-Waves,Wuthering-Waves/Chisa,One folder,agrees,chisa,
+real,Kuchiba.Chisa.full.4624550.jpg,Wuthering-Waves,Wuthering-Waves/Chisa,One folder,agrees,chisa,
+real,Kuchiba.Chisa.full.4624930.png,Wuthering-Waves,Wuthering-Waves/Chisa,One folder,agrees,chisa,
+real,Kuchiba.Chisa.full.4711690.jpg,Wuthering-Waves,Wuthering-Waves/Chisa,One folder,agrees,chisa,
+real,Kuchiba.Chisa.full.4722979.png,Wuthering-Waves,Wuthering-Waves/Chisa,One folder,agrees,chisa,
+real,Kuchiba.Chisa.full.4729598.jpg,Wuthering-Waves,Wuthering-Waves/Chisa,One folder,agrees,chisa,
+real,Qingxiao.full.4721811.jpg,Wuthering-Waves,Wuthering-Waves/Qingxiao,One folder,agrees,qingxiao,
+real,Qingxiao.full.4723429.jpg,Wuthering-Waves,Wuthering-Waves/Qingxiao,One folder,agrees,qingxiao,
+real,Qiuyuan.full.4703472.jpg,Wuthering-Waves,Wuthering-Waves/Qiuyuan,One folder,agrees,qiuyuan,
+real,Rover.(Female).full.4709087.jpg,Wuthering-Waves,Wuthering-Waves/Rover,One folder,agrees,rover,
+real,__rover_male_rover_chisa_aemeath_denia_and_1_more_wuthering_waves_drawn_by_chokkon__16722cc832111dc7781b4fde2f00eb23.png,Wuthering-Waves,Wuthering-Waves,Shared parent,agrees,wuthering waves;aemeath;chisa;denia;rover,
+real,Suisui.(Wuthering.Waves).full.4701657.jpg,Wuthering-Waves,Wuthering-Waves/Suisui,Deepest folder wins,agrees,wuthering waves;suisui,
+real,wallhaven-1q23yg.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,wallhaven-1qg9k9.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,wallhaven-5yyv53.png,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,wallhaven-gwwvqe.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,wallhaven-jedz3q.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,wallhaven-vpz79m.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,wallhaven-w5xv6r.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,wallhaven-xe7w23.jpg,Wuthering-Waves,INBOX,No match,stays,,no tag matches; re-sort leaves it in Wuthering-Waves
+real,Wuthering.Waves.full.4690373.png,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4690732.png,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4692300.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4694816.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4701704.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4702788.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4709312.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4711736.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4714680.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4714701.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4721690.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,Wuthering.Waves.full.4729538.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,yande.re 1262957 denia dress skirt_lift tagme wallpaper wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves/Denia,Deepest folder wins,agrees,wuthering waves;denia,
+real,yande.re 1263513 cyberpunk:_edgerunners cyberpunk_2077 heels leotard lucy_(cyberpunk) mecha_musume tagme wallpaper wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,yande.re 1265464 no_bra see_through tagme tattoo wallpaper wuthering_waves yangyang.jpg,Wuthering-Waves,Wuthering-Waves/Yangyang,Deepest folder wins,agrees,wuthering waves;yangyang,
+real,yande.re 1267874 animal_ears asian_clothes hsin_(wuthering_waves) kitsune no_bra skirt_lift tagme tattoo wallpaper wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves/Hsin,Deepest folder wins,agrees,wuthering waves;hsin,
+real,yande.re 1267921 asian_clothes heels suoming tagme umbrella wallpaper wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves,One folder,agrees,wuthering waves,
+real,yande.re 1268369 chisa dress garter jinhsi no_bra qiuyuan tagme thighhighs wuthering_waves.jpg,Wuthering-Waves,Wuthering-Waves,Shared parent,agrees,wuthering waves;chisa;jinhsi;qiuyuan,
+real,Yangyang_.Xuanling.full.4719173.jpg,Wuthering-Waves,Wuthering-Waves/Yangyang,One folder,agrees,yangyang,

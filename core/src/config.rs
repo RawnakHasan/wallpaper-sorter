@@ -1,0 +1,121 @@
+use crate::numbering::GapMode;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MatchMode {
+    /// Keyword must appear as whole words (default).
+    #[default]
+    Word,
+    /// Keyword may appear inside a longer word.
+    Substring,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Tag {
+    pub keywords: Vec<String>,
+    /// Folder inside the library, e.g. "Wuthering-Waves/Chisa".
+    pub dest: String,
+    /// File prefix; defaults to the folder name with hyphens turned into spaces.
+    #[serde(default)]
+    pub prefix: Option<String>,
+    #[serde(default, rename = "match")]
+    pub match_mode: MatchMode,
+    /// If not empty, the tag only applies when at least one of these words is also in the name.
+    #[serde(default)]
+    pub strict_words: Vec<String>,
+    /// A generic tag only applies if no specific tag matched and the name is short.
+    #[serde(default)]
+    pub generic: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Settings {
+    pub image_extensions: Vec<String>,
+    pub duplicates_folder: String,
+    pub generic_max_words: usize,
+    pub gap_mode: GapMode,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            image_extensions: ["jpg", "jpeg", "png", "webp", "avif", "gif", "bmp"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            duplicates_folder: "Duplicates".to_string(),
+            generic_max_words: 4,
+            gap_mode: GapMode::Keep,
+        }
+    }
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// A folder outside (or inside) the library whose new images are sorted into the library.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Intake {
+    /// May start with "~/".
+    pub path: String,
+    /// Also watch subfolders, including ones created later (default true).
+    #[serde(default = "yes")]
+    pub recursive: bool,
+    /// Remove subfolders once they have stayed empty for a while (default true).
+    #[serde(default = "yes")]
+    pub remove_empty_folders: bool,
+}
+
+fn default_port() -> u16 {
+    8421
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct ServerCfg {
+    /// The web page and its API listen on 127.0.0.1 only.
+    pub port: u16,
+}
+
+impl Default for ServerCfg {
+    fn default() -> Self {
+        ServerCfg { port: default_port() }
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Config {
+    #[serde(default)]
+    pub server: ServerCfg,
+    /// The library folder, e.g. "~/Pictures/Wallpapers". Can also be given on the command line.
+    #[serde(default)]
+    pub library: Option<String>,
+    #[serde(default)]
+    pub intake: Vec<Intake>,
+    #[serde(default)]
+    pub settings: Settings,
+    #[serde(default, rename = "tag")]
+    pub tags: Vec<Tag>,
+}
+
+impl Config {
+    pub fn from_toml(text: &str) -> Result<Config, toml::de::Error> {
+        toml::from_str(text)
+    }
+
+    /// File prefix for a destination folder: an explicit tag prefix, else the folder name
+    /// with hyphens turned into spaces ("Wuthering-Waves" becomes "Wuthering Waves").
+    pub fn prefix_for(&self, dest: &str) -> String {
+        for t in &self.tags {
+            if t.dest == dest {
+                if let Some(p) = &t.prefix {
+                    return p.clone();
+                }
+            }
+        }
+        dest.rsplit('/').next().unwrap_or(dest).replace('-', " ")
+    }
+}
