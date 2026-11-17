@@ -80,6 +80,7 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .stat .l{color:var(--t2);font-size:12px}
 .panel{border:1px solid var(--bd);border-radius:8px;padding:12px 14px;margin-bottom:16px}
 .watched-folders .row{gap:8px 12px}
+.watched-folders .row+.row{margin-top:8px}
 .watched-folders .badge+.badge{margin-left:2px}
 .empty{padding:48px 0;text-align:center;color:var(--t2)}
 .empty b{display:block;color:var(--tx);font-size:16px;margin-bottom:4px}
