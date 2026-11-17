@@ -242,23 +242,17 @@
   WS.pages.overview = async function () {
     const [st, act] = await Promise.all([WS.get('/api/status'), WS.get('/api/activity?limit=8')]);
     const stat = (n, l, href) => h('a', { class: 'stat', href }, h('div', { class: 'n', text: String(n) }), h('div', { class: 'l', text: l }));
-    const scan = h('button', {
-      class: 'btn',
-      text: 'Scan now',
-      onclick: async () => {
-        await WS.post('/api/rescan');
-        WS.toast('Looking at the folders again');
-      },
-    });
+    const watchedEntry = (path, badges) =>
+      h('div', { class: 'watched-entry' }, h('span', { class: 'm watched-path', text: path }), h('span', { class: 'watched-badges' }, ...badges));
     return page(
       'Overview',
       `${st.counts.library_images} images in ${st.library}`,
-      scan,
+      null,
       h('div', { class: 'stats' }, stat(st.counts.inbox, 'waiting in the Inbox', '#/inbox'), stat(st.counts.library_images, 'images in the library', '#/library'), stat(st.counts.duplicates, 'in Duplicates', '#/duplicates'), stat(st.counts.records, 'records of where images came from', '#/data')),
       h('h3', { text: 'Recent activity' }),
       act.length ? WS.activityRows(act, st.library, true) : WS.empty('Nothing yet', 'Sorted images show up here, with an Undo button.'),
       h('h3', { text: 'Watched folders' }),
-      h('div', { class: 'panel' }, h('div', { class: 'row' }, h('span', { class: 'm', text: st.library }), WS.badge('library, top level', 'good')), ...st.intake.map((i) => h('div', { class: 'row' }, h('span', { class: 'm', text: i.path }), i.exists ? WS.badge('watching', 'good') : WS.badge('folder not found yet', 'warn'))))
+      h('div', { class: 'panel watched-folders' }, h('div', { class: 'watched-list' }, watchedEntry(st.library, [WS.badge('library, top level', 'good')]), ...st.intake.map((i) => watchedEntry(i.path, [i.exists ? WS.badge('watching', 'good') : WS.badge('folder not found yet', 'warn')]))))
     );
   };
 
