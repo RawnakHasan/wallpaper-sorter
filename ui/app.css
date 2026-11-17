@@ -25,6 +25,8 @@ a{color:var(--ac)}
 .body{display:flex;flex:1;min-height:0}
 .rail{width:176px;flex:none;background:var(--sf);border-right:1px solid var(--bd);padding:12px 0;display:flex;flex-direction:column;gap:2px;overflow:auto}
 .nv{display:flex;justify-content:space-between;align-items:center;height:32px;padding:0 12px;margin:0 8px;border-radius:6px;color:var(--t2);text-decoration:none;white-space:nowrap}
+.nv-label{display:flex;align-items:center;gap:10px;min-width:0}
+.nv-icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .nv:hover{background:var(--hv)}
 .nv.on{background:var(--sel);color:var(--ac)}
 .count{font-family:'JetBrains Mono',monospace;font-size:12px}
@@ -77,6 +79,8 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .stat .n{font-size:24px;font-weight:600;font-family:'JetBrains Mono',monospace}
 .stat .l{color:var(--t2);font-size:12px}
 .panel{border:1px solid var(--bd);border-radius:8px;padding:12px 14px;margin-bottom:16px}
+.watched-folders .row{gap:8px 12px}
+.watched-folders .badge+.badge{margin-left:2px}
 .empty{padding:48px 0;text-align:center;color:var(--t2)}
 .empty b{display:block;color:var(--tx);font-size:16px;margin-bottom:4px}
 .error{color:var(--er)}
@@ -138,6 +142,9 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .tagrow .kws{display:flex;gap:6px;flex-wrap:wrap;flex:1}
 
 /* tester */
+.tester h2{margin-bottom:12px}
+.tester .field{margin-bottom:8px}
+.tester .sugg{margin-top:0}
 .tester .result{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;margin-top:12px}
 .tester .result>div:nth-child(odd){color:var(--t2)}
 .tester .hit{background:var(--sel);color:var(--ac)}
@@ -171,6 +178,7 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
   .body{flex-direction:column}
   .rail{order:2;width:auto;flex-direction:row;overflow-x:auto;border-right:0;border-top:1px solid var(--bd);padding:4px;gap:0}
   .nv{margin:0;flex:none;padding:0 10px}
+  .nv-icon{display:none}
   .page{padding:16px 12px 24px}
   .lib{flex-direction:column}
   .tree{width:100%;max-height:200px;border-right:0;border-bottom:1px solid var(--bd);padding:0 0 8px}

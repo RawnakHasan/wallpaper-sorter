@@ -3,8 +3,40 @@
 (function () {
   const WS = window.WS;
   const h = WS.h;
-  const NAV = [['/', 'Overview'], ['/inbox', 'Inbox'], ['/library', 'Library'], ['/tags', 'Tags'], ['/duplicates', 'Duplicates'], ['/data', 'Data'], ['/activity', 'Activity'], ['/settings', 'Settings']];
+  const NAV = [
+    ['/', 'Overview', 'overview'],
+    ['/inbox', 'Inbox', 'inbox'],
+    ['/library', 'Library', 'library'],
+    ['/tags', 'Tags', 'tags'],
+    ['/duplicates', 'Duplicates', 'duplicates'],
+    ['/data', 'Data', 'data'],
+    ['/activity', 'Activity', 'activity'],
+    ['/settings', 'Settings', 'settings'],
+  ];
   const PAGES = { '/': 'overview', '/inbox': 'inbox', '/library': 'library', '/tags': 'tags', '/duplicates': 'duplicates', '/data': 'data', '/activity': 'activity', '/settings': 'settings' };
+
+  const ICONS = {
+    overview: ['M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'],
+    inbox: ['M12 3v11m0 0 4-4m-4 4-4-4M4 14v6h16v-6'],
+    library: ['M3 6h7l2 2h9v12H3z'],
+    tags: ['M4 4h9l7 7-9 9-7-7z', 'M8 8h.01'],
+    duplicates: ['M7 7h11v11H7zM3 3h11v4M3 3v11h4'],
+    data: ['M4 5c0-2 16-2 16 0v14c0 2-16 2-16 0zm0 0c0 2 16 2 16 0M4 12c0 2 16 2 16 0'],
+    activity: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2'],
+    settings: ['M4 7h16M4 12h16M4 17h16M8 5v4M16 10v4M11 15v4'],
+  };
+  function navIcon(name) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'nv-icon');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    for (const d of ICONS[name]) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      svg.append(path);
+    }
+    return svg;
+  }
 
   // ---------- theme
   function applyTheme() {
@@ -29,7 +61,7 @@
   applyTheme();
 
   // ---------- shell
-  const rail = h('nav', { class: 'rail', 'aria-label': 'Pages' }, ...NAV.map(([path, label]) => h('a', { class: 'nv', href: '#' + path, dataset: { path } }, h('span', { text: label }), path === '/inbox' ? h('span', { class: 'count', id: 'inbox-count' }) : null)));
+  const rail = h('nav', { class: 'rail', 'aria-label': 'Pages' }, ...NAV.map(([path, label, icon]) => h('a', { class: 'nv', href: '#' + path, dataset: { path } }, h('span', { class: 'nv-label' }, navIcon(icon), h('span', { text: label })), path === '/inbox' ? h('span', { class: 'count', id: 'inbox-count' }) : null)));
   const search = h('input', {
     class: 'input',
     type: 'search',
