@@ -383,6 +383,30 @@ fn closing_gaps_previews_then_applies() {
 }
 
 #[test]
+fn re_sort_previews_then_applies_a_folder_as_one_batch() {
+    let e = setup(|lib, _| {
+        put(&lib.join("Archive/Chisa original.png"), "new");
+        put(&lib.join("Archive/mystery.png"), "unknown");
+        put(&lib.join("Wuthering-Waves/Chisa/Chisa 1.png"), "old");
+    });
+    let preview = e.get("/api/resort?folder=Archive").json();
+    assert_eq!(preview["changes"], 1);
+    assert!(preview["items"].as_array().unwrap().iter().any(|i| {
+        i["kind"] == "move" && i["to"] == "Wuthering-Waves/Chisa/Chisa 2.png"
+    }));
+    assert!(e.lib.join("Archive/Chisa original.png").exists(), "a preview changes nothing");
+    assert_eq!(e.get("/api/resort?folder=Duplicates").status, 400);
+    assert_eq!(e.get("/api/resort?folder=../escape").status, 400);
+
+    let out = e.send("POST", "/api/resort", json!({ "folder": "Archive" })).json();
+    let batch = out["batch"].as_u64().unwrap();
+    assert_eq!(out["done"].as_array().unwrap().len(), 1);
+    assert!(e.lib.join("Wuthering-Waves/Chisa/Chisa 2.png").exists());
+    assert!(e.send("POST", "/api/undo", json!({ "batch": batch })).status == 200);
+    assert!(e.lib.join("Archive/Chisa original.png").exists());
+}
+
+#[test]
 fn a_source_can_be_set_by_hand_and_the_gap_mode_changed() {
     let mut hash = String::new();
     let e = setup(|lib, _| {

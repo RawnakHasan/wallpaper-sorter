@@ -149,6 +149,37 @@ fn assigning_rejects_bad_folders() {
 }
 
 #[test]
+fn re_sort_previews_then_moves_existing_images_as_one_undoable_batch() {
+    let d = Dirs::new();
+    put(&d.lib.join("Archive/Chisa original.png"), "chisa");
+    put(&d.lib.join("Archive/mystery.png"), "mystery");
+    put(&d.lib.join("Wuthering-Waves/Chisa/Chisa 1.png"), "already sorted");
+    // A file outside the selected scope must not be touched.
+    put(&d.lib.join("Elsewhere/Chisa later.png"), "later");
+
+    let mut p = Pipeline::open(&d.lib, d.cfg()).unwrap();
+    let preview = p.resort_preview(Some("Archive")).unwrap();
+    assert!(preview.actions.iter().any(|a| matches!(a, sorter_core::Action::Move { from, to, .. }
+        if from.ends_with("Archive/Chisa original.png") && to == "Wuthering-Waves/Chisa/Chisa 2.png")));
+    assert!(preview.actions.iter().any(|a| matches!(a, sorter_core::Action::Leave { path, .. }
+        if path.ends_with("Archive/mystery.png"))));
+    assert!(d.lib.join("Archive/Chisa original.png").exists(), "preview changes nothing");
+
+    let out = p.resort(Some("Archive")).unwrap();
+    assert!(out.report.error.is_none());
+    assert_eq!(out.report.done.len(), 1);
+    assert!(!d.lib.join("Archive/Chisa original.png").exists());
+    assert!(d.lib.join("Wuthering-Waves/Chisa/Chisa 2.png").exists());
+    assert!(d.lib.join("Archive/mystery.png").exists());
+    assert!(d.lib.join("Elsewhere/Chisa later.png").exists());
+    assert_eq!(p.origins.get(&hash_file(&d.lib.join("Wuthering-Waves/Chisa/Chisa 2.png")).unwrap()).unwrap().original_name, "Chisa original.png");
+
+    p.undo_batch(out.report.batch).unwrap();
+    assert!(d.lib.join("Archive/Chisa original.png").exists());
+    assert!(!d.lib.join("Wuthering-Waves/Chisa/Chisa 2.png").exists());
+}
+
+#[test]
 fn paths_from_the_ui_must_stay_inside() {
     let d = Dirs::new();
     let p = Pipeline::open(&d.lib, d.cfg()).unwrap();

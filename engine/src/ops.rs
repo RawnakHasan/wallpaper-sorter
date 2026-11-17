@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
+use std::time::SystemTime;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct InboxItem {
@@ -267,6 +268,74 @@ impl Pipeline {
             return Err(invalid("the Duplicates folder is not a place to sort into"));
         }
         self.process_with(files, &PlanOptions { forced_dest: Some(folder.to_string()) })
+    }
+
+    /// The plan for applying the current tags to images that are already in the library. `scope` is
+    /// either the whole library or one folder and all of its children. This only reads the files;
+    /// use [`Pipeline::resort`] to apply a freshly computed plan.
+    pub fn resort_preview(&mut self, scope: Option<&str>) -> io::Result<Plan> {
+        let files = self.resort_files(scope)?;
+        // Hash and record every source before planning it. In particular, this makes a file that is
+        // moved between folders keep its origin record rather than acquiring a new one from its
+        // numbered destination name.
+        self.reconcile()?;
+        Ok(self.prepare_with(&files, &PlanOptions::default())?.1)
+    }
+
+    /// Re-apply the current tags to existing images. The plan is deliberately built again instead
+    /// of accepting a plan from the caller: a preview can become stale while the watcher is working.
+    /// All resulting moves and renames share one log batch and can therefore be undone together.
+    pub fn resort(&mut self, scope: Option<&str>) -> io::Result<Outcome> {
+        let files = self.resort_files(scope)?;
+        self.reconcile()?;
+        let (meta, plan) = self.prepare_with(&files, &PlanOptions::default())?;
+        self.run_plan(plan, meta)
+    }
+
+    fn resort_files(&self, scope: Option<&str>) -> io::Result<Vec<PathBuf>> {
+        let dir = match scope {
+            Some(folder) => {
+                check_folder(folder)?;
+                if folder == self.cfg.settings.duplicates_folder
+                    || folder.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/"))
+                {
+                    return Err(invalid("the Duplicates folder cannot be re-sorted"));
+                }
+                self.root.join(folder)
+            }
+            None => self.root.clone(),
+        };
+        if !dir.is_dir() {
+            return Err(io::Error::new(io::ErrorKind::NotFound, format!("{} is not a folder", dir.display())));
+        }
+
+        let mut found: Vec<(SystemTime, PathBuf)> = Vec::new();
+        let mut stack = vec![dir];
+        while let Some(current) = stack.pop() {
+            for entry in fs::read_dir(&current)? {
+                let entry = entry?;
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with('.') {
+                    continue;
+                }
+                let kind = entry.file_type()?;
+                if kind.is_dir() {
+                    // The duplicate copies are retained as evidence and are never candidates for
+                    // re-sorting, including when the whole library is selected.
+                    if current == self.root && name == self.cfg.settings.duplicates_folder {
+                        continue;
+                    }
+                    stack.push(entry.path());
+                } else if kind.is_file() && self.is_image(&name) {
+                    let modified = entry.metadata().and_then(|m| m.modified()).unwrap_or(SystemTime::UNIX_EPOCH);
+                    found.push((modified, entry.path()));
+                }
+            }
+        }
+        // Number allocation follows the oldest images first. A path tie-break keeps the preview
+        // deterministic on file systems whose timestamps have coarse resolution.
+        found.sort_by(|(a_time, a_path), (b_time, b_path)| a_time.cmp(b_time).then_with(|| a_path.cmp(b_path)));
+        Ok(found.into_iter().map(|(_, path)| path).collect())
     }
 
     /// "Delete" moves files to `.sorter/trash` (inside the library, hidden), so it can be undone.

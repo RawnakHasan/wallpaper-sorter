@@ -83,6 +83,8 @@ the library or an intake folder. Every change goes through the log and can be un
 | `POST /api/duplicates/empty` | move everything in Duplicates to the trash |
 | `GET /api/gap-fill?folder=&mode=last\|renumber` | the renames that would close the gaps |
 | `POST /api/gap-fill` `{folder, mode}` | do them |
+| `GET /api/resort?folder=` | preview applying current tags to every existing image, or one folder and its children |
+| `POST /api/resort` `{folder?}` | recompute and apply that preview as one undoable batch |
 | `POST /api/undo` `{batch}` or `{id}` | undo a batch or one action |
 | `PUT /api/origins` `{hash, site, id}` | set an image's source by hand |
 | `GET/PUT /api/settings` | settings (`gap_mode` can be changed) |

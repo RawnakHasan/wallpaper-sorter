@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sorter_core::matcher::{split_name, tokens};
-use sorter_core::{classify, Dest, GapMode, LeaveReason, Site};
+use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site};
 use sorter_engine::cfgedit::{add_tag, delete_tag, set_gap_mode, update_tag, TagSpec};
 use sorter_engine::{Origin, Outcome, UndoError};
 use std::collections::HashMap;
@@ -247,6 +247,11 @@ struct SettingsBody {
 struct TestBody {
     filename: String,
 }
+#[derive(Deserialize)]
+struct ResortBody {
+    #[serde(default)]
+    folder: Option<String>,
+}
 
 fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
     check_request(ctx, req)?;
@@ -281,6 +286,11 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             let mode = parse_mode(query.get("mode").map(|s| s.as_str()).unwrap_or(""))?;
             let renames = ctx.shared.lock().gap_fill_preview(folder, mode)?;
             Ok(Resp::json(200, &renames.iter().map(|r| json!({ "from": r.from, "to": r.to })).collect::<Vec<_>>()))
+        }
+        (Method::Get, ["api", "resort"]) => {
+            let folder = query.get("folder").filter(|s| !s.is_empty()).map(String::as_str);
+            let plan = ctx.shared.lock().resort_preview(folder)?;
+            Ok(Resp::json(200, &resort_json(&plan)))
         }
         (Method::Get, ["api", "thumb", hash]) => {
             let src = image_source(ctx, hash)?;
@@ -334,6 +344,11 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             let b: GapBody = read_json(req)?;
             let mode = parse_mode(&b.mode)?;
             let out = ctx.shared.lock().fill_gaps(&b.folder, mode)?;
+            Ok(Resp::json(200, &outcome_json(&out)))
+        }
+        (Method::Post, ["api", "resort"]) => {
+            let b: ResortBody = read_json(req)?;
+            let out = ctx.shared.lock().resort(b.folder.as_deref())?;
             Ok(Resp::json(200, &outcome_json(&out)))
         }
         (Method::Post, ["api", "rescan"]) => {
@@ -420,6 +435,26 @@ fn outcome_json(o: &Outcome) -> Value {
         "skipped": o.report.skipped,
         "error": o.report.error.as_ref().map(|e| e.to_string()),
     })
+}
+
+fn resort_json(plan: &Plan) -> Value {
+    let items: Vec<Value> = plan
+        .actions
+        .iter()
+        .map(|action| match action {
+            Action::Move { from, to, rule, matched } => json!({
+                "kind": "move", "from": from, "to": to, "rule": rule.label(), "matched": matched,
+            }),
+            Action::Rename { from, to } => json!({ "kind": "rename", "from": from, "to": to }),
+            Action::ToDuplicates { from, to, duplicate_of } => json!({
+                "kind": "duplicate", "from": from, "to": to, "duplicate_of": duplicate_of,
+            }),
+            Action::Leave { path, reason } => json!({ "kind": "leave", "path": path, "reason": leave_text(reason) }),
+            Action::Ignore { path } => json!({ "kind": "ignore", "path": path }),
+        })
+        .collect();
+    let changes = items.iter().filter(|item| item["kind"] != "leave" && item["kind"] != "ignore").count();
+    json!({ "items": items, "changes": changes })
 }
 
 fn tags_json(ctx: &Ctx) -> Value {
