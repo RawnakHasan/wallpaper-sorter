@@ -116,8 +116,9 @@ fn run() -> Result<(), String> {
     }
 
     unsafe {
-        libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);
+        let handler: extern "C" fn(libc::c_int) = on_signal;
+        libc::signal(libc::SIGINT, handler as libc::sighandler_t);
+        libc::signal(libc::SIGTERM, handler as libc::sighandler_t);
     }
     let verbose = args.verbose;
     daemon
