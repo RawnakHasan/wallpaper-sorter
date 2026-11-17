@@ -180,6 +180,41 @@ fn re_sort_previews_then_moves_existing_images_as_one_undoable_batch() {
 }
 
 #[test]
+fn folder_rename_prefix_change_and_merge_are_previewable_and_undoable() {
+    let d = Dirs::new();
+    put(&d.lib.join("Old/Child/kept.png"), "kept");
+    put(&d.lib.join("Nature/Nature 1.png"), "copy");
+    put(&d.lib.join("Archive/a.png"), "copy");
+    put(&d.lib.join("Archive/b.png"), "unique");
+    let mut p = Pipeline::open(&d.lib, d.cfg()).unwrap();
+
+    let preview = p.rename_folder_preview("Old", "Renamed").unwrap();
+    assert_eq!(preview.actions.len(), 1);
+    assert!(d.lib.join("Old/Child/kept.png").exists(), "preview changes nothing");
+    let out = p.rename_folder("Old", "Renamed").unwrap();
+    assert!(d.lib.join("Renamed/Child/kept.png").exists());
+    p.undo_batch(out.report.batch).unwrap();
+    assert!(d.lib.join("Old/Child/kept.png").exists());
+
+    let preview = p.prefix_change_preview("Nature", "Scenery").unwrap();
+    assert!(preview.actions.iter().any(|a| matches!(a, sorter_core::Action::Rename { to, .. } if to == "Nature/Scenery 1.png")));
+    let out = p.change_prefix("Nature", "Scenery").unwrap();
+    assert!(d.lib.join("Nature/Scenery 1.png").exists());
+    p.undo_batch(out.report.batch).unwrap();
+    assert!(d.lib.join("Nature/Nature 1.png").exists());
+
+    let preview = p.merge_folder_preview("Archive", "Nature").unwrap();
+    assert!(preview.actions.iter().any(|a| matches!(a, sorter_core::Action::ToDuplicates { .. })));
+    let out = p.merge_folder("Archive", "Nature").unwrap();
+    assert!(out.report.error.is_none());
+    assert!(d.lib.join("Nature/Nature 2.png").exists());
+    assert!(d.lib.join("Duplicates/a.png").exists());
+    p.undo_batch(out.report.batch).unwrap();
+    assert!(d.lib.join("Archive/a.png").exists());
+    assert!(d.lib.join("Archive/b.png").exists());
+}
+
+#[test]
 fn paths_from_the_ui_must_stay_inside() {
     let d = Dirs::new();
     let p = Pipeline::open(&d.lib, d.cfg()).unwrap();

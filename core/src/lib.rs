@@ -8,7 +8,7 @@ pub mod origin;
 pub mod paths;
 pub mod plan;
 
-pub use config::{Config, Intake, MatchMode, ServerCfg, Settings, Tag};
+pub use config::{Config, Folder, Intake, MatchMode, ServerCfg, Settings, Tag};
 pub use matcher::{classify, Decision, Dest, Rule};
 pub use numbering::{plan_gap_fill, plan_new_file, GapMode, NewFilePlan, NumberingError, Rename};
 pub use paths::expand_home;

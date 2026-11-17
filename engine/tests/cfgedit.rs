@@ -1,5 +1,5 @@
 use sorter_core::{Config, MatchMode};
-use sorter_engine::cfgedit::{add_tag, delete_tag, set_gap_mode, update_tag, TagSpec};
+use sorter_engine::cfgedit::{add_folder, add_tag, delete_tag, merge_folder, rename_folder, set_folder_prefix, set_gap_mode, update_tag, TagSpec};
 use std::fs;
 use std::path::PathBuf;
 
@@ -96,4 +96,24 @@ fn the_gap_mode_setting() {
     assert_eq!(format!("{:?}", Config::from_toml(&out).unwrap().settings.gap_mode), "LastIntoGap");
     assert!(out.contains("image_extensions"), "other settings stay");
     assert!(set_gap_mode(&starter(), "whatever").is_err());
+}
+
+#[test]
+fn folder_settings_keep_a_prefix_and_follow_renames_and_merges() {
+    let text = add_folder(&starter(), "Series/Violet", Some("Violet")).unwrap();
+    let text = set_folder_prefix(&text, "Series/Violet", "Violet Evergarden").unwrap();
+    let cfg = Config::from_toml(&text).unwrap();
+    assert_eq!(cfg.prefix_for("Series/Violet"), "Violet Evergarden");
+
+    let text = add_tag(&text, &spec(&["violet"], "Series/Violet")).unwrap();
+    let renamed = rename_folder(&text, "Series", "Anime").unwrap();
+    let cfg = Config::from_toml(&renamed).unwrap();
+    assert_eq!(cfg.tags.last().unwrap().dest, "Anime/Violet");
+    assert_eq!(cfg.prefix_for("Anime/Violet"), "Violet Evergarden");
+
+    let merged = merge_folder(&renamed, "Anime/Violet", "Series").unwrap();
+    let cfg = Config::from_toml(&merged).unwrap();
+    assert_eq!(cfg.tags.last().unwrap().dest, "Series");
+    assert!(cfg.folders.iter().all(|f| f.path != "Anime/Violet"));
+    assert!(add_folder(&starter(), "Nature", Some("bad/name")).is_err());
 }

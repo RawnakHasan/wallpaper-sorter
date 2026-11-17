@@ -14,7 +14,7 @@ use sorter_core::{
     classify, expand_home, plan_gap_fill, plan_new_file, Action, Config, Dest, GapMode, Plan, PlanOptions, Rename, Rule,
     Site, Source,
 };
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -268,6 +268,155 @@ impl Pipeline {
             return Err(invalid("the Duplicates folder is not a place to sort into"));
         }
         self.process_with(files, &PlanOptions { forced_dest: Some(folder.to_string()) })
+    }
+
+    /// Creates an empty destination folder. There is no image action to undo here; folder rename,
+    /// merge and prefix changes below are all logged as file batches.
+    pub fn create_folder(&self, folder: &str) -> io::Result<()> {
+        check_folder(folder)?;
+        if folder == self.cfg.settings.duplicates_folder || folder.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/")) {
+            return Err(invalid("the Duplicates folder is managed by the sorter"));
+        }
+        let dir = self.root.join(folder);
+        if dir.exists() {
+            return Err(io::Error::new(io::ErrorKind::AlreadyExists, format!("{folder} already exists")));
+        }
+        fs::create_dir_all(dir)
+    }
+
+    /// Preview a directory rename. The directory tree is preserved; every file move is recorded so
+    /// the entire rename can be undone. Existing destination files are reported and left alone.
+    pub fn rename_folder_preview(&self, from: &str, to: &str) -> io::Result<Plan> {
+        self.check_folder_change(from, to)?;
+        let files = self.folder_files(from)?;
+        let own: BTreeSet<String> = files.iter().filter_map(|p| rel_inside(&self.root, p)).collect();
+        let mut targets = BTreeSet::new();
+        let mut actions = Vec::new();
+        for file in files {
+            let rel = rel_inside(&self.root, &file).expect("folder file stays inside library");
+            let tail = rel.strip_prefix(&(from.to_string() + "/")).unwrap_or_default();
+            let target = format!("{to}/{tail}");
+            let target_path = self.root.join(&target);
+            if !targets.insert(target.clone()) || (target_path.exists() && !own.contains(&target)) {
+                actions.push(Action::Leave { path: file.to_string_lossy().to_string(), reason: sorter_core::LeaveReason::Problem(format!("{target} already exists")) });
+            } else {
+                actions.push(Action::Rename { from: rel, to: target });
+            }
+        }
+        Ok(Plan { actions })
+    }
+
+    pub fn rename_folder(&mut self, from: &str, to: &str) -> io::Result<Outcome> {
+        let plan = self.rename_folder_preview(from, to)?;
+        self.run_plan(plan, HashMap::new())
+    }
+
+    /// Preview merging a source folder (and its children) into a destination folder. The normal
+    /// planner allocates destination numbers and recognises exact copies, so collisions never
+    /// overwrite and duplicate content goes to Duplicates.
+    pub fn merge_folder_preview(&self, from: &str, to: &str) -> io::Result<Plan> {
+        self.check_folder_change(from, to)?;
+        let files = self.folder_files(from)?;
+        Ok(self.prepare_with(&files, &PlanOptions { forced_dest: Some(to.to_string()) })?.1)
+    }
+
+    pub fn merge_folder(&mut self, from: &str, to: &str) -> io::Result<Outcome> {
+        let files = self.folder_files(from)?;
+        self.process_with(&files, &PlanOptions { forced_dest: Some(to.to_string()) })
+    }
+
+    /// Preview changing a folder's numbering prefix. Only files which already follow the folder's
+    /// numbered scheme are renamed; other files remain untouched for the user to review or re-sort.
+    pub fn prefix_change_preview(&self, folder: &str, prefix: &str) -> io::Result<Plan> {
+        check_folder(folder)?;
+        let prefix = self.valid_prefix(prefix)?;
+        let dir = self.root.join(folder);
+        if !dir.is_dir() {
+            return Err(io::Error::new(io::ErrorKind::NotFound, format!("{folder} is not a folder")));
+        }
+        let old_prefix = self.cfg.prefix_for(folder);
+        let mut existing = BTreeSet::new();
+        let mut numbered = Vec::new();
+        for entry in fs::read_dir(&dir)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_file() {
+                continue;
+            }
+            let name = name_of(&entry.path());
+            existing.insert(name.clone());
+            if let Some((number, ext)) = parse_numbered(&name, &old_prefix, &self.cfg.settings.image_extensions) {
+                numbered.push((name, format!("{prefix} {number}.{ext}")));
+            }
+        }
+        let moving: BTreeSet<String> = numbered.iter().map(|(from, _)| from.clone()).collect();
+        let mut targets = BTreeSet::new();
+        let actions = numbered
+            .into_iter()
+            .filter(|(from, to)| from != to)
+            .map(|(from, to)| {
+                if !targets.insert(to.clone()) || (existing.contains(&to) && !moving.contains(&to)) {
+                    Action::Leave { path: format!("{folder}/{from}"), reason: sorter_core::LeaveReason::Problem(format!("{folder}/{to} already exists")) }
+                } else {
+                    Action::Rename { from: format!("{folder}/{from}"), to: format!("{folder}/{to}") }
+                }
+            })
+            .collect();
+        Ok(Plan { actions })
+    }
+
+    pub fn change_prefix(&mut self, folder: &str, prefix: &str) -> io::Result<Outcome> {
+        let plan = self.prefix_change_preview(folder, prefix)?;
+        self.run_plan(plan, HashMap::new())
+    }
+
+    fn valid_prefix(&self, prefix: &str) -> io::Result<String> {
+        let prefix = prefix.trim();
+        if prefix.is_empty() || prefix.contains('/') || prefix.contains('\\') {
+            return Err(invalid("prefix must be non-empty and contain no slash"));
+        }
+        Ok(prefix.to_string())
+    }
+
+    fn check_folder_change(&self, from: &str, to: &str) -> io::Result<()> {
+        check_folder(from)?;
+        check_folder(to)?;
+        if from == to {
+            return Err(invalid("source and destination folders are the same"));
+        }
+        if from == self.cfg.settings.duplicates_folder || from.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/"))
+            || to == self.cfg.settings.duplicates_folder || to.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/"))
+        {
+            return Err(invalid("the Duplicates folder is managed by the sorter"));
+        }
+        if to.starts_with(&(from.to_string() + "/")) {
+            return Err(invalid("a folder cannot be moved into itself"));
+        }
+        if !self.root.join(from).is_dir() {
+            return Err(io::Error::new(io::ErrorKind::NotFound, format!("{from} is not a folder")));
+        }
+        Ok(())
+    }
+
+    fn folder_files(&self, folder: &str) -> io::Result<Vec<PathBuf>> {
+        let mut files = Vec::new();
+        let mut stack = vec![self.root.join(folder)];
+        while let Some(dir) = stack.pop() {
+            for entry in fs::read_dir(dir)? {
+                let entry = entry?;
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with('.') {
+                    continue;
+                }
+                let kind = entry.file_type()?;
+                if kind.is_dir() {
+                    stack.push(entry.path());
+                } else if kind.is_file() && self.is_image(&name) {
+                    files.push(entry.path());
+                }
+            }
+        }
+        files.sort();
+        Ok(files)
     }
 
     /// The plan for applying the current tags to images that are already in the library. `scope` is

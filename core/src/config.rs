@@ -29,6 +29,16 @@ pub struct Tag {
     pub generic: bool,
 }
 
+/// Per-folder settings that exist independently of matching tags. This lets an empty folder, or a
+/// folder with several tags, keep one stable file prefix.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Folder {
+    /// Folder inside the library.
+    pub path: String,
+    #[serde(default)]
+    pub prefix: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Settings {
@@ -99,6 +109,8 @@ pub struct Config {
     pub settings: Settings,
     #[serde(default, rename = "tag")]
     pub tags: Vec<Tag>,
+    #[serde(default, rename = "folder")]
+    pub folders: Vec<Folder>,
 }
 
 impl Config {
@@ -106,9 +118,16 @@ impl Config {
         toml::from_str(text)
     }
 
-    /// File prefix for a destination folder: an explicit tag prefix, else the folder name
-    /// with hyphens turned into spaces ("Wuthering-Waves" becomes "Wuthering Waves").
+    /// File prefix for a destination folder: an explicit folder prefix, then a tag prefix, else
+    /// the folder name with hyphens turned into spaces ("Wuthering-Waves" becomes "Wuthering Waves").
     pub fn prefix_for(&self, dest: &str) -> String {
+        for f in &self.folders {
+            if f.path == dest {
+                if let Some(p) = &f.prefix {
+                    return p.clone();
+                }
+            }
+        }
         for t in &self.tags {
             if t.dest == dest {
                 if let Some(p) = &t.prefix {
