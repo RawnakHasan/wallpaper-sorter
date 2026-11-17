@@ -107,16 +107,29 @@ async function waitFor(fn, what, ms = 8000) {
   throw new Error('timed out waiting for ' + what);
 }
 
+async function fetchText(sorter, path) {
+  const res = await fetch(new URL(path, sorter.url));
+  assert.ok(res.ok, `GET ${path} returned ${res.status}`);
+  return res.text();
+}
+
 async function openPage(sorter, hash) {
-  const dom = await JSDOM.fromURL(sorter.url + (hash || ''), {
+  // Use Node's fetch for every request. jsdom's HTTP resource loader sometimes
+  // receives ECONNRESET while it is loading the deferred scripts from tiny_http.
+  // This still runs the real document and scripts, in their browser order.
+  const html = await fetchText(sorter, '/');
+  const scriptSources = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/gi)].map((m) => m[1]);
+  const documentHtml = html.replace(/<script\b[^>]*\bsrc="[^"]+"[^>]*><\/script>\s*/gi, '');
+  const dom = new JSDOM(documentHtml, {
+    url: sorter.url + (hash || ''),
     runScripts: 'dangerously',
-    resources: 'usable',
     pretendToBeVisual: true,
     beforeParse(w) {
       w.fetch = (u, init) => fetch(new URL(u, w.location.href).href, init);
     },
   });
   const w = dom.window;
+  for (const source of scriptSources) w.eval(await fetchText(sorter, source));
   const d = w.document;
   const ui = {
     dom, w, d,
