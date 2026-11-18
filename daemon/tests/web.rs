@@ -915,6 +915,37 @@ fn renaming_a_folder_preserves_its_effective_prefix_and_undo_text() {
 }
 
 #[test]
+fn a_later_config_edit_explains_why_a_folder_rename_cannot_be_undone() {
+    let e = setup(|lib, _| put(&lib.join("Nature/Nature 1.png"), "nature"));
+    let renamed = e.send(
+        "POST",
+        "/api/folder-rename",
+        json!({ "from": "Nature", "to": "Landscapes" }),
+    );
+    assert_eq!(renamed.status, 200);
+    let batch = renamed.json()["batch"].as_u64().unwrap();
+    assert_eq!(
+        e.send(
+            "POST",
+            "/api/tags",
+            json!({ "keywords": ["landscape-photo"], "dest": "Landscapes" }),
+        )
+        .status,
+        200
+    );
+    let config_after_tag = fs::read_to_string(&e.cfg_path).unwrap();
+
+    let undo = e.send("POST", "/api/undo", json!({ "batch": batch }));
+    assert_eq!(undo.status, 409);
+    assert_eq!(
+        undo.json()["error"],
+        "This folder change can no longer be undone because the config file was edited after it, for example a tag was added."
+    );
+    assert!(e.lib.join("Landscapes/Nature 1.png").exists());
+    assert_eq!(fs::read_to_string(&e.cfg_path).unwrap(), config_after_tag);
+}
+
+#[test]
 fn a_source_can_be_set_by_hand_and_the_gap_mode_changed() {
     let mut hash = String::new();
     let e = setup(|lib, _| {

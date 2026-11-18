@@ -13,6 +13,8 @@ pub enum UndoError {
     AlreadyUndone(u64),
     /// Undo entries cannot be undone.
     NotUndoable(u64),
+    /// A folder operation's config text no longer matches the version it created.
+    ConfigChangedAfterFolderChange,
     /// The file is no longer where the log says it is (moved or deleted since).
     FileMovedSince(String),
     Exec(ExecError),
@@ -25,6 +27,10 @@ impl fmt::Display for UndoError {
             UndoError::NotFound(id) => write!(f, "nothing in the log with id {id}"),
             UndoError::AlreadyUndone(id) => write!(f, "entry {id} was already undone"),
             UndoError::NotUndoable(id) => write!(f, "entry {id} cannot be undone"),
+            UndoError::ConfigChangedAfterFolderChange => write!(
+                f,
+                "This folder change can no longer be undone because the config file was edited after it, for example a tag was added."
+            ),
             UndoError::FileMovedSince(p) => write!(f, "file was moved since: {p}"),
             UndoError::Exec(e) => write!(f, "{e}"),
             UndoError::Log(e) => write!(f, "log: {e}"),

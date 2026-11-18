@@ -150,6 +150,7 @@ impl From<UndoError> for ApiError {
             UndoError::NotFound(_) => 404,
             UndoError::AlreadyUndone(_)
             | UndoError::NotUndoable(_)
+            | UndoError::ConfigChangedAfterFolderChange
             | UndoError::FileMovedSince(_) => 409,
             _ => 500,
         };

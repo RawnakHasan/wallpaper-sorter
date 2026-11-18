@@ -173,11 +173,11 @@ impl Shared {
         let path = self
             .config_path
             .as_ref()
-            .ok_or(UndoError::NotUndoable(batch))?;
+            .ok_or(UndoError::ConfigChangedAfterFolderChange)?;
         let _guard = self.config_edit.lock().unwrap_or_else(|e| e.into_inner());
         let current = fs::read_to_string(path).map_err(UndoError::Log)?;
         if current != saved.after {
-            return Err(UndoError::NotUndoable(batch));
+            return Err(UndoError::ConfigChangedAfterFolderChange);
         }
         Ok(())
     }
