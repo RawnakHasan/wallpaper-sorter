@@ -717,6 +717,11 @@ fn re_sort_previews_then_applies_a_folder_as_one_batch() {
             == 200
     );
     assert!(e.lib.join("Archive/Chisa original.png").exists());
+
+    let whole = e.get("/api/resort").json();
+    assert!(whole["items"].as_array().unwrap().iter().any(|item| {
+        item["kind"] == "stay" && item["path"].as_str().unwrap().ends_with("Wuthering-Waves/Chisa/Chisa 1.png")
+    }));
 }
 
 #[test]

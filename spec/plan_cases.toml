@@ -199,3 +199,35 @@ name = "assigning ignores non-images"
 assign_to = "Nature"
 incoming = ["/lib/notes.txt"]
 expect = ["ignore: /lib/notes.txt"]
+
+[[case]]
+name = "re-sorting an already numbered image leaves it in place"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.png"] }
+incoming = ["Wuthering-Waves/Chisa/Chisa 1.png"]
+expect = ["ignore: Wuthering-Waves/Chisa/Chisa 1.png"]
+
+[[case]]
+name = "re-sorting an unnumbered image in its destination renames it"
+library = { "Frieren" = ["Frieren 1.png", "Sousou.no.Frieren.full.4038580.jpg"] }
+incoming = ["Frieren/Sousou.no.Frieren.full.4038580.jpg"]
+expect = ["move: Frieren/Sousou.no.Frieren.full.4038580.jpg -> Frieren/Frieren 2.jpg"]
+
+[[case]]
+name = "two re-sorted files reserve an already numbered file"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.png", "Chisa original.png"] }
+incoming = ["Wuthering-Waves/Chisa/Chisa 1.png", "Wuthering-Waves/Chisa/Chisa original.png"]
+expect = [
+  "ignore: Wuthering-Waves/Chisa/Chisa 1.png",
+  "move: Wuthering-Waves/Chisa/Chisa original.png -> Wuthering-Waves/Chisa/Chisa 2.png",
+]
+
+[[case]]
+name = "last mode leaves a numbered re-sort while filling a gap for another image"
+gap_mode = "last"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.png", "Chisa 3.png", "Chisa original.png"] }
+incoming = ["Wuthering-Waves/Chisa/Chisa 1.png", "Wuthering-Waves/Chisa/Chisa original.png"]
+expect = [
+  "ignore: Wuthering-Waves/Chisa/Chisa 1.png",
+  "rename: Wuthering-Waves/Chisa/Chisa 3.png -> Wuthering-Waves/Chisa/Chisa 2.png",
+  "move: Wuthering-Waves/Chisa/Chisa original.png -> Wuthering-Waves/Chisa/Chisa 3.png",
+]

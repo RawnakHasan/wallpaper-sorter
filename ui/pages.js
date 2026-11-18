@@ -299,9 +299,9 @@
         output.replaceChildren();
         return;
       }
-      const changing = preview.items.filter((i) => i.kind !== 'leave' && i.kind !== 'ignore');
+      const changing = preview.items.filter((i) => i.kind !== 'leave' && i.kind !== 'ignore' && i.kind !== 'stay');
       const waiting = preview.items.filter((i) => i.kind === 'leave');
-      const kindLabel = { move: 'Move and rename', rename: 'Rename', duplicate: 'Duplicate', leave: 'Leave here', ignore: 'Ignore' };
+      const kindLabel = { move: 'Move and rename', rename: 'Rename', duplicate: 'Duplicate', leave: 'Leave here', stay: 'Stays', ignore: 'Ignore' };
       const row = (item) => {
         const from = item.from || item.path;
         const detail = item.to ? `${resortPath(from)} → ${item.to}` : resortPath(from);

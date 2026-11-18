@@ -244,6 +244,79 @@ fn re_sort_previews_then_moves_existing_images_as_one_undoable_batch() {
 }
 
 #[test]
+fn whole_library_resort_matches_the_real_tree_and_is_idempotent() {
+    let d = Dirs::new();
+    let spec = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../spec");
+    let mut folder = String::new();
+    let mut tree = Vec::new();
+    for line in fs::read_to_string(spec.join("tree_images.txt")).unwrap().lines() {
+        if let Some(name) = line.strip_prefix("## ") {
+            folder = if name == "(root)" { String::new() } else { name.to_string() };
+        } else if !line.is_empty() {
+            let rel = if folder.is_empty() { line.to_string() } else { format!("{folder}/{line}") };
+            tree.push(rel);
+        }
+    }
+    for (n, rel) in tree.iter().enumerate() {
+        put(&d.lib.join(rel), &format!("tree-{n}"));
+    }
+
+    let rows: Vec<(String, String, String)> = fs::read_to_string(spec.join("cases.csv"))
+        .unwrap()
+        .lines()
+        .skip(1)
+        .filter_map(|line| {
+            let columns: Vec<_> = line.split(',').collect();
+            (columns.len() >= 6 && columns[0] == "real").then(|| {
+                let folder = if columns[2] == "(root)" { "" } else { columns[2] };
+                let rel = if folder.is_empty() {
+                    columns[1].to_string()
+                } else {
+                    format!("{folder}/{}", columns[1])
+                };
+                (rel, columns[3].to_string(), columns[5].to_string())
+            })
+        })
+        .collect();
+    assert_eq!(rows.len(), tree.len(), "every tree image has a real spec row");
+
+    let mut p = Pipeline::open(&d.lib, d.cfg()).unwrap();
+    let preview = p.resort_preview(None).unwrap();
+    for (source, expected_dest, status) in &rows {
+        let action = preview.actions.iter().find(|action| match action {
+            sorter_core::Action::Move { from, .. }
+            | sorter_core::Action::Rename { from, .. }
+            | sorter_core::Action::ToDuplicates { from, .. } => {
+                Path::new(from).strip_prefix(&d.lib).ok().is_some_and(|p| p == Path::new(source))
+            }
+            sorter_core::Action::Leave { path, .. } | sorter_core::Action::Ignore { path } => {
+                Path::new(path).strip_prefix(&d.lib).ok().is_some_and(|p| p == Path::new(source))
+            }
+        }).unwrap_or_else(|| panic!("no action for {source}"));
+        match status.as_str() {
+            "would-sort" | "agrees" => assert!(
+                matches!(action, sorter_core::Action::Move { to, .. }
+                    if Path::new(to).parent().is_some_and(|parent| parent == Path::new(expected_dest))),
+                "{source} should move to {expected_dest}, got {action:?}"
+            ),
+            "inbox" | "stays" => assert!(
+                matches!(action, sorter_core::Action::Leave { .. }),
+                "{source} should stay, got {action:?}"
+            ),
+            other => panic!("unexpected real-row status {other} for {source}"),
+        }
+    }
+
+    let out = p.resort(None).unwrap();
+    assert!(out.report.error.is_none(), "{:#?}", out.report.error);
+    let second = p.resort_preview(None).unwrap();
+    assert!(second.actions.iter().all(|action| matches!(
+        action,
+        sorter_core::Action::Leave { .. } | sorter_core::Action::Ignore { .. }
+    )), "second preview has changes: {:#?}", second.actions);
+}
+
+#[test]
 fn folder_rename_prefix_change_and_merge_are_previewable_and_undoable() {
     let d = Dirs::new();
     put(&d.lib.join("Old/Child/kept.png"), "kept");

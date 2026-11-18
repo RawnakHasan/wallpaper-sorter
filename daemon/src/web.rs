@@ -758,7 +758,9 @@ fn resort_json(plan: &Plan) -> Value {
             Action::Leave { path, reason } => {
                 json!({ "kind": "leave", "path": path, "reason": leave_text(reason) })
             }
-            Action::Ignore { path } => json!({ "kind": "ignore", "path": path }),
+            // Re-sort only supplies images, so Ignore here means an image is already correctly
+            // numbered in its destination folder.  It is a stay, rather than a skipped input.
+            Action::Ignore { path } => json!({ "kind": "stay", "path": path }),
         })
         .collect();
     let changes = items

@@ -3,7 +3,7 @@
 
 use crate::config::Config;
 use crate::matcher::{classify, Decision, Dest, Rule};
-use crate::numbering::plan_new_file;
+use crate::numbering::{parse_numbered, plan_new_file};
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 
@@ -150,6 +150,18 @@ pub fn build_plan_with(cfg: &Config, library: &Library, incoming: &[Incoming], o
                 let ext = name.rsplit('.').next().unwrap_or("");
                 let prefix = cfg.prefix_for(&dest);
                 let files = folders.entry(dest.clone()).or_default();
+                let destination = format!("{dest}/{name}");
+                // Re-sort includes files that are already in the library.  A file which is
+                // already in its destination and already has this folder's numbered name is
+                // a reserved number, not an arrival: leave it in `files` and do not plan a
+                // move.  The path suffix also covers the absolute paths supplied by engine.
+                if (inc.path == destination || inc.path.ends_with(&format!("/{destination}")))
+                    && files.iter().any(|file| file == name)
+                    && parse_numbered(name, &prefix, &cfg.settings.image_extensions).is_some()
+                {
+                    actions.push(Action::Ignore { path: inc.path.clone() });
+                    continue;
+                }
                 match plan_new_file(files, &prefix, ext, cfg.settings.gap_mode, &cfg.settings.image_extensions) {
                     Ok(p) => {
                         for r in &p.renames {
