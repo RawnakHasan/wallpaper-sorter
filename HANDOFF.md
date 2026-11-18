@@ -1,5 +1,3 @@
-| Web UI (`ui/`) | Written and served. The 20 jsdom UI tests cover the pages, Re-sort, and folder management; use the browser checklist below for visual checks. |
-The previous UI failures are fixed. The 20 jsdom tests load the page scripts through Node's `fetch` (rather than
 # Wallpaper Sorter: handoff guide
 
 For two readers: **the owner**, who builds and tests it on their own machine (part 2), and **another AI** that
@@ -31,13 +29,13 @@ about each image's origin, the activity log with undo, and settings.
 | Matching rules, numbering, the plan (list of actions), source detection from filenames | Done. Driven by hand-checked tables in `spec/`; all passed at my last run. |
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
-| Web server and JSON API, thumbnails | Done. 12 HTTP tests passed; smoke-tested with curl. |
-| Web UI (`ui/`) | Written and served. The 20 jsdom UI tests cover the pages, Re-sort, and folder management; use the browser checklist below for visual checks. |
+| Web server and JSON API, thumbnails | Done. 16 HTTP tests passed; smoke-tested with curl. |
+| Web UI (`ui/`) | Written and served. The 21 jsdom UI tests cover the pages, Re-sort, and folder management; use the browser checklist below for visual checks. |
 | Not built | First-run welcome flow; "restore a duplicate as a new image"; editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
 
-What was last run: the whole Rust suite (about 76 tests, many of them table-driven with hundreds of rows) was green
-before the UI work. After it, only the HTTP tests were re-run (green). **Nothing was run for this handoff**, by request.
-`cargo build` had no warnings at the last build.
+What was last run: `cargo build --all-targets` completed with 0 warnings; `cargo test --workspace` passed 85 Rust
+tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap` passed 21 UI
+tests. Many Rust tests are table-driven with hundreds of rows.
 
 ---
 
@@ -199,7 +197,7 @@ The behaviour lives in tables, and the Rust code must match them.
 |---|---|---|
 | `spec/cases.csv` (304 rows) | matcher results for 264 real filenames + 40 edge cases | `cd spec && python3 gen_cases.py` (uses `ref_matcher.py`, `tags.starter.toml`, `tree_images.txt`) |
 | `spec/numbering.csv` (29) | next number, gap modes | hand-written (`gen_numbering.py` only formats it) |
-| `spec/plan_cases.toml` (27) | batches, duplicates, assign, gap modes | hand-written |
+| `spec/plan_cases.toml` (31) | batches, duplicates, assign, gap modes, re-sort stays | hand-written |
 | `spec/origins.csv` (24) | site and id from filenames | hand-written (`gen_origins.py` formats it) |
 
 To change a rule: edit the reference or the table first, regenerate, then make `cargo test` pass. Hand-written
@@ -260,7 +258,7 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 4.1 UI automated tests
 
-The previous UI failures are fixed. The 20 jsdom tests load the page scripts through Node's `fetch` (rather than
+The previous UI failures are fixed. The 21 jsdom tests load the page scripts through Node's `fetch` (rather than
 jsdom's intermittent HTTP loader), then exercise the real binary and API. They include the Re-sort preview, apply and
 batch undo flow. This does not validate visual layout or real image loading.
 
@@ -275,7 +273,7 @@ console.
 
 | Feature | Sketch |
 |---|---|
-| Folder create, rename, merge, change prefix | Implemented in the Library page and JSON API. File changes are previewed and logged; config paths and prefixes follow folder operations, and config edits are restored when the associated file batch is undone. |
+| Folder create, rename, merge, change prefix | Implemented in the Library page and JSON API. File changes are previewed and logged; a rename pins an old effective prefix only when the new path would change it, and undo restores the original config text. |
 | Restore a duplicate as a new image | Needs an option to skip the duplicate check once; probably "move back to the library folder and hold it". |
 | First-run welcome | Pick library and intake folders, run the first scan, offer the re-sort. Needs config writing for `library` and `[[intake]]`. |
 | Size caps | Thumbnail cache (delete oldest), `log.jsonl` (keep recent entries; origin records stay forever). |
@@ -289,6 +287,8 @@ console.
   first one is inside the library.
 - Adding or changing a tag makes the program look at waiting files again, so files that now match get sorted at once
   (chosen on purpose, undoable).
+- A folder change cannot be undone after a later config edit, because restoring its saved config would overwrite that
+  edit. The API and UI now say this plainly and leave both the files and current config untouched.
 - `GET /api/status` lists the Inbox and Duplicates on every call and the page polls it every 3 seconds; fine for hundreds
   of files, worth caching for tens of thousands. The pipeline sits behind one mutex, so API calls wait while a large
   batch is being hashed.

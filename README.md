@@ -36,7 +36,7 @@ Rust core for the wallpaper sorter (design notes and the web UI mock-up live els
   - `tags.starter.toml`   starter tags drafted from the folder tree
   - `cases.csv`           304 matcher cases (264 real filenames + 40 edge cases), made by `ref_matcher.py` / `gen_cases.py`
   - `numbering.csv`       29 hand-written numbering cases (`gen_numbering.py` writes it)
-  - `plan_cases.toml`     22 hand-written plan cases (duplicates, gap modes, batches)
+  - `plan_cases.toml`     31 hand-written plan cases (duplicates, gap modes, batches, re-sort stays)
   - `origins.csv`         24 hand-written source-detection cases (`gen_origins.py` writes it)
 
 ## Try it
@@ -109,7 +109,9 @@ folder is not a logged file action.
 - `engine/tests/pipeline.rs`       hashing, duplicates across batches and sites, the hash cache, origin records, undo
 - `daemon/tests/watch.rs`          real inotify on temporary folders: downloads, slow writers, new intake folders, undo
 - `daemon/tests/web.rs`            the API over real HTTP: views, assign, tags, undo, thumbnails, security checks
-- `engine/tests/ops.rs`, `engine/tests/cfgedit.rs`  the UI's operations and the config editing
+- `engine/tests/ops.rs`, `engine/tests/cfgedit.rs`  the UI's operations and the config editing; `ops.rs` also builds
+  the real `tree_images.txt` library, compares a whole-library Re-sort with `cases.csv`, and checks its second preview
+  is idempotent
 
 To change a matching rule: edit `spec/ref_matcher.py`, run `cd spec && python3 gen_cases.py`, then make `cargo test` pass again.
 
