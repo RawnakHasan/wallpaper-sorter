@@ -33,9 +33,9 @@ about each image's origin, the activity log with undo, and settings.
 | Web UI (`ui/`) | Written and served. The 21 jsdom UI tests cover the pages, Re-sort, and folder management; use the browser checklist below for visual checks. |
 | Not built | First-run welcome flow; "restore a duplicate as a new image"; editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
 
-What was last run: `cargo build --all-targets` completed with 0 warnings; `cargo test --workspace` passed 85 Rust
-tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap` passed 21 UI
-tests. Many Rust tests are table-driven with hundreds of rows.
+Final verification for this handoff: `cargo build --all-targets` completed with 0 warnings; `cargo test --workspace`
+passed 85 Rust tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap`
+passed 21 UI tests. Many Rust tests are table-driven with hundreds of rows.
 
 ---
 
@@ -271,9 +271,12 @@ console.
 
 ### 4.3 Features not built, with a sketch
 
+Folder creation, rename, merge, and prefix changes are implemented in the Library page and JSON API. File changes are
+previewed and logged; rename pins an old effective prefix only when the new path would change it, and undo restores
+the original config text.
+
 | Feature | Sketch |
 |---|---|
-| Folder create, rename, merge, change prefix | Implemented in the Library page and JSON API. File changes are previewed and logged; a rename pins an old effective prefix only when the new path would change it, and undo restores the original config text. |
 | Restore a duplicate as a new image | Needs an option to skip the duplicate check once; probably "move back to the library folder and hold it". |
 | First-run welcome | Pick library and intake folders, run the first scan, offer the re-sort. Needs config writing for `library` and `[[intake]]`. |
 | Size caps | Thumbnail cache (delete oldest), `log.jsonl` (keep recent entries; origin records stay forever). |
@@ -287,8 +290,8 @@ console.
   first one is inside the library.
 - Adding or changing a tag makes the program look at waiting files again, so files that now match get sorted at once
   (chosen on purpose, undoable).
-- A folder change cannot be undone after a later config edit, because restoring its saved config would overwrite that
-  edit. The API and UI now say this plainly and leave both the files and current config untouched.
+- If the config changes after a folder change, undo is blocked rather than overwriting the newer config. The API returns
+  HTTP 409 with a plain-language explanation, and the failed undo leaves both the files and current config untouched.
 - `GET /api/status` lists the Inbox and Duplicates on every call and the page polls it every 3 seconds; fine for hundreds
   of files, worth caching for tens of thousands. The pipeline sits behind one mutex, so API calls wait while a large
   batch is being hashed.
