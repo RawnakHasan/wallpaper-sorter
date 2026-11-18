@@ -109,6 +109,7 @@ folder is not a logged file action.
 - `engine/tests/pipeline.rs`       hashing, duplicates across batches and sites, the hash cache, origin records, undo
 - `daemon/tests/watch.rs`          real inotify on temporary folders: downloads, slow writers, new intake folders, undo
 - `daemon/tests/web.rs`            the API over real HTTP: views, assign, tags, undo, thumbnails, security checks
+- `ui/test/ui.test.js`             jsdom UI flows, including Library source counts grouped by each image's first known source
 - `engine/tests/ops.rs`, `engine/tests/cfgedit.rs`  the UI's operations and the config editing; `ops.rs` also builds
   the real `tree_images.txt` library, compares a whole-library Re-sort with `cases.csv`, and checks its second preview
   is idempotent

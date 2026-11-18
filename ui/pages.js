@@ -454,7 +454,21 @@
     bar.onChange = grid.sync;
     WS.keys = { assign: () => selected().length && bar.el.querySelector('.primary').click(), remove: () => selected().length && bar.el.querySelector('.danger').click(), all: () => { images.forEach((i) => WS.selection.keys.add(i.path)); grid.sync(); } };
 
-    const facts = h('div', { class: 'facts' }, h('span', {}, 'Prefix ', h('b', { text: info.prefix })), h('span', {}, 'Next number ', h('b', { text: String(info.next_number) })), h('span', {}, 'Images ', h('b', { text: String(images.length) })), info.gaps.length ? h('span', {}, 'Gaps ', h('b', { text: info.gaps.length > 6 ? `${info.gaps.length} (${info.gaps.slice(0, 6).join(', ')}, …)` : `${info.gaps.length} (${info.gaps.join(', ')})` })) : null);
+    const sourceCounts = new Map();
+    for (const image of images) {
+      const source = (image.origin?.sources || []).find((item) => item.site && item.site !== 'Unknown');
+      const label = source ? source.site : 'Unknown';
+      sourceCounts.set(label, (sourceCounts.get(label) || 0) + 1);
+    }
+    const sourceSummary = h(
+      'span',
+      { class: 'source-counts', role: 'group', 'aria-label': 'Images by source' },
+      h('span', { class: 'source-count-label', text: 'Sources' }),
+      ...[...sourceCounts.entries()]
+        .sort(([a], [b]) => (a === 'Unknown' ? -1 : b === 'Unknown' ? 1 : a.localeCompare(b)))
+        .map(([source, count]) => h('span', { class: 'source-count' }, h('b', { text: source }), String(count)))
+    );
+    const facts = h('div', { class: 'facts' }, h('span', {}, 'Prefix ', h('b', { text: info.prefix })), h('span', {}, 'Next number ', h('b', { text: String(info.next_number) })), h('span', {}, 'Images ', h('b', { text: String(images.length) })), info.gaps.length ? h('span', {}, 'Gaps ', h('b', { text: info.gaps.length > 6 ? `${info.gaps.length} (${info.gaps.slice(0, 6).join(', ')}, …)` : `${info.gaps.length} (${info.gaps.join(', ')})` })) : null, sourceCounts.size ? sourceSummary : null);
     const fill = info.gaps.length ? h('button', { class: 'btn', text: 'Close gaps…', onclick: () => openFillGaps(current) }) : null;
     const actions = h('div', { class: 'row' },
       h('button', { class: 'btn', text: 'New folder', onclick: () => openCreateFolder(current + '/') }),

@@ -376,6 +376,24 @@ test('library: browse a folder and close the gaps', () =>
     }
   ));
 
+test('library: shows image counts grouped by source', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Wuthering-Waves/Chisa/wallhaven-1q2le9.png'));
+      put(path.join(lib, 'Wuthering-Waves/Chisa/Kuchiba.Chisa.full.4511113.png'));
+      put(path.join(lib, 'Wuthering-Waves/Chisa/opaque-hash.png'));
+    },
+    '#/library?folder=Wuthering-Waves%2FChisa',
+    async (ui) => {
+      await waitFor(() => ui.qa('.cell').length === 3, 'three images');
+      const counts = ui.q('.source-counts');
+      assert.ok(counts, 'source summary is shown in the folder header');
+      assert.match(counts.textContent, /Wallhaven\s*1/);
+      assert.match(counts.textContent, /Zerochan\s*1/);
+      assert.match(counts.textContent, /Unknown\s*1/);
+    }
+  ));
+
 test('library: create folders and manage prefix, rename, and merge', () =>
   withSorter(
     (lib) => {

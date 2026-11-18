@@ -30,12 +30,12 @@ about each image's origin, the activity log with undo, and settings.
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. 16 HTTP tests passed; smoke-tested with curl. |
-| Web UI (`ui/`) | Written and served. The 21 jsdom UI tests cover the pages, Re-sort, and folder management; use the browser checklist below for visual checks. |
+| Web UI (`ui/`) | Written and served. The 22 jsdom UI tests cover the pages, Re-sort, folder management, and Library source counts; use the browser checklist below for visual checks. |
 | Not built | First-run welcome flow; "restore a duplicate as a new image"; editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
 
 Final verification for this handoff: `cargo build --all-targets` completed with 0 warnings; `cargo test --workspace`
 passed 85 Rust tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap`
-passed 21 UI tests. Many Rust tests are table-driven with hundreds of rows.
+passed 22 UI tests. Many Rust tests are table-driven with hundreds of rows.
 
 ---
 
@@ -229,6 +229,7 @@ tables are the real specification; do not regenerate them from the code.
   status polling, keyboard). Everything hangs off `window.WS`. `WS.refresh()` re-renders the current page.
 - Styling uses CSS variables copied from the design mock-up (`ui/design-mock.html`); four font sizes, no shadows or
   gradients, dark first. Fonts are self-hosted from `ui/fonts/`.
+- The Library folder header shows source counts; each image counts under its first known source, or Unknown if none.
 - Because of the CSP, never set `style="..."` attributes or use inline handlers. Setting `el.style.x = ...` from
   script is fine.
 - The tests in `ui/test/ui.test.js` start the compiled binary on a temporary library, load the page in jsdom and
@@ -258,7 +259,7 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 4.1 UI automated tests
 
-The previous UI failures are fixed. The 21 jsdom tests load the page scripts through Node's `fetch` (rather than
+The previous UI failures are fixed. The 22 jsdom tests load the page scripts through Node's `fetch` (rather than
 jsdom's intermittent HTTP loader), then exercise the real binary and API. They include the Re-sort preview, apply and
 batch undo flow. This does not validate visual layout or real image loading.
 
