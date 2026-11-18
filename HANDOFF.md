@@ -78,14 +78,16 @@ tests with their output, the UI test list with failures in detail, and a "Notes"
 
 ### 2.4 Trying it on your real library, safely
 
-1. Build it once in release mode: `cargo build --release` (the program is `target/release/wallpaper-sorter`).
-2. Copy the starter config: `mkdir -p ~/.config/wallpaper-sorter && cp spec/tags.starter.toml ~/.config/wallpaper-sorter/config.toml`.
-   Check the `library = ...` line and the `[[intake]] path = ...` line. The tags are drafted from your folder tree.
-3. **First try a copy.** Copy your wallpapers somewhere else and run with `--library /that/copy`. Or run
-   `wallpaper-sorter --dry-run`, which prints what it would do and moves nothing. (It still creates its hidden
-   `.sorter` folder inside the library and hashes your images once, which can take a minute for a few hundred.)
-4. `wallpaper-sorter --once` sorts what is waiting now and exits. `wallpaper-sorter` with no option keeps running.
-5. Open http://127.0.0.1:8421/ (the address is printed at start; `--port N` changes it, `--no-web` turns it off).
+1. **Start with a temporary copy:** `scripts/try-on-copy.sh "$HOME/Pictures/Wallpapers"`. Optional arguments are a
+  config file and port. It uses your user config if present, otherwise the starter tags, and defaults to port 8422.
+  It excludes the original `.sorter` metadata and redirects every intake to a temporary empty folder.
+2. The script tries hard links first and falls back to a full copy. Sorter moves and renames affect only the temporary
+  copy's directory entries, but hard-linked image contents are shared. Do not edit image contents through the test copy.
+  The temporary folder is removed when you stop the program with Ctrl+C.
+3. If you want to test the real library afterwards, build it in release mode with `cargo build --release`. `--dry-run`
+  moves nothing but still creates `.sorter` and hashes the library. `--once` processes images waiting at startup; with
+  no mode option it keeps running. Use `--port N` to change the web port or `--no-web` to disable the web server.
+4. Open the address printed at startup (the default is http://127.0.0.1:8421/).
 
 What to expect on your current library (from the 264 images in the tree you showed me): only about 5 of the 93 loose
 images in the library folder match a tag; the rest wait in the Inbox (62 are Wallhaven files whose names say nothing).
@@ -324,6 +326,7 @@ the original config text.
 cargo build --release                 build the program
 cargo test --workspace                all Rust tests
 scripts/collect-report.sh             everything, as one report file
+scripts/try-on-copy.sh "$HOME/Pictures/Wallpapers"  safe browser trial on a temporary copy
 cd spec && python3 gen_cases.py       regenerate spec/cases.csv from the reference matcher
 python3 spec/ref_matcher.py spec/tags.starter.toml "Chisa waterfall.png"    try one name
 target/release/wallpaper-sorter --help

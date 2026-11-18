@@ -31,7 +31,7 @@ Rust core for the wallpaper sorter (design notes and the web UI mock-up live els
   - `thumbs`    thumbnails (400 px JPEG), drawn on first request, cached by content hash in `~/.cache/wallpaper-sorter/thumbs`
   - `contrib/wallpaper-sorter.service`  a systemd user unit
 - `ui/`      the web page: `index.html`, `app.css`, `core.js` (helpers), `pages.js` and `pages2.js` (the pages), `main.js` (shell, routing, polling), `fonts/`; `design-mock.html` is the original design with sample data (served at `/design`); `test/` drives the real program in a simulated browser (jsdom)
-- `scripts/` `collect-report.sh` runs every test suite and writes one report file
+- `scripts/` `collect-report.sh` runs every test suite and writes one report file; `try-on-copy.sh` launches a temporary library copy
 - `spec/`    the specs the code must follow
   - `tags.starter.toml`   starter tags drafted from the folder tree
   - `cases.csv`           324 matcher cases (264 real filenames + 60 edge cases), made by `ref_matcher.py` / `gen_cases.py`
@@ -40,6 +40,14 @@ Rust core for the wallpaper sorter (design notes and the web UI mock-up live els
   - `origins.csv`         26 hand-written source and manual-entry cases
 
 ## Try it
+
+For a safe browser trial, run `scripts/try-on-copy.sh "$HOME/Pictures/Wallpapers"` (optional arguments are a config file
+and port; the defaults are your user config or the starter tags, and port 8422). It excludes the original `.sorter`
+metadata, redirects intake folders to temporary empty folders, and removes its temporary copy on exit. It uses hard links
+when possible and otherwise makes a full copy. With hard links, sorter moves and renames are isolated to the copy, but
+editing an image's contents through the copy would also change the original. Do not edit image contents during the trial.
+
+For normal use:
 
     cargo build --release
     mkdir -p ~/.config/wallpaper-sorter && cp spec/tags.starter.toml ~/.config/wallpaper-sorter/config.toml
