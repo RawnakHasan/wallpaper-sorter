@@ -12,8 +12,8 @@ Rust core for the wallpaper sorter (design notes and the web UI mock-up live els
   - `numbering`  `<Prefix> <number>.<ext>`, next number, the four gap modes
   - `plan`       a list of actions (move, rename, send to Duplicates, leave, ignore) worked out from the
                  config, a snapshot of the library and the files that just arrived
-  - `origin`     site and id of an image from its original filename (Wallhaven, Zerochan, Konachan,
-                 yande.re, Danbooru, Pixiv), with the link to its page
+  - `origin`     site and id from supported filename formats (Wallhaven, Zerochan, Konachan, yande.re,
+                 Danbooru, Pixiv); Safebooru sources can also be added by hand
 - `engine/`  crate `sorter-engine`: the part that touches the disk
   - `scan`   builds the library snapshot from a folder
   - `exec`   applies a plan; never overwrites; stops at the first real error; falls back to copy when a move crosses drives
@@ -37,7 +37,7 @@ Rust core for the wallpaper sorter (design notes and the web UI mock-up live els
   - `cases.csv`           324 matcher cases (264 real filenames + 60 edge cases), made by `ref_matcher.py` / `gen_cases.py`
   - `numbering.csv`       29 hand-written numbering cases (`gen_numbering.py` writes it)
   - `plan_cases.toml`     31 hand-written plan cases (duplicates, gap modes, batches, re-sort stays)
-  - `origins.csv`         24 hand-written source-detection cases (`gen_origins.py` writes it)
+  - `origins.csv`         26 hand-written source and manual-entry cases
 
 ## Try it
 

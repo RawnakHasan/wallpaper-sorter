@@ -198,7 +198,7 @@ The behaviour lives in tables, and the Rust code must match them.
 | `spec/cases.csv` (324 rows) | matcher results for 264 real filenames + 60 edge cases | `cd spec && python3 gen_cases.py` (uses `ref_matcher.py`, `tags.starter.toml`, `tree_images.txt`) |
 | `spec/numbering.csv` (29) | next number, gap modes | hand-written (`gen_numbering.py` only formats it) |
 | `spec/plan_cases.toml` (31) | batches, duplicates, assign, gap modes, re-sort stays | hand-written |
-| `spec/origins.csv` (24) | site and id from filenames | hand-written (`gen_origins.py` formats it) |
+| `spec/origins.csv` (26) | site/id parsing and manual-source URLs; Safebooru is manual only | hand-written |
 
 To change a rule: edit the reference or the table first, regenerate, then make `cargo test` pass. Hand-written
 tables are the real specification; do not regenerate them from the code.

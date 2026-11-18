@@ -11,6 +11,7 @@ pub enum Site {
     Konachan,
     YandeRe,
     Danbooru,
+    Safebooru,
     Pixiv,
     Unknown,
 }
@@ -23,6 +24,7 @@ impl Site {
             Site::Konachan => "Konachan",
             Site::YandeRe => "yande.re",
             Site::Danbooru => "Danbooru",
+            Site::Safebooru => "Safebooru",
             Site::Pixiv => "Pixiv",
             Site::Unknown => "Unknown",
         }
@@ -48,9 +50,18 @@ pub struct Source {
 impl Site {
     /// The site for a label such as "yande.re" (any case).
     pub fn from_label(label: &str) -> Option<Site> {
-        [Site::Wallhaven, Site::Zerochan, Site::Konachan, Site::YandeRe, Site::Danbooru, Site::Pixiv, Site::Unknown]
-            .into_iter()
-            .find(|s| s.label().eq_ignore_ascii_case(label))
+        [
+            Site::Wallhaven,
+            Site::Zerochan,
+            Site::Konachan,
+            Site::YandeRe,
+            Site::Danbooru,
+            Site::Safebooru,
+            Site::Pixiv,
+            Site::Unknown,
+        ]
+        .into_iter()
+        .find(|s| s.label().eq_ignore_ascii_case(label))
     }
 }
 
@@ -61,7 +72,14 @@ impl Source {
     }
 
     pub fn unknown() -> Source {
-        Source { site: Site::Unknown, id: String::new(), url: String::new(), page: None, artist: None, artist_id: None }
+        Source {
+            site: Site::Unknown,
+            id: String::new(),
+            url: String::new(),
+            page: None,
+            artist: None,
+            artist_id: None,
+        }
     }
 
     /// Same site, id and page: the same place on the web.
@@ -92,13 +110,21 @@ pub fn url_for(site: Site, id: &str) -> String {
         Site::Konachan => format!("https://konachan.com/post/show/{id}"),
         Site::YandeRe => format!("https://yande.re/post/show/{id}"),
         Site::Danbooru => format!("https://danbooru.donmai.us/posts?tags=md5%3A{id}"),
+        Site::Safebooru => format!("https://safebooru.org/index.php?page=post&s=view&id={id}"),
         Site::Pixiv => format!("https://www.pixiv.net/artworks/{id}"),
         Site::Unknown => String::new(),
     }
 }
 
 fn simple(site: Site, id: &str) -> Source {
-    Source { site, id: id.to_string(), url: url_for(site, id), page: None, artist: None, artist_id: None }
+    Source {
+        site,
+        id: id.to_string(),
+        url: url_for(site, id),
+        page: None,
+        artist: None,
+        artist_id: None,
+    }
 }
 
 /// Site and id for a file, from its original name. `parent_folder` is the name of the folder it was in
@@ -148,10 +174,17 @@ pub fn parse_source(file_name: &str, parent_folder: &str) -> Source {
         if let Some(rest) = s[id.len()..].strip_prefix("_p") {
             let page = leading_digits(rest);
             let after = &rest[page.len()..];
-            let ends_cleanly = after.chars().next().map_or(true, |c| !c.is_ascii_alphanumeric());
+            let ends_cleanly = after
+                .chars()
+                .next()
+                .map_or(true, |c| !c.is_ascii_alphanumeric());
             if !page.is_empty() && ends_cleanly {
                 let (artist, artist_id) = match parent_folder.rsplit_once('-') {
-                    Some((name, num)) if !name.is_empty() && !num.is_empty() && num.chars().all(|c| c.is_ascii_digit()) => {
+                    Some((name, num))
+                        if !name.is_empty()
+                            && !num.is_empty()
+                            && num.chars().all(|c| c.is_ascii_digit()) =>
+                    {
                         (Some(name.to_string()), Some(num.to_string()))
                     }
                     _ => (None, None),
