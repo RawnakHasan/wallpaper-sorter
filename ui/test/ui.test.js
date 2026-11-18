@@ -360,6 +360,8 @@ test('library: browse a folder and close the gaps', () =>
       assert.match(details.getAttribute('aria-label'), /^Details of /);
       assert.ok(details.querySelector('svg[aria-hidden="true"]'), 'details uses an accessible icon button');
       const css = await fetchText(s, '/app.css');
+      assert.match(css, /\.cell \.open\{[^}]*top:\s*4px/);
+      assert.match(css, /\.cell \.check\{[^}]*right:\s*34px/);
       assert.match(css, /\.cell img\{[^}]*object-fit:\s*contain/);
       assert.match(ui.q('.facts').textContent, /Prefix\s*Chisa/);
       assert.match(ui.q('.facts').textContent, /Next number\s*5/);
