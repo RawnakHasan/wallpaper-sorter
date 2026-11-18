@@ -300,13 +300,24 @@
         return;
       }
       const changing = preview.items.filter((i) => i.kind !== 'leave' && i.kind !== 'ignore' && i.kind !== 'stay');
-      const waiting = preview.items.filter((i) => i.kind === 'leave');
+      const decisions = preview.items.filter((i) => i.kind === 'leave' && i.reason !== 'no match');
+      const noMatch = preview.items.filter((i) => i.kind === 'leave' && i.reason === 'no match').length;
+      const stays = preview.items.filter((i) => i.kind === 'stay').length;
       const kindLabel = { move: 'Move and rename', rename: 'Rename', duplicate: 'Duplicate', leave: 'Leave here', stay: 'Stays', ignore: 'Ignore' };
       const row = (item) => {
         const from = item.from || item.path;
         const detail = item.to ? `${resortPath(from)} → ${item.to}` : resortPath(from);
         const why = item.reason || item.duplicate_of || item.rule || '';
         return h('div', { class: 'resort-row' }, h('span', { class: `badge ${item.kind === 'leave' ? 'warn' : item.kind === 'duplicate' ? 'bad' : 'good'}`, text: kindLabel[item.kind] || item.kind }), h('span', { class: 'm grow', text: detail }), why ? h('span', { class: 'muted', text: why }) : null);
+      };
+      const list = (items) => {
+        const shown = items.slice(0, 200);
+        return h(
+          'div',
+          { class: 'resort-list' },
+          ...shown.map(row),
+          items.length > shown.length ? h('p', { class: 'muted', text: `and ${items.length - shown.length} more` }) : null
+        );
       };
       const apply = h('button', { class: 'btn primary', text: `Apply ${WS.plural(changing.length, 'change')}`, disabled: changing.length === 0 });
       apply.addEventListener('click', async () => {
@@ -323,11 +334,11 @@
         }
       });
       output.replaceChildren(
-        h('div', { class: 'resort-summary' }, h('b', { text: `${WS.plural(changing.length, 'change')} ready` }), h('span', { class: 'muted', text: waiting.length ? `${WS.plural(waiting.length, 'image')} will stay where it is.` : 'Every matching image has a destination.' }), apply),
+        h('div', { class: 'resort-summary' }, h('b', { text: `${WS.plural(changing.length, 'change')} ready` }), h('span', { class: 'muted', text: [stays ? `${stays} ${stays === 1 ? 'stay' : 'stays'}` : '', noMatch ? `${noMatch} no match${noMatch === 1 ? '' : 'es'}` : ''].filter(Boolean).join(', ') || 'Every matching image has a destination.' }), apply),
         changing.length ? h('h3', { text: 'Changes' }) : null,
-        changing.length ? h('div', { class: 'resort-list' }, ...changing.map(row)) : null,
-        waiting.length ? h('h3', { text: 'Needs a decision' }) : null,
-        waiting.length ? h('div', { class: 'resort-list' }, ...waiting.map(row)) : null,
+        changing.length ? list(changing) : null,
+        decisions.length ? h('h3', { text: 'Needs a decision' }) : null,
+        decisions.length ? list(decisions) : null,
         preview.items.length === 0 ? WS.empty('No images in this scope') : null
       );
     }

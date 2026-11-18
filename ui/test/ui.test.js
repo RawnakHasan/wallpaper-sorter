@@ -474,7 +474,8 @@ test('re-sort: previews a folder, applies it, and offers batch undo', () =>
       assert.ok(ui.q('.resort-summary'), ui.toast());
       await waitFor(() => /1 change ready/.test(ui.q('.resort-summary').textContent), 'the re-sort preview');
       assert.match(ui.q('.resort-list').textContent, /Chisa 2\.png/);
-      assert.match(ui.q('.resort-output').textContent, /Needs a decision/);
+      assert.match(ui.q('.resort-output').textContent, /1 no match/);
+      assert.doesNotMatch(ui.q('.resort-output').textContent, /Needs a decision/);
       assert.ok(fs.existsSync(path.join(s.lib, 'Archive/Chisa original.png')), 'preview does not move the file');
       ui.click(ui.byText('.resort-summary button', 'Apply 1 change'));
       const dialog = await waitFor(() => ui.q('.dialog'), 'the confirmation');
@@ -485,6 +486,24 @@ test('re-sort: previews a folder, applies it, and offers batch undo', () =>
       ui.click(ui.byText('#toast button', 'Undo'));
       await waitFor(() => fs.existsSync(path.join(s.lib, 'Archive/Chisa original.png')), 'the batch undo');
       await waitFor(() => ui.q('.resort-output') !== beforeUndoRefresh, 'the restored Re-sort page');
+    }
+  ));
+
+test('re-sort: unmatched files are counted without rendering an unbounded list', () =>
+  withSorter(
+    (lib) => {
+      for (let n = 0; n < 300; n++) {
+        const file = path.join(lib, `wallhaven-${String(n).padStart(6, '0')}.png`);
+        put(file);
+        fs.appendFileSync(file, String(n));
+      }
+    },
+    '#/resort',
+    async (ui) => {
+      ui.click(await waitFor(() => ui.byText('button', 'Scan and preview'), 'the preview button'));
+      const summary = await waitFor(() => ui.q('.resort-summary'), 'the re-sort response');
+      assert.match(summary.textContent, /300 no match/);
+      assert.ok(ui.qa('.resort-row').length < 250, 'unmatched files are not all rendered');
     }
   ));
 
