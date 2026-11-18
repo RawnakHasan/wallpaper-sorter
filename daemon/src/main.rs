@@ -45,19 +45,37 @@ struct Args {
 }
 
 fn parse_args() -> Result<Args, String> {
-    let mut a = Args { config: None, library: None, dry_run: false, once: false, resort_preview: false, folder: None, verbose: false, port: None, no_web: false };
+    let mut a = Args {
+        config: None,
+        library: None,
+        dry_run: false,
+        once: false,
+        resort_preview: false,
+        folder: None,
+        verbose: false,
+        port: None,
+        no_web: false,
+    };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--config" => a.config = Some(PathBuf::from(it.next().ok_or("--config needs a file")?)),
-            "--library" => a.library = Some(expand_home(&it.next().ok_or("--library needs a folder")?)),
+            "--library" => {
+                a.library = Some(expand_home(&it.next().ok_or("--library needs a folder")?))
+            }
             "--dry-run" => a.dry_run = true,
             "--once" => a.once = true,
             "--resort-preview" => a.resort_preview = true,
             "--folder" => a.folder = Some(it.next().ok_or("--folder needs a path")?),
             "--verbose" => a.verbose = true,
             "--no-web" => a.no_web = true,
-            "--port" => a.port = Some(it.next().and_then(|v| v.parse().ok()).ok_or("--port needs a number")?),
+            "--port" => {
+                a.port = Some(
+                    it.next()
+                        .and_then(|v| v.parse().ok())
+                        .ok_or("--port needs a number")?,
+                )
+            }
             "--help" | "-h" => {
                 print!("{HELP}");
                 std::process::exit(0);
@@ -79,7 +97,12 @@ fn count_label(count: usize, singular: &str, plural: &str) -> String {
 }
 
 fn print_resort_preview(plan: &Plan, folder: Option<&str>) {
-    let count = |predicate: fn(&Action) -> bool| plan.actions.iter().filter(|action| predicate(action)).count();
+    let count = |predicate: fn(&Action) -> bool| {
+        plan.actions
+            .iter()
+            .filter(|action| predicate(action))
+            .count()
+    };
     let moves = count(|action| matches!(action, Action::Move { .. }));
     let renames = count(|action| matches!(action, Action::Rename { .. }));
     let duplicates = count(|action| matches!(action, Action::ToDuplicates { .. }));
@@ -100,7 +123,10 @@ fn print_resort_preview(plan: &Plan, folder: Option<&str>) {
         println!("  none");
     } else {
         for action in &plan.actions {
-            if matches!(action, Action::Move { .. } | Action::Rename { .. } | Action::ToDuplicates { .. }) {
+            if matches!(
+                action,
+                Action::Move { .. } | Action::Rename { .. } | Action::ToDuplicates { .. }
+            ) {
                 println!("  {action}");
             }
         }
@@ -148,10 +174,19 @@ fn run() -> Result<(), String> {
     }
 
     let port = args.port.unwrap_or(cfg.server.port);
-    let mut daemon = Daemon::start_with(library.clone(), cfg, Options::default(), Some(config_path.clone())).map_err(|e| e.to_string())?;
+    let mut daemon = Daemon::start_with(
+        library.clone(),
+        cfg,
+        Options::default(),
+        Some(config_path.clone()),
+    )
+    .map_err(|e| e.to_string())?;
 
     if args.resort_preview {
-        let plan = daemon.pipeline().resort_preview(args.folder.as_deref()).map_err(|e| e.to_string())?;
+        let plan = daemon
+            .pipeline()
+            .resort_preview(args.folder.as_deref())
+            .map_err(|e| e.to_string())?;
         print_resort_preview(&plan, args.folder.as_deref());
         return Ok(());
     }
@@ -162,12 +197,18 @@ fn run() -> Result<(), String> {
         let files = daemon.take_waiting();
         println!("{} image(s) waiting", files.len());
         if args.dry_run {
-            let plan = daemon.pipeline().dry_run(&files).map_err(|e| e.to_string())?;
+            let plan = daemon
+                .pipeline()
+                .dry_run(&files)
+                .map_err(|e| e.to_string())?;
             for line in plan.describe() {
                 println!("{line}");
             }
         } else {
-            let outcome = daemon.pipeline().process(&files).map_err(|e| e.to_string())?;
+            let outcome = daemon
+                .pipeline()
+                .process(&files)
+                .map_err(|e| e.to_string())?;
             for line in describe(&outcome, args.verbose) {
                 println!("{line}");
             }
@@ -176,7 +217,8 @@ fn run() -> Result<(), String> {
     }
 
     if !args.no_web {
-        let web = serve(daemon.handle(), port, Thumbs::new(Thumbs::default_dir())).map_err(|e| format!("web server on port {port}: {e}"))?;
+        let web = serve(daemon.handle(), port, Thumbs::new(Thumbs::default_dir()))
+            .map_err(|e| format!("web server on port {port}: {e}"))?;
         println!("web page and API: http://127.0.0.1:{}/", web.port);
     }
 
