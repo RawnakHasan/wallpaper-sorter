@@ -77,6 +77,24 @@
     img.addEventListener('error', () => img.classList.add('broken'));
     return img;
   };
+  const ICONS = {
+    close: ['M18 6 6 18', 'm6 6 12 12'],
+    info: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z', 'M12 16v-4', 'M12 8h.01'],
+    previous: ['m15 18-6-6 6-6'],
+    next: ['m9 18 6-6-6-6'],
+  };
+  WS.icon = function icon(name) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'ui-icon');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    for (const d of ICONS[name] || []) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      svg.append(path);
+    }
+    return svg;
+  };
   WS.badge = (text, cls) => h('span', { class: 'badge' + (cls ? ' ' + cls : ''), text });
   WS.siteBadges = (origin) => {
     const sources = (origin && origin.sources) || [];
@@ -134,7 +152,7 @@
     const sheet = h(
       'aside',
       { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
-      h('header', {}, h('h2', { text: title }), h('button', { class: 'btn small', onclick: WS.closeLayer, text: 'Close' })),
+      h('header', {}, h('h2', { text: title }), h('button', { class: 'btn small icon-btn', type: 'button', 'aria-label': 'Close', title: 'Close', onclick: WS.closeLayer }, WS.icon('close'))),
       h('div', { class: 'content' }, content),
       footer ? h('footer', {}, footer) : null
     );

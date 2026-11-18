@@ -51,7 +51,7 @@
         WS.thumb(it.hash, ''),
         it.label ? h('span', { class: 'label ' + (it.labelClass || ''), title: it.title || '', text: it.label }) : null,
         h('span', { class: 'check', text: '✓' }),
-        h('button', { class: 'open', type: 'button', 'aria-label': `Details of ${it.name}`, text: 'Details', onclick: (e) => { e.stopPropagation(); it.onOpen(); } }),
+        h('button', { class: 'open', type: 'button', 'aria-label': `Details of ${it.name}`, title: 'Details', onclick: (e) => { e.stopPropagation(); it.onOpen(); } }, WS.icon('info')),
         h('div', { class: 'cap' }, h('span', { class: 'm', text: it.name }), it.sub ? h('span', { class: 'm', text: it.sub }) : null)
       );
       el.addEventListener('click', (e) => toggle(it, e));

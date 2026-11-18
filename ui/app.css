@@ -42,6 +42,9 @@ a{color:var(--ac)}
 .btn.primary:hover{filter:brightness(1.1);background:var(--ac)}
 .btn.danger{color:var(--er)}
 .btn.small{height:26px;padding:0 8px;font-size:12px}
+.ui-icon{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;min-width:32px;padding:0 7px}
+.data-pager{margin-top:12px;padding:8px 4px;gap:8px}
 .btn[disabled]{opacity:.5;cursor:default}
 .input,.select{height:32px;padding:0 10px;border-radius:6px;border:1px solid var(--bd);background:transparent;min-width:0;max-width:100%}
 .select{appearance:none;-webkit-appearance:none;padding-right:34px;background-color:transparent;background-image:linear-gradient(45deg,transparent 50%,var(--t2) 50%),linear-gradient(135deg,var(--t2) 50%,transparent 50%);background-position:calc(100% - 14px) 13px,calc(100% - 9px) 13px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
@@ -105,8 +108,8 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .cell .check{position:absolute;right:4px;top:4px;width:20px;height:20px;border-radius:50%;background:var(--ac);color:var(--oa);display:none;align-items:center;justify-content:center;font-size:12px}
 .cell.sel{outline:2px solid var(--ac);outline-offset:-2px}
 .cell.sel .check{display:flex}
-.cell .open{position:absolute;right:4px;bottom:26px;display:none;height:22px;padding:0 6px;border-radius:4px;border:0;background:var(--shade);color:#fff;cursor:pointer;font-size:11px}
-.cell:hover .open,.cell:focus-within .open{display:block}
+.cell .open{position:absolute;right:4px;bottom:26px;display:none;width:26px;height:26px;padding:0;border-radius:4px;border:0;background:var(--shade);color:#fff;cursor:pointer;align-items:center;justify-content:center}
+.cell:hover .open,.cell:focus-within .open{display:flex}
 .selbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;margin:0 0 12px;background:var(--rs);border:1px solid var(--bd);border-radius:8px}
 .more{display:flex;justify-content:center;padding:16px}
 

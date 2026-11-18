@@ -356,6 +356,9 @@ test('library: browse a folder and close the gaps', () =>
     async (ui, s) => {
       await waitFor(() => ui.qa('.cell').length === 3, 'three images');
       assert.equal(ui.q('.more').textContent, '', 'no literal null after the final image chunk');
+      const details = ui.q('.cell .open');
+      assert.match(details.getAttribute('aria-label'), /^Details of /);
+      assert.ok(details.querySelector('svg[aria-hidden="true"]'), 'details uses an accessible icon button');
       const css = await fetchText(s, '/app.css');
       assert.match(css, /\.cell img\{[^}]*object-fit:\s*contain/);
       assert.match(ui.q('.facts').textContent, /Prefix\s*Chisa/);
@@ -555,18 +558,28 @@ test('data: filter, find unknown sources and set one by hand', () =>
     '#/data',
     async (ui, s) => {
       await waitFor(() => ui.qa('.tbl tbody tr').length === 3, 'three records');
+      const pager = ui.q('.data-pager');
+      assert.ok(pager, 'data pager has its own layout spacing');
+      assert.ok(ui.q('button[aria-label="Previous page"] svg', pager));
+      assert.ok(ui.q('button[aria-label="Next page"] svg', pager));
+      const css = await fetchText(s, '/app.css');
+      assert.match(css, /\.data-pager\{[^}]*margin-top:/);
       ui.click(ui.byText('button', 'Unknown source (2)'));
       await waitFor(() => ui.qa('.tbl tbody tr').length === 2, 'only the unknown ones');
       ui.click(ui.qa('.tbl tbody tr')[0]);
       const sheet = await waitFor(() => ui.q('.sheet'), 'the record');
-      ui.q('select[aria-label="Site"]', sheet).value = 'Wallhaven';
+      const close = ui.q('.sheet header button', sheet);
+      assert.equal(close.getAttribute('aria-label'), 'Close');
+      assert.ok(close.querySelector('svg[aria-hidden="true"]'), 'sheet close is an accessible icon button');
+      ui.q('select[aria-label="Site"]', sheet).value = 'Safebooru';
       ui.type(ui.q('input[aria-label="Id on the site"]', sheet), 'abc123');
       ui.click(ui.byText('button', 'Save source', sheet));
       await waitFor(() => /Source saved/.test(ui.toast()), 'the confirmation');
       await waitFor(() => ui.byText('button', 'Unknown source (1)'), 'the unknown count to drop');
       const found = await api(s, 'GET', '/api/data?q=abc123');
       assert.equal(found.total, 1);
-      assert.equal(found.items[0].sources[0].url, 'https://wallhaven.cc/w/abc123');
+      assert.equal(found.items[0].sources[0].site, 'Safebooru');
+      assert.equal(found.items[0].sources[0].url, 'https://safebooru.org/index.php?page=post&s=view&id=abc123');
     }
   ));
 

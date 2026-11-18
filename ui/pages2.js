@@ -4,7 +4,7 @@
   const WS = window.WS;
   const h = WS.h;
   const { page, openAssign, deleteFiles, dupFolder, enc } = WS.ui;
-  const SITES = ['Wallhaven', 'Zerochan', 'Konachan', 'yande.re', 'Danbooru', 'Pixiv', 'Unknown'];
+  const SITES = ['Wallhaven', 'Zerochan', 'Konachan', 'yande.re', 'Danbooru', 'Safebooru', 'Pixiv', 'Unknown'];
 
   // ---------- Activity
   function kindLabel(e) {
@@ -310,7 +310,7 @@
     );
     const first = res.total ? res.offset + 1 : 0;
     const last = res.offset + res.items.length;
-    const pager = h('div', { class: 'row' }, h('span', { class: 'muted', text: `${first}–${last} of ${res.total}` }), h('button', { class: 'btn small', text: 'Previous', disabled: res.offset === 0, onclick: () => { dataQ.offset = Math.max(0, dataQ.offset - PAGE); WS.refresh(); } }), h('button', { class: 'btn small', text: 'Next', disabled: last >= res.total, onclick: () => { dataQ.offset += PAGE; WS.refresh(); } }));
+    const pager = h('div', { class: 'row data-pager' }, h('span', { class: 'muted' }, `${first}–${last} of ${res.total}`), h('button', { class: 'btn small icon-btn', type: 'button', 'aria-label': 'Previous page', title: 'Previous page', disabled: res.offset === 0, onclick: () => { dataQ.offset = Math.max(0, dataQ.offset - PAGE); WS.refresh(); } }, WS.icon('previous')), h('button', { class: 'btn small icon-btn', type: 'button', 'aria-label': 'Next page', title: 'Next page', disabled: last >= res.total, onclick: () => { dataQ.offset += PAGE; WS.refresh(); } }, WS.icon('next')));
 
     return page(
       'Data',
