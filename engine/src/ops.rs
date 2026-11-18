@@ -20,6 +20,15 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::time::SystemTime;
 
+fn renamed_folder_path(path: &str, from: &str, to: &str) -> Option<String> {
+    if path == from {
+        Some(to.to_string())
+    } else {
+        path.strip_prefix(&(from.to_string() + "/"))
+            .map(|rest| format!("{to}/{rest}"))
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct InboxItem {
     /// Absolute path.
@@ -346,6 +355,41 @@ impl Pipeline {
     pub fn rename_folder(&mut self, from: &str, to: &str) -> io::Result<Outcome> {
         let plan = self.rename_folder_preview(from, to)?;
         self.run_plan(plan, HashMap::new())
+    }
+
+    /// Prefix entries to add when `from` becomes `to`.  The old configuration is the source of
+    /// truth: after the paths are rewritten, pin a prefix only where deriving it from the new
+    /// path would change the number scheme of a folder that contains images.
+    pub fn rename_folder_prefix_pins(&self, from: &str, to: &str) -> io::Result<Vec<(String, String)>> {
+        self.check_folder_change(from, to)?;
+        let mut renamed = self.cfg.clone();
+        for tag in &mut renamed.tags {
+            if let Some(path) = renamed_folder_path(&tag.dest, from, to) {
+                tag.dest = path;
+            }
+        }
+        for folder in &mut renamed.folders {
+            if let Some(path) = renamed_folder_path(&folder.path, from, to) {
+                folder.path = path;
+            }
+        }
+
+        let mut paths = BTreeSet::new();
+        paths.insert(from.to_string());
+        for file in self.folder_files(from)? {
+            let rel = rel_inside(&self.root, &file).expect("folder file is inside the library");
+            if let Some(parent) = Path::new(&rel).parent() {
+                paths.insert(parent.to_string_lossy().to_string());
+            }
+        }
+        Ok(paths
+            .into_iter()
+            .filter_map(|old_path| {
+                let new_path = renamed_folder_path(&old_path, from, to)?;
+                let old_prefix = self.cfg.prefix_for(&old_path);
+                (old_prefix != renamed.prefix_for(&new_path)).then_some((new_path, old_prefix))
+            })
+            .collect())
     }
 
     /// Preview merging a source folder (and its children) into a destination folder. The normal

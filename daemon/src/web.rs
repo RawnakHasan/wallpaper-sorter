@@ -546,13 +546,14 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                     "folder rename has no movable images or contains destination conflicts",
                 ));
             }
+            let prefix_pins = ctx.shared.lock().rename_folder_prefix_pins(&b.from, &b.to)?;
             let config_before = ctx
                 .shared
                 .config_text()
                 .map_err(|e| ApiError::new(400, e))?;
             let out = ctx.shared.lock().rename_folder(&b.from, &b.to)?;
             finish_folder_change(ctx, &out, config_before, |text| {
-                edit_rename_folder(text, &b.from, &b.to)
+                edit_rename_folder(text, &b.from, &b.to, &prefix_pins)
             })?;
             Ok(Resp::json(200, &outcome_json(&out)))
         }

@@ -106,7 +106,7 @@ fn folder_settings_keep_a_prefix_and_follow_renames_and_merges() {
     assert_eq!(cfg.prefix_for("Series/Violet"), "Violet Evergarden");
 
     let text = add_tag(&text, &spec(&["violet"], "Series/Violet")).unwrap();
-    let renamed = rename_folder(&text, "Series", "Anime").unwrap();
+    let renamed = rename_folder(&text, "Series", "Anime", &[]).unwrap();
     let cfg = Config::from_toml(&renamed).unwrap();
     assert_eq!(cfg.tags.last().unwrap().dest, "Anime/Violet");
     assert_eq!(cfg.prefix_for("Anime/Violet"), "Violet Evergarden");
@@ -116,4 +116,22 @@ fn folder_settings_keep_a_prefix_and_follow_renames_and_merges() {
     assert_eq!(cfg.tags.last().unwrap().dest, "Series");
     assert!(cfg.folders.iter().all(|f| f.path != "Anime/Violet"));
     assert!(add_folder(&starter(), "Nature", Some("bad/name")).is_err());
+}
+
+#[test]
+fn folder_rename_adds_only_the_prefix_pins_computed_by_its_caller() {
+    let renamed = rename_folder(
+        &starter(),
+        "Nature",
+        "Landscapes",
+        &[("Landscapes".to_string(), "Nature".to_string())],
+    )
+    .unwrap();
+    let cfg = Config::from_toml(&renamed).unwrap();
+    assert_eq!(cfg.prefix_for("Landscapes"), "Nature");
+    assert!(renamed.contains("path = \"Landscapes\""));
+    assert!(renamed.contains("prefix = \"Nature\""));
+
+    let unchanged = rename_folder(&renamed, "Landscapes", "Nature-Scenes", &[]).unwrap();
+    assert!(!unchanged.contains("path = \"Nature-Scenes\"\nprefix = \"Nature-Scenes\""));
 }

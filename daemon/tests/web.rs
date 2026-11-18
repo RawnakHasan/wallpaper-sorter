@@ -885,6 +885,36 @@ fn folders_can_be_created_renamed_merged_and_given_a_prefix() {
 }
 
 #[test]
+fn renaming_a_folder_preserves_its_effective_prefix_and_undo_text() {
+    let e = setup(|lib, _| put(&lib.join("Nature/Nature 1.png"), "nature"));
+    let before = fs::read_to_string(&e.cfg_path).unwrap();
+    let renamed = e.send(
+        "POST",
+        "/api/folder-rename",
+        json!({ "from": "Nature", "to": "Landscapes" }),
+    );
+    assert_eq!(renamed.status, 200, "{}", String::from_utf8_lossy(&renamed.body));
+    let batch = renamed.json()["batch"].as_u64().unwrap();
+    let folder = e
+        .get("/api/folders")
+        .json()
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|folder| folder["path"] == "Landscapes")
+        .unwrap()
+        .clone();
+    assert_eq!(folder["prefix"], "Nature");
+    assert_eq!(folder["next_number"], 2);
+    assert!(fs::read_to_string(&e.cfg_path)
+        .unwrap()
+        .contains("path = \"Landscapes\"\nprefix = \"Nature\""));
+
+    assert_eq!(e.send("POST", "/api/undo", json!({ "batch": batch })).status, 200);
+    assert_eq!(fs::read_to_string(&e.cfg_path).unwrap(), before);
+}
+
+#[test]
 fn a_source_can_be_set_by_hand_and_the_gap_mode_changed() {
     let mut hash = String::new();
     let e = setup(|lib, _| {

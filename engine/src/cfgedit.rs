@@ -135,8 +135,15 @@ fn descendant(path: &str, parent: &str) -> Option<String> {
     }
 }
 
-/// Moves tag and folder settings with a renamed folder, including all of its children.
-pub fn rename_folder(text: &str, from: &str, to: &str) -> Result<String, String> {
+/// Moves tag and folder settings with a renamed folder, including all of its children. `prefix_pins`
+/// are computed by the caller from the old, on-disk folder tree; keeping that filesystem inspection
+/// out of this text editor makes the edit deterministic and preserves comments and layout.
+pub fn rename_folder(
+    text: &str,
+    from: &str,
+    to: &str,
+    prefix_pins: &[(String, String)],
+) -> Result<String, String> {
     crate::ops::check_folder(from).map_err(|e| e.to_string())?;
     crate::ops::check_folder(to).map_err(|e| e.to_string())?;
     if from == to {
@@ -149,10 +156,23 @@ pub fn rename_folder(text: &str, from: &str, to: &str) -> Result<String, String>
             tag["dest"] = value(if rest.is_empty() { to.to_string() } else { format!("{to}/{rest}") });
         }
     }
-    for folder in folders_mut(&mut doc)?.iter_mut() {
+    let folders = folders_mut(&mut doc)?;
+    for folder in folders.iter_mut() {
         let Some(path) = folder.get("path").and_then(Item::as_str) else { continue };
         if let Some(rest) = descendant(path, from) {
             folder["path"] = value(if rest.is_empty() { to.to_string() } else { format!("{to}/{rest}") });
+        }
+    }
+    for (path, prefix) in prefix_pins {
+        let index = folders
+            .iter_mut()
+            .position(|folder| folder.get("path").and_then(Item::as_str) == Some(path));
+        if let Some(index) = index {
+            set_folder_table(folders.get_mut(index).expect("folder index exists"), path, Some(prefix));
+        } else {
+            let mut folder = Table::new();
+            set_folder_table(&mut folder, path, Some(prefix));
+            folders.push(folder);
         }
     }
     Ok(doc.to_string())
