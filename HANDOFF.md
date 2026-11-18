@@ -34,7 +34,7 @@ about each image's origin, the activity log with undo, and settings.
 | Not built | First-run welcome flow; "restore a duplicate as a new image"; editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
 
 Final verification for this handoff: `cargo build --all-targets` completed with 0 warnings; `cargo test --workspace`
-passed 85 Rust tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap`
+passed 86 Rust tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap`
 passed 22 UI tests. Many Rust tests are table-driven with hundreds of rows.
 
 ---
@@ -182,7 +182,7 @@ daemon/   the program
   daemon      run loop; `Shared` (Mutex<Pipeline> + wake channel) is what the web server uses
   web         tiny_http server, JSON API, serves ui/ with a strict Content-Security-Policy
   thumbs      400 px JPEG thumbnails cached by content hash
-  main        command line (--config --library --dry-run --once --verbose --port --no-web)
+  main        command line (--config --library --dry-run --once --resort-preview --folder --verbose --port --no-web)
 ui/       plain HTML/CSS/JS, no build step, embedded in the binary with include_str!
 spec/     the tables and the reference matcher (Python)
 ```
@@ -330,4 +330,5 @@ scripts/try-on-copy.sh "$HOME/Pictures/Wallpapers"  safe browser trial on a temp
 cd spec && python3 gen_cases.py       regenerate spec/cases.csv from the reference matcher
 python3 spec/ref_matcher.py spec/tags.starter.toml "Chisa waterfall.png"    try one name
 target/release/wallpaper-sorter --help
+target/release/wallpaper-sorter --resort-preview [--folder F]  preview a whole library or folder scope without moving images
 ```

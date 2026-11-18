@@ -55,6 +55,10 @@ For normal use:
     target/release/wallpaper-sorter --once           # sorts what is waiting now, then exits
     target/release/wallpaper-sorter                  # keeps running (Ctrl-C to stop)
 
+  Preview a whole-library Re-sort without the browser with `target/release/wallpaper-sorter --resort-preview`;
+  add `--folder Wuthering-Waves/Chisa` to limit the scope. It prints action counts before listing changes and does not
+  move or rename images. Like other runs, opening the library may initialize or refresh its `.sorter` metadata.
+
 While it runs, the web page and API are at http://127.0.0.1:8421/ (`--port N` or `[server] port` in the config
 to change it, `--no-web` to turn it off). The page there is the real UI (plain HTML, CSS and JavaScript in `ui/`, no build step); `/design` shows the original design mock-up with sample data.
 
@@ -116,6 +120,7 @@ folder is not a logged file action.
 - `engine/tests/flow.rs`           scan, plan, apply, log and undo on real temporary folders
 - `engine/tests/pipeline.rs`       hashing, duplicates across batches and sites, the hash cache, origin records, undo
 - `daemon/tests/watch.rs`          real inotify on temporary folders: downloads, slow writers, new intake folders, undo
+- `daemon/tests/resort_preview_cli.rs`  CLI Re-sort preview counts, folder scope, and no image mutation
 - `daemon/tests/web.rs`            the API over real HTTP: views, assign, tags, undo, thumbnails, security checks
 - `ui/test/ui.test.js`             jsdom UI flows, including Library source counts grouped by each image's first known source
 - `engine/tests/ops.rs`, `engine/tests/cfgedit.rs`  the UI's operations and the config editing; `ops.rs` also builds
