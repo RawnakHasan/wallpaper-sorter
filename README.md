@@ -34,7 +34,7 @@ Rust core for the wallpaper sorter (design notes and the web UI mock-up live els
 - `scripts/` `collect-report.sh` runs every test suite and writes one report file
 - `spec/`    the specs the code must follow
   - `tags.starter.toml`   starter tags drafted from the folder tree
-  - `cases.csv`           304 matcher cases (264 real filenames + 40 edge cases), made by `ref_matcher.py` / `gen_cases.py`
+  - `cases.csv`           324 matcher cases (264 real filenames + 60 edge cases), made by `ref_matcher.py` / `gen_cases.py`
   - `numbering.csv`       29 hand-written numbering cases (`gen_numbering.py` writes it)
   - `plan_cases.toml`     31 hand-written plan cases (duplicates, gap modes, batches, re-sort stays)
   - `origins.csv`         24 hand-written source-detection cases (`gen_origins.py` writes it)

@@ -68,7 +68,8 @@
       next.forEach((it) => grid.append(cell(it)));
       shown += next.length;
       const left = items.length - shown;
-      more.replaceChildren(left > 0 ? h('button', { class: 'btn', text: `Show ${Math.min(CHUNK, left)} more (${left} not shown)`, onclick: showMore }) : null);
+      if (left > 0) more.replaceChildren(h('button', { class: 'btn', text: `Show ${Math.min(CHUNK, left)} more (${left} not shown)`, onclick: showMore }));
+      else more.replaceChildren();
     }
     showMore();
     return { el: root, sync };
@@ -333,13 +334,13 @@
           WS.toast(e.message, { error: true });
         }
       });
+      const extra = [];
+      if (changing.length) extra.push(h('h3', { text: 'Changes' }), list(changing));
+      if (decisions.length) extra.push(h('h3', { text: 'Needs a decision' }), list(decisions));
+      if (preview.items.length === 0) extra.push(WS.empty('No images in this scope'));
       output.replaceChildren(
         h('div', { class: 'resort-summary' }, h('b', { text: `${WS.plural(changing.length, 'change')} ready` }), h('span', { class: 'muted', text: [stays ? `${stays} ${stays === 1 ? 'stay' : 'stays'}` : '', noMatch ? `${noMatch} no match${noMatch === 1 ? '' : 'es'}` : ''].filter(Boolean).join(', ') || 'Every matching image has a destination.' }), apply),
-        changing.length ? h('h3', { text: 'Changes' }) : null,
-        changing.length ? list(changing) : null,
-        decisions.length ? h('h3', { text: 'Needs a decision' }) : null,
-        decisions.length ? list(decisions) : null,
-        preview.items.length === 0 ? WS.empty('No images in this scope') : null
+        ...extra
       );
     }
     previewButton.addEventListener('click', async () => {
@@ -521,7 +522,8 @@
             apply.disabled = false;
           }
         });
-        target.replaceChildren(note, ...detail, data.items.length > 30 ? h('p', { class: 'muted', text: `Showing 30 of ${data.items.length} changes.` }) : null, apply);
+        const more = data.items.length > 30 ? [h('p', { class: 'muted', text: `Showing 30 of ${data.items.length} changes.` })] : [];
+        target.replaceChildren(note, ...detail, ...more, apply);
       } catch (e) {
         target.replaceChildren(h('p', { class: 'error', role: 'alert', text: e.message }));
       }
@@ -556,7 +558,8 @@
       try {
         const r = await WS.get(`/api/gap-fill?folder=${enc(folder)}&mode=${mode}`);
         note.textContent = r.length ? `${WS.plural(r.length, 'file')} would be renamed. Nothing else moves.` : 'Nothing to rename.';
-        list.replaceChildren(...r.slice(0, 40).map((x) => h('div', {}, h('span', { class: 'm grow', text: `${x.from} → ${x.to}` }))), r.length > 40 ? h('div', { class: 'muted', text: `…and ${r.length - 40} more` }) : null);
+        const more = r.length > 40 ? [h('div', { class: 'muted', text: `…and ${r.length - 40} more` })] : [];
+        list.replaceChildren(...r.slice(0, 40).map((x) => h('div', {}, h('span', { class: 'm grow', text: `${x.from} → ${x.to}` }))), ...more);
         apply.disabled = r.length === 0;
       } catch (e) {
         note.textContent = e.message;

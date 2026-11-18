@@ -34,8 +34,24 @@ keywords = ["aemeath"]
 dest = "Wuthering-Waves/Aemeath"
 
 [[tag]]
+keywords = ["augusta"]
+dest = "Wuthering-Waves/Augusta"
+
+[[tag]]
 keywords = ["brant"]
 dest = "Wuthering-Waves/Brant"
+
+[[tag]]
+keywords = ["camellya"]
+dest = "Wuthering-Waves/Camellya"
+
+[[tag]]
+keywords = ["cantarella"]
+dest = "Wuthering-Waves/Cantarella"
+
+[[tag]]
+keywords = ["carlotta"]
+dest = "Wuthering-Waves/Carlotta"
 
 [[tag]]
 keywords = ["cartethyia"]
@@ -50,6 +66,10 @@ keywords = ["denia"]
 dest = "Wuthering-Waves/Denia"
 
 [[tag]]
+keywords = ["galbrena"]
+dest = "Wuthering-Waves/Galbrena"
+
+[[tag]]
 keywords = ["hiyuki"]
 dest = "Wuthering-Waves/Hiyuki"
 
@@ -58,12 +78,52 @@ keywords = ["hsin"]
 dest = "Wuthering-Waves/Hsin"
 
 [[tag]]
+keywords = ["iuno"]
+dest = "Wuthering-Waves/Iuno"
+
+[[tag]]
+keywords = ["jingran"]
+dest = "Wuthering-Waves/Jingran"
+
+[[tag]]
 keywords = ["jinhsi"]
 dest = "Wuthering-Waves/Jinhsi"
 
 [[tag]]
+keywords = ["jinshi"]
+dest = "Wuthering-Waves/Jinshi"
+
+[[tag]]
+keywords = ["lily"]
+dest = "Wuthering-Waves/Lily"
+
+[[tag]]
 keywords = ["lucilla"]
 dest = "Wuthering-Waves/Lucilla"
+
+[[tag]]
+keywords = ["lupa"]
+dest = "Wuthering-Waves/Lupa"
+
+[[tag]]
+keywords = ["luuk"]
+dest = "Wuthering-Waves/Luuk"
+
+[[tag]]
+keywords = ["lynae"]
+dest = "Wuthering-Waves/Lynae"
+
+[[tag]]
+keywords = ["mornye"]
+dest = "Wuthering-Waves/Mornye"
+
+[[tag]]
+keywords = ["phoebe"]
+dest = "Wuthering-Waves/Phoebe"
+
+[[tag]]
+keywords = ["prolova"]
+dest = "Wuthering-Waves/Prolova"
 
 [[tag]]
 keywords = ["qingxiao"]
@@ -82,12 +142,32 @@ keywords = ["shorekeeper"]
 dest = "Wuthering-Waves/Shorekeeper"
 
 [[tag]]
+keywords = ["sigrika"]
+dest = "Wuthering-Waves/Sigrika"
+
+[[tag]]
 keywords = ["suisui"]
 dest = "Wuthering-Waves/Suisui"
 
 [[tag]]
+keywords = ["suoming"]
+dest = "Wuthering-Waves/Suoming"
+
+[[tag]]
+keywords = ["yinlin"]
+dest = "Wuthering-Waves/Yinlin"
+
+[[tag]]
 keywords = ["yangyang"]
 dest = "Wuthering-Waves/Yangyang"
+
+[[tag]]
+keywords = ["zani"]
+dest = "Wuthering-Waves/Zani"
+
+[[tag]]
+keywords = ["zhezhi"]
+dest = "Wuthering-Waves/Zhezhi"
 
 # ---------- Arknights ----------
 [[tag]]

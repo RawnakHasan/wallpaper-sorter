@@ -302,7 +302,14 @@ test('tags: the filename tester follows the rules', () =>
     await waitFor(() => /Specific beats generic/.test(ui.q('.tester .result').textContent), 'the generic rule');
     assert.match(ui.q('.tester .result').textContent, /Wuthering-Waves\/Chisa/);
     assert.match(ui.q('.tester .result').textContent, /Chisa 1\.png/);
+    assert.doesNotMatch(ui.q('.tester .result').textContent, /\bnull\b/);
     assert.ok(ui.byText('.tester .tagchip.hit', 'chisa'), 'the word that matched is marked');
+    ui.type(input, 'Lily.png');
+    await waitFor(() => /Wuthering-Waves\/Lily/.test(ui.q('.tester .result').textContent), 'the new character tag');
+    assert.match(ui.q('.tester .result').textContent, /Lily 1\.png/);
+    ui.type(input, 'wallhaven-1q2le9.png');
+    await waitFor(() => /No match/.test(ui.q('.tester .result').textContent), 'a no-match filename');
+    assert.doesNotMatch(ui.q('.tester .result').textContent, /\bnull\b/);
   }));
 
 test('tags: add a tag and delete it again', () =>
@@ -348,12 +355,16 @@ test('library: browse a folder and close the gaps', () =>
     '#/library?folder=Wuthering-Waves%2FChisa',
     async (ui, s) => {
       await waitFor(() => ui.qa('.cell').length === 3, 'three images');
+      assert.equal(ui.q('.more').textContent, '', 'no literal null after the final image chunk');
+      const css = await fetchText(s, '/app.css');
+      assert.match(css, /\.cell img\{[^}]*object-fit:\s*contain/);
       assert.match(ui.q('.facts').textContent, /Prefix\s*Chisa/);
       assert.match(ui.q('.facts').textContent, /Next number\s*5/);
       assert.match(ui.q('.facts').textContent, /Gaps\s*1 \(2\)/);
       ui.click(ui.byText('button', 'Close gaps'));
       const sheet = await waitFor(() => ui.q('.sheet'), 'the sheet');
       await waitFor(() => /Chisa 4\.png → Chisa 2\.png/.test(sheet.textContent), 'the preview of renames');
+      assert.doesNotMatch(sheet.textContent, /\bnull\b/);
       ui.click(ui.byText('footer button', 'Apply', sheet));
       await waitFor(() => /Renamed 1 file/.test(ui.toast()), 'the confirmation');
       const names = (await api(s, 'GET', '/api/images?folder=Wuthering-Waves/Chisa')).map((i) => i.name);
@@ -377,6 +388,12 @@ test('library: create folders and manage prefix, rename, and merge', () =>
       ui.click(ui.byText('footer button', 'Create folder', sheet));
       await waitFor(() => (ui.q('.page') || {}).textContent.includes('No images'), 'the empty folder page');
       assert.equal((await api(s, 'GET', '/api/folders')).some((f) => f.path === 'Originals/Empty'), true);
+      ui.click(ui.byText('button', 'Manage folder'));
+      sheet = await waitFor(() => ui.q('.sheet'), 'empty folder management sheet');
+      ui.click(ui.byText('button', 'Preview prefix', sheet));
+      await waitFor(() => /0 files will change/.test(ui.qa('.folder-preview', sheet)[2].textContent), 'empty prefix preview');
+      assert.doesNotMatch(ui.qa('.folder-preview', sheet)[2].textContent, /\bnull\b/);
+      ui.click(ui.byText('footer button', 'Done', sheet));
 
       ui.go('#/library?folder=Nature');
       await waitFor(() => ui.q('.page-head h1').textContent === 'Nature', 'Nature folder');
@@ -387,6 +404,7 @@ test('library: create folders and manage prefix, rename, and merge', () =>
       const prefixPreview = () => ui.qa('.folder-preview', sheet)[2];
       await waitFor(() => prefixPreview().textContent, 'prefix preview');
       assert.match(prefixPreview().textContent, /1 file will change/);
+      assert.doesNotMatch(prefixPreview().textContent, /\bnull\b/);
       ui.click(ui.byText('button', 'Save prefix', sheet));
       let dialog = await waitFor(() => ui.q('.dialog'), 'prefix confirmation');
       ui.click(ui.byText('button', 'Save prefix', dialog));
@@ -473,6 +491,7 @@ test('re-sort: previews a folder, applies it, and offers batch undo', () =>
       await waitFor(() => ui.q('.resort-summary') || ui.toast(), 'the re-sort response');
       assert.ok(ui.q('.resort-summary'), ui.toast());
       await waitFor(() => /1 change ready/.test(ui.q('.resort-summary').textContent), 'the re-sort preview');
+      assert.doesNotMatch(ui.q('.resort-output').textContent, /\bnull\b/);
       assert.match(ui.q('.resort-list').textContent, /Chisa 2\.png/);
       assert.match(ui.q('.resort-output').textContent, /1 no match/);
       assert.doesNotMatch(ui.q('.resort-output').textContent, /Needs a decision/);

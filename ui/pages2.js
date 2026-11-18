@@ -146,10 +146,8 @@
           h('div', { text: r.rule }),
           h('div', { text: 'Folder' }),
           h('div', { class: 'm', text: folder }),
-          r.new_name ? h('div', { text: 'New name' }) : null,
-          r.new_name ? h('div', { class: 'm', text: r.new_name }) : null,
-          r.ignored ? h('div', { text: 'Note' }) : null,
-          r.ignored ? h('div', { class: 'muted', text: r.ignored }) : null
+          ...(r.new_name ? [h('div', { text: 'New name' }), h('div', { class: 'm', text: r.new_name })] : []),
+          ...(r.ignored ? [h('div', { text: 'Note' }), h('div', { class: 'muted', text: r.ignored })] : [])
         );
       } catch (e) {
         out.replaceChildren(h('div', { class: 'error', text: e.message }));

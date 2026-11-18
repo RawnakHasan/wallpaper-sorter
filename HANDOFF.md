@@ -195,7 +195,7 @@ The behaviour lives in tables, and the Rust code must match them.
 
 | Table | What it pins down | How it is made |
 |---|---|---|
-| `spec/cases.csv` (304 rows) | matcher results for 264 real filenames + 40 edge cases | `cd spec && python3 gen_cases.py` (uses `ref_matcher.py`, `tags.starter.toml`, `tree_images.txt`) |
+| `spec/cases.csv` (324 rows) | matcher results for 264 real filenames + 60 edge cases | `cd spec && python3 gen_cases.py` (uses `ref_matcher.py`, `tags.starter.toml`, `tree_images.txt`) |
 | `spec/numbering.csv` (29) | next number, gap modes | hand-written (`gen_numbering.py` only formats it) |
 | `spec/plan_cases.toml` (31) | batches, duplicates, assign, gap modes, re-sort stays | hand-written |
 | `spec/origins.csv` (24) | site and id from filenames | hand-written (`gen_origins.py` formats it) |
