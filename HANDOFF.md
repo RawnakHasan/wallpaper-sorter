@@ -207,8 +207,9 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 3.5 Invariants (do not break these)
 
-- **Never overwrite or lose a file.** Moves fail if the target exists. Delete = move to `.sorter/trash`. Everything is
-  logged and undoable. `apply` stops at the first real error; a vanished source is skipped.
+- **Never overwrite or lose a file.** Moves use atomic no-replace operations; cross-drive copies create the target
+  exclusively and sync it before removing the source. Delete = move to `.sorter/trash`. Everything is logged and
+  undoable. `apply` stops at the first real error; a vanished source is skipped.
 - Output name is `<Prefix> <N>.<extension exactly as saved>`. Prefix per folder, default the folder name with hyphens
   turned into spaces. Next number = highest + 1; gaps stay unless the gap mode says otherwise.
 - Matching is on whole words; words are split at non-letters, camelCase and letter/digit boundaries; long hex runs and

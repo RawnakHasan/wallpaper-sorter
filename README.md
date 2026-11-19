@@ -16,7 +16,8 @@ Rust core for the wallpaper sorter (design notes and the web UI mock-up live els
                  Danbooru, Pixiv); Safebooru sources can also be added by hand
 - `engine/`  crate `sorter-engine`: the part that touches the disk
   - `scan`   builds the library snapshot from a folder
-  - `exec`   applies a plan; never overwrites; stops at the first real error; falls back to copy when a move crosses drives
+  - `exec`   applies a plan with atomic no-replace moves; stops at the first real error; cross-drive copies create
+              and sync the target before removing the source
   - `log`    append-only JSON-lines log of every action
   - `undo`   undo one action or a whole batch (newest first); if the old name is taken the file comes back with a " (2)" suffix
   - `index`  BLAKE3 hash of every image in the library, cached on disk by size and modification time

@@ -5,6 +5,8 @@ use sorter_engine::{apply, library_snapshot, undo_batch, undo_entry, ExecError, 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Barrier;
+use std::thread;
 
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
@@ -120,6 +122,63 @@ fn never_overwrites() {
     assert_eq!(read(&d.dl.join("a.png")), "source");
     assert_eq!(read(&d.lib.join("Out/a.png")), "target");
     assert!(log.entries().is_empty());
+}
+
+#[test]
+fn move_does_not_replace_a_target_created_concurrently() {
+    let d = Dirs::new();
+    for n in 0..64 {
+        let source = d.dl.join(format!("race-{n}.png"));
+        let target = d.lib.join(format!("race-{n}.png"));
+        fs::write(&source, b"source").unwrap();
+        let barrier = std::sync::Arc::new(Barrier::new(2));
+        let target_barrier = barrier.clone();
+        let target_path = target.clone();
+        let target_thread = thread::spawn(move || {
+            target_barrier.wait();
+            let mut file = match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&target_path)
+            {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return false,
+                Err(error) => panic!("create target: {error}"),
+            };
+            std::io::Write::write_all(&mut file, b"target").unwrap();
+            true
+        });
+        barrier.wait();
+        let moved = sorter_engine::move_no_replace(&source, &target);
+        let target_created = target_thread.join().unwrap();
+
+        match moved {
+            Ok(()) => {
+                assert!(!target_created);
+                assert!(!source.exists());
+                assert_eq!(fs::read(&target).unwrap(), b"source");
+            }
+            Err(ExecError::TargetExists(_)) => {
+                assert!(target_created);
+                assert_eq!(fs::read(&source).unwrap(), b"source");
+                assert_eq!(fs::read(&target).unwrap(), b"target");
+            }
+            Err(error) => panic!("unexpected move error: {error}"),
+        }
+    }
+}
+
+#[test]
+fn move_creates_missing_destination_directories() {
+    let d = Dirs::new();
+    let source = d.dl.join("a.png");
+    let target = d.lib.join("New/Nested/a.png");
+    fs::write(&source, b"source").unwrap();
+
+    sorter_engine::move_no_replace(&source, &target).unwrap();
+
+    assert!(!source.exists());
+    assert_eq!(fs::read(&target).unwrap(), b"source");
 }
 
 #[test]

@@ -142,7 +142,9 @@ A `naive-` prefix is ignored. You can set a source by hand on the Data page.
 ## 9. Safety, log and undo
 
 - Nothing is ever overwritten. A move fails if the target exists.
-- Moves are atomic renames. If a move crosses drives, it copies, checks the size, then deletes the source.
+- Moves use atomic no-replace renames. If a move crosses drives, the target is created exclusively, copied, synced
+  and size-checked before the source is removed. If atomic no-replace is unsupported, the move fails rather than
+  risking replacement.
 - A batch stops at the first real error. A source that vanished is skipped.
 - Every move, rename and duplicate move is logged (id, batch, time, kind, from, to, note).
 - Undo works on one entry or a whole batch (newest first). If the old name is taken, the file comes back with a ` (2)` suffix. If the file was moved since, undo says so. Undo entries cannot be undone.
