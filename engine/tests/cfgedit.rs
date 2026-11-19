@@ -158,6 +158,46 @@ fn folder_rename_adds_only_the_prefix_pins_computed_by_its_caller() {
 }
 
 #[test]
+fn starter_paths_are_escaped_structurally() {
+    let library = "/tmp/wallpaper \"quotes\" /back\\slash/library";
+    let intake = "/tmp/wallpaper \"quotes\" /back\\slash/intake";
+    let out = set_starter_paths(&starter(), library, intake).unwrap();
+    let cfg = Config::from_toml(&out).unwrap();
+    assert_eq!(cfg.library.as_deref(), Some(library));
+    assert_eq!(cfg.intake.first().map(|i| i.path.as_str()), Some(intake));
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_config_is_preserved_after_edit() {
+    use sorter_engine::write_atomic;
+    use std::os::unix::fs::symlink;
+
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!(
+        "sorter-symlink-config-{}-{nonce}",
+        std::process::id()
+   ));
+    fs::create_dir_all(&base).unwrap();
+    let target = base.join("real-config.toml");
+    let link = base.join("config.toml");
+    fs::write(&target, "library = \"/tmp/library\"\n").unwrap();
+    symlink(&target, &link).unwrap();
+
+    write_atomic(&link, "library = \"/tmp/edited\"\n").unwrap();
+
+    assert!(link.is_symlink());
+    assert_eq!(
+        fs::read_to_string(&target).unwrap(),
+        "library = \"/tmp/edited\"\n"
+    );
+    fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
 fn intake_paths_are_validated() {
     let text = "library = \"/tmp/wallpaper-sorter-test/library\"\nsetup_complete = true\n";
     assert!(add_intake(text, "/", true, false).is_err());
@@ -182,14 +222,4 @@ fn intake_paths_are_validated() {
     assert_eq!(cfg.intake.len(), 1);
     assert_eq!(cfg.intake[0].remove_empty_folders, false);
     assert!(update_intake(&out, 0, "/", true, false).is_err());
-}
-
-#[test]
-fn starter_paths_are_escaped_structurally() {
-    let library = "/tmp/wallpaper \"quotes\" /back\\slash/library";
-    let intake = "/tmp/wallpaper \"quotes\" /back\\slash/intake";
-    let out = set_starter_paths(&starter(), library, intake).unwrap();
-    let cfg = Config::from_toml(&out).unwrap();
-    assert_eq!(cfg.library.as_deref(), Some(library));
-    assert_eq!(cfg.intake.first().map(|i| i.path.as_str()), Some(intake));
 }

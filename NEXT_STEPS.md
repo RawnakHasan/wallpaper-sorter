@@ -382,7 +382,7 @@ The owner wants to **discuss before big steps**. Ask first about:
 - [x] T6 responsiveness improved with non-blocking cold thumbnail generation
 - [x] T7 Settings: edit watched folders
 - [x] T8 starter config embedded and structurally generated
-- [ ] T9 symlinked config preserved
+- [x] T9 symlinked config preserved by atomic writes
 - [ ] T10 config reload
 - [ ] T11 assign + tag order
 - [ ] T12 tag edit by content check
