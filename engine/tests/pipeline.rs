@@ -1,8 +1,9 @@
 //! End-to-end tests of the pipeline: hashing, duplicates, origin records, the hash cache, undo.
 
 use sorter_core::{Config, GapMode, Site};
-use sorter_engine::{hash_file, Pipeline};
+use sorter_engine::{hash_file, Kind, Log, Pipeline};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -265,4 +266,94 @@ fn two_identical_loose_files_are_sorted_once_and_the_other_is_a_duplicate() {
     p.process(&[d.lib.join("Chisa a.png"), d.lib.join("Chisa b.png")]).unwrap();
     assert_eq!(names(&d.lib.join("Wuthering-Waves/Chisa")), ["Chisa 1.png"]);
     assert_eq!(names(&d.lib.join("Duplicates")), ["Chisa b.png"]);
+}
+
+#[test]
+fn a_truncated_final_log_record_is_removed_but_prior_records_survive() {
+    let d = Dirs::new();
+    let path = d.lib.join(".sorter/log.jsonl");
+    let mut log = Log::open(&path).unwrap();
+    log.append(Kind::Move, 1, "from-a", "to-a", "", None, None)
+        .unwrap();
+    drop(log);
+    let complete = fs::read(&path).unwrap();
+    fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .unwrap()
+        .write_all(b"{\"id\":2,\"batch\":")
+        .unwrap();
+
+    let mut recovered = Log::open(&path).unwrap();
+    assert_eq!(recovered.entries().len(), 1);
+    assert_eq!(fs::read(&path).unwrap(), complete);
+    recovered
+        .append(Kind::Move, 2, "from-b", "to-b", "", None, None)
+        .unwrap();
+    assert_eq!(Log::open(&path).unwrap().entries().len(), 2);
+}
+
+#[test]
+fn a_corrupt_middle_log_record_remains_a_hard_error() {
+    let d = Dirs::new();
+    let path = d.lib.join(".sorter/log.jsonl");
+    let mut log = Log::open(&path).unwrap();
+    log.append(Kind::Move, 1, "from-a", "to-a", "", None, None)
+        .unwrap();
+    log.append(Kind::Move, 2, "from-b", "to-b", "", None, None)
+        .unwrap();
+    drop(log);
+    let valid_lines = fs::read_to_string(&path).unwrap();
+    let mut lines = valid_lines.lines();
+    let first = lines.next().unwrap();
+    let second = lines.next().unwrap();
+    fs::write(&path, format!("{first}\nnot-json\n{second}\n")).unwrap();
+
+    let error = Log::open(&path).err().unwrap();
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    assert!(error.to_string().contains("line 2"));
+}
+
+#[test]
+fn a_corrupt_index_is_rebuilt_from_the_library() {
+    let d = Dirs::new();
+    put(&d.lib.join("Nature/Nature 1.png"), &png(10, 10, "index"));
+    let index_path = d.lib.join(".sorter/index.jsonl");
+    let first = Pipeline::open(&d.lib, cfg()).unwrap();
+    assert_eq!(first.index.len(), 1);
+    drop(first);
+    fs::write(&index_path, b"{truncated\n").unwrap();
+
+    let rebuilt = Pipeline::open(&d.lib, cfg()).unwrap();
+    assert_eq!(rebuilt.index.len(), 1);
+    assert!(rebuilt.index.get("Nature/Nature 1.png").is_some());
+}
+
+#[test]
+fn corrupt_origin_data_is_backed_up_and_pipeline_rebuilds_records() {
+    let d = Dirs::new();
+    let image = d.lib.join("Nature/Nature 1.png");
+    put(&image, &png(10, 10, "origin"));
+    let hash = hash_file(&image).unwrap();
+    let initial = Pipeline::open(&d.lib, cfg()).unwrap();
+    assert!(initial.origins.get(&hash).is_some());
+    drop(initial);
+
+    let path = d.lib.join(".sorter/origins.jsonl");
+    let corrupt = b"{truncated origin record\n";
+    fs::write(&path, corrupt).unwrap();
+    let original_backup = path.with_file_name("origins.jsonl.corrupt");
+    fs::write(&original_backup, b"older preserved backup").unwrap();
+
+    let reopened = Pipeline::open(&d.lib, cfg()).unwrap();
+
+    assert!(reopened.origins.get(&hash).is_some());
+    assert_eq!(
+        fs::read(&original_backup).unwrap(),
+        b"older preserved backup"
+    );
+    assert_eq!(
+        fs::read(path.with_file_name("origins.jsonl.corrupt.1")).unwrap(),
+        corrupt
+    );
 }

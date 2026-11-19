@@ -66,13 +66,20 @@ impl Index {
                 if line.trim().is_empty() {
                     continue;
                 }
-                let e: IndexEntry = serde_json::from_str(&line).map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("{}: line {}: {e}", path.display(), i + 1),
-                    )
-                })?;
-                entries.insert(e.path.clone(), e);
+                match serde_json::from_str::<IndexEntry>(&line) {
+                    Ok(entry) => {
+                        entries.insert(entry.path.clone(), entry);
+                    }
+                    Err(error) => {
+                        eprintln!(
+                            "warning: discarding corrupt hash index {} at line {}: {error}; it will be rebuilt",
+                            path.display(),
+                            i + 1
+                        );
+                        entries.clear();
+                        break;
+                    }
+                }
             }
         }
         Ok(Index { path, entries })

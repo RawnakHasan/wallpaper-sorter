@@ -375,7 +375,7 @@ The owner wants to **discuss before big steps**. Ask first about:
 
 - [ ] Browser checklist done (section 5)
 - [x] T1 no-replace moves
-- [ ] T2 torn log line / corrupt index
+- [x] T2 torn log line / corrupt index
 - [ ] T3 scan survives bad files
 - [ ] T4 intake errors visible, lost watches re-added
 - [ ] T5 safe cleanup default and intake path validation

@@ -150,6 +150,7 @@ A `naive-` prefix is ignored. You can set a source by hand on the Data page.
 - Undo works on one entry or a whole batch (newest first). If the old name is taken, the file comes back with a ` (2)` suffix. If the file was moved since, undo says so. Undo entries cannot be undone.
 - Delete = move to `.sorter/trash`, undoable. The trash is emptied only on request.
 - Folder changes (rename, merge, prefix) save inverse-operation metadata plus before/after config text. Undo applies the inverse to the current config, preserving unrelated later edits.
+- Startup truncates a malformed final log record, rebuilds a corrupt hash cache, and preserves corrupt origin records in a `.corrupt` backup before rebuilding them from library files.
 
 ---
 

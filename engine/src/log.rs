@@ -1,8 +1,8 @@
 //! Append-only log of everything the sorter did, one JSON object per line.
 
 use serde::{Deserialize, Serialize};
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufRead, BufReader, Write};
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -48,20 +48,41 @@ impl Log {
     pub fn open(path: impl Into<PathBuf>) -> io::Result<Log> {
         let path = path.into();
         let mut entries = Vec::new();
-        if path.exists() {
-            for (i, line) in BufReader::new(File::open(&path)?).lines().enumerate() {
-                let line = line?;
-                if line.trim().is_empty() {
-                    continue;
-                }
-                let entry: Entry = serde_json::from_str(&line).map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("{}: line {}: {e}", path.display(), i + 1),
-                    )
-                })?;
-                entries.push(entry);
+        let contents = match fs::read(&path) {
+            Ok(contents) => contents,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+            Err(error) => return Err(error),
+        };
+        let lines: Vec<&[u8]> = contents.split(|byte| *byte == b'\n').collect();
+        let last_nonempty = lines
+            .iter()
+            .rposition(|line| !line.iter().all(u8::is_ascii_whitespace));
+        let mut offset = 0usize;
+        for (i, line) in lines.iter().enumerate() {
+            if line.iter().all(u8::is_ascii_whitespace) {
+                offset += line.len() + 1;
+                continue;
             }
+            match serde_json::from_slice::<Entry>(line) {
+                Ok(entry) => entries.push(entry),
+                Err(error) if Some(i) == last_nonempty => {
+                    eprintln!(
+                        "warning: truncating incomplete final log record in {}: {error}",
+                        path.display()
+                    );
+                    let file = OpenOptions::new().write(true).open(&path)?;
+                    file.set_len(offset as u64)?;
+                    file.sync_data()?;
+                    break;
+                }
+                Err(error) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{}: line {}: {error}", path.display(), i + 1),
+                    ));
+                }
+            }
+            offset += line.len() + 1;
         }
         Ok(Log { path, entries })
     }

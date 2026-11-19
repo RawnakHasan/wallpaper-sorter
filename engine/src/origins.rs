@@ -4,9 +4,9 @@ use crate::util::write_atomic;
 use serde::{Deserialize, Serialize};
 use sorter_core::Source;
 use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::{self, BufRead, BufReader};
-use std::path::PathBuf;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Origin {
@@ -38,18 +38,30 @@ impl OriginStore {
         let path = path.into();
         let mut map = BTreeMap::new();
         if path.exists() {
-            for (i, line) in BufReader::new(File::open(&path)?).lines().enumerate() {
-                let line = line?;
-                if line.trim().is_empty() {
+            let contents = fs::read(&path)?;
+            let mut corrupt = None;
+            for (i, line) in contents.split(|byte| *byte == b'\n').enumerate() {
+                if line.iter().all(u8::is_ascii_whitespace) {
                     continue;
                 }
-                let o: Origin = serde_json::from_str(&line).map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("{}: line {}: {e}", path.display(), i + 1),
-                    )
-                })?;
-                map.insert(o.hash.clone(), o);
+                match serde_json::from_slice::<Origin>(line) {
+                    Ok(origin) => {
+                        map.insert(origin.hash.clone(), origin);
+                    }
+                    Err(error) => {
+                        corrupt = Some((i + 1, error));
+                        break;
+                    }
+                }
+            }
+            if let Some((line, error)) = corrupt {
+                let backup = preserve_corrupt_file(&path, &contents)?;
+                eprintln!(
+                    "warning: preserving corrupt origin records from {} (line {line}) at {}: {error}; starting with an empty store",
+                    path.display(),
+                    backup.display()
+                );
+                map.clear();
             }
         }
         Ok(OriginStore { path, map })
@@ -121,6 +133,43 @@ impl OriginStore {
                 true
             }
             _ => false,
+        }
+    }
+}
+
+fn preserve_corrupt_file(path: &Path, contents: &[u8]) -> io::Result<PathBuf> {
+    let mut base = path.as_os_str().to_os_string();
+    base.push(".corrupt");
+    let mut suffix = 0u64;
+    loop {
+        let mut name = base.clone();
+        if suffix > 0 {
+            name.push(format!(".{suffix}"));
+        }
+        let backup = PathBuf::from(name);
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&backup)
+        {
+            Ok(mut file) => {
+                let result = file.write_all(contents).and_then(|()| file.sync_all());
+                if let Err(error) = result {
+                    drop(file);
+                    let _ = fs::remove_file(&backup);
+                    return Err(error);
+                }
+                return Ok(backup);
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                suffix = suffix.checked_add(1).ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        "no unused corrupt-backup name",
+                    )
+                })?;
+            }
+            Err(error) => return Err(error),
         }
     }
 }
