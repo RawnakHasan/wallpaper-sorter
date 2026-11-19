@@ -147,7 +147,7 @@ A `naive-` prefix is ignored. You can set a source by hand on the Data page.
 - Every move, rename and duplicate move is logged (id, batch, time, kind, from, to, note).
 - Undo works on one entry or a whole batch (newest first). If the old name is taken, the file comes back with a ` (2)` suffix. If the file was moved since, undo says so. Undo entries cannot be undone.
 - Delete = move to `.sorter/trash`, undoable. The trash is emptied only on request.
-- Folder changes (rename, merge, prefix) save the config text before and after. Undo restores the old config text, but only if the config has not been edited since. Otherwise it fails with a clear 409 message.
+- Folder changes (rename, merge, prefix) save inverse-operation metadata plus before/after config text. Undo applies the inverse to the current config, preserving unrelated later edits.
 
 ---
 
@@ -326,7 +326,7 @@ Items 1 to 4 are from my reading of the latest code and are not yet confirmed by
 | 2 | The re-sort API's `changes` number counts "stay" items. | The page computes its own count, so it looks right, but the API value is wrong when stays exist. Folder merge previews can also be affected. Fix: exclude `stay` in the filter. |
 | 3 | "Already in its destination" is decided by a path suffix check. | A nested folder with the same tail (for example `Series/Wuthering-Waves/Chisa` merged into `Wuthering-Waves/Chisa`) can be mistaken for in place, leaving files stranded while the config is repointed. Fix: pass the library-relative current path to the planner. |
 | 4 | The Re-sort preview is a GET that hashes the whole library, writes index and record files, and holds the single mutex. | The page and API stall during a large preview. |
-| 5 | Folder-change undo is blocked after any later config edit (for example adding a tag). | Clear 409 message, nothing is touched. The planned fix is inverse-operation undo. |
+| 5 | ~~Folder-change undo is blocked after later config edits.~~ **Resolved:** inverse-operation undo. | Undo rewrites only the folder changes on the current config text, preserving unrelated later edits. |
 | 6 | The "held after undo" set is in memory. | **Resolved:** undo holds now persist. Restored files keep their size and modification-time fingerprint in the log and remain held across restarts until changed. |
 | 7 | Merge flattens subfolders. | Design said "merge subfolders first". |
 | 8 | `/api/status` lists the Inbox and Duplicates every 3 seconds. | Fine for hundreds of files, worth caching for tens of thousands. |

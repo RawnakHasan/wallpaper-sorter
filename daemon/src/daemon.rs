@@ -60,10 +60,28 @@ pub struct Shared {
     config_undo_path: PathBuf,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ConfigUndoKind {
+    #[default]
+    Snapshot,
+    Rename,
+    Merge,
+    Prefix,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ConfigUndo {
     before: String,
     after: String,
+    #[serde(default)]
+    kind: ConfigUndoKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    to: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    prefix: Option<String>,
 }
 
 impl Shared {
@@ -175,10 +193,28 @@ impl Shared {
         fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))
     }
 
-    pub fn record_config_undo(&self, batch: u64, before: String) -> Result<(), String> {
+    pub fn record_config_undo(
+        &self,
+        batch: u64,
+        before: String,
+        kind: ConfigUndoKind,
+        from: Option<String>,
+        to: Option<String>,
+        prefix: Option<String>,
+    ) -> Result<(), String> {
         let after = self.config_text()?;
         let mut undo = self.config_undo.lock().unwrap_or_else(|e| e.into_inner());
-        undo.insert(batch, ConfigUndo { before, after });
+        undo.insert(
+            batch,
+            ConfigUndo {
+                before,
+                after,
+                kind,
+                from,
+                to,
+                prefix,
+            },
+        );
         let text = serde_json::to_string(&*undo).map_err(|e| e.to_string())?;
         write_atomic(&self.config_undo_path, &text).map_err(|e| e.to_string())
     }
@@ -191,14 +227,16 @@ impl Shared {
             .get(&batch)
             .cloned();
         let Some(saved) = saved else { return Ok(()) };
-        let path = self
-            .config_path
-            .as_ref()
-            .ok_or(UndoError::ConfigChangedAfterFolderChange)?;
-        let _guard = self.config_edit.lock().unwrap_or_else(|e| e.into_inner());
-        let current = fs::read_to_string(path).map_err(UndoError::Log)?;
-        if current != saved.after {
-            return Err(UndoError::ConfigChangedAfterFolderChange);
+        if saved.kind == ConfigUndoKind::Snapshot {
+            let path = self
+                .config_path
+                .as_ref()
+                .ok_or(UndoError::ConfigChangedAfterFolderChange)?;
+            let _guard = self.config_edit.lock().unwrap_or_else(|e| e.into_inner());
+            let current = fs::read_to_string(path).map_err(UndoError::Log)?;
+            if current != saved.after {
+                return Err(UndoError::ConfigChangedAfterFolderChange);
+            }
         }
         Ok(())
     }
@@ -216,9 +254,54 @@ impl Shared {
             .as_ref()
             .ok_or(UndoError::NotUndoable(batch))?;
         let _guard = self.config_edit.lock().unwrap_or_else(|e| e.into_inner());
-        let cfg = Config::from_toml(&saved.before)
+        let current = fs::read_to_string(path).map_err(UndoError::Log)?;
+        let inverse = if current == saved.after {
+            saved.before.clone()
+        } else {
+            match saved.kind {
+                ConfigUndoKind::Rename => {
+                    let (Some(from), Some(to)) = (saved.from.as_deref(), saved.to.as_deref())
+                    else {
+                        return Err(UndoError::NotUndoable(batch));
+                    };
+                    sorter_engine::cfgedit::undo_rename_folder(
+                        &current,
+                        &saved.before,
+                        &saved.after,
+                        from,
+                        to,
+                    )
+                    .map_err(|e| UndoError::Log(io::Error::new(io::ErrorKind::InvalidData, e)))?
+                }
+                ConfigUndoKind::Merge => {
+                    let (Some(from), Some(to)) = (saved.from.as_deref(), saved.to.as_deref())
+                    else {
+                        return Err(UndoError::NotUndoable(batch));
+                    };
+                    sorter_engine::cfgedit::undo_merge_folder(
+                        &current,
+                        &saved.before,
+                        &saved.after,
+                        from,
+                        to,
+                    )
+                    .map_err(|e| UndoError::Log(io::Error::new(io::ErrorKind::InvalidData, e)))?
+                }
+                ConfigUndoKind::Prefix => {
+                    let Some(folder) = saved.from.as_deref() else {
+                        return Err(UndoError::NotUndoable(batch));
+                    };
+                    sorter_engine::cfgedit::undo_prefix_change(&current, &saved.before, folder)
+                        .map_err(|e| {
+                            UndoError::Log(io::Error::new(io::ErrorKind::InvalidData, e))
+                        })?
+                }
+                ConfigUndoKind::Snapshot => saved.before.clone(),
+            }
+        };
+        let cfg = Config::from_toml(&inverse)
             .map_err(|e| UndoError::Log(io::Error::new(io::ErrorKind::InvalidData, e)))?;
-        write_atomic(path, &saved.before).map_err(UndoError::Log)?;
+        write_atomic(path, &inverse).map_err(UndoError::Log)?;
         self.lock().set_config(cfg);
         let mut undo = self.config_undo.lock().unwrap_or_else(|e| e.into_inner());
         undo.remove(&batch);

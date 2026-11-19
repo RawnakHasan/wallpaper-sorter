@@ -720,7 +720,11 @@ fn re_sort_previews_then_applies_a_folder_as_one_batch() {
 
     let whole = e.get("/api/resort").json();
     assert!(whole["items"].as_array().unwrap().iter().any(|item| {
-        item["kind"] == "stay" && item["path"].as_str().unwrap().ends_with("Wuthering-Waves/Chisa/Chisa 1.png")
+        item["kind"] == "stay"
+            && item["path"]
+                .as_str()
+                .unwrap()
+                .ends_with("Wuthering-Waves/Chisa/Chisa 1.png")
     }));
 }
 
@@ -893,7 +897,12 @@ fn renaming_a_folder_preserves_its_effective_prefix_and_undo_text() {
         "/api/folder-rename",
         json!({ "from": "Nature", "to": "Landscapes" }),
     );
-    assert_eq!(renamed.status, 200, "{}", String::from_utf8_lossy(&renamed.body));
+    assert_eq!(
+        renamed.status,
+        200,
+        "{}",
+        String::from_utf8_lossy(&renamed.body)
+    );
     let batch = renamed.json()["batch"].as_u64().unwrap();
     let folder = e
         .get("/api/folders")
@@ -910,12 +919,16 @@ fn renaming_a_folder_preserves_its_effective_prefix_and_undo_text() {
         .unwrap()
         .contains("path = \"Landscapes\"\nprefix = \"Nature\""));
 
-    assert_eq!(e.send("POST", "/api/undo", json!({ "batch": batch })).status, 200);
+    assert_eq!(
+        e.send("POST", "/api/undo", json!({ "batch": batch }))
+            .status,
+        200
+    );
     assert_eq!(fs::read_to_string(&e.cfg_path).unwrap(), before);
 }
 
 #[test]
-fn a_later_config_edit_explains_why_a_folder_rename_cannot_be_undone() {
+fn undoing_a_folder_rename_preserves_a_later_tag_edit() {
     let e = setup(|lib, _| put(&lib.join("Nature/Nature 1.png"), "nature"));
     let renamed = e.send(
         "POST",
@@ -924,6 +937,7 @@ fn a_later_config_edit_explains_why_a_folder_rename_cannot_be_undone() {
     );
     assert_eq!(renamed.status, 200);
     let batch = renamed.json()["batch"].as_u64().unwrap();
+
     assert_eq!(
         e.send(
             "POST",
@@ -936,13 +950,12 @@ fn a_later_config_edit_explains_why_a_folder_rename_cannot_be_undone() {
     let config_after_tag = fs::read_to_string(&e.cfg_path).unwrap();
 
     let undo = e.send("POST", "/api/undo", json!({ "batch": batch }));
-    assert_eq!(undo.status, 409);
-    assert_eq!(
-        undo.json()["error"],
-        "This folder change can no longer be undone because the config file was edited after it, for example a tag was added."
-    );
-    assert!(e.lib.join("Landscapes/Nature 1.png").exists());
-    assert_eq!(fs::read_to_string(&e.cfg_path).unwrap(), config_after_tag);
+    assert_eq!(undo.status, 200);
+    assert!(e.lib.join("Nature/Nature 1.png").exists());
+
+    let config_after_undo = fs::read_to_string(&e.cfg_path).unwrap();
+    assert_ne!(config_after_undo, config_after_tag);
+    assert!(config_after_undo.contains("landscape-photo"));
 }
 
 #[test]
@@ -1042,6 +1055,5 @@ fn the_page_and_its_files_are_served_with_a_strict_policy() {
     }
     assert_eq!(&e.get("/fonts/hanken-grotesk.woff2").body[..4], b"wOF2");
     assert_eq!(e.get("/fonts/other.woff2").status, 404);
-    // the status carries a number that changes whenever something is logged, so the page knows to refresh
     assert_eq!(e.get("/api/status").json()["activity_last_id"], 0);
 }

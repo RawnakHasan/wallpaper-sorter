@@ -26,13 +26,22 @@ fn validate(spec: &TagSpec) -> Result<(), String> {
 }
 
 fn str_array(items: &[String]) -> Array {
-    items.iter().map(|s| s.trim()).filter(|s| !s.is_empty()).collect()
+    items
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 fn fill(table: &mut Table, spec: &TagSpec) {
     table["keywords"] = value(str_array(&spec.keywords));
     table["dest"] = value(spec.dest.clone());
-    match spec.prefix.as_deref().map(str::trim).filter(|p| !p.is_empty()) {
+    match spec
+        .prefix
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+    {
         Some(p) => table["prefix"] = value(p),
         None => {
             table.remove("prefix");
@@ -63,14 +72,18 @@ fn tags_mut(doc: &mut DocumentMut) -> Result<&mut ArrayOfTables, String> {
     if doc.get("tag").is_none() {
         doc["tag"] = Item::ArrayOfTables(ArrayOfTables::new());
     }
-    doc["tag"].as_array_of_tables_mut().ok_or_else(|| "`tag` in the config is not a list of [[tag]] tables".to_string())
+    doc["tag"]
+        .as_array_of_tables_mut()
+        .ok_or_else(|| "`tag` in the config is not a list of [[tag]] tables".to_string())
 }
 
 fn folders_mut(doc: &mut DocumentMut) -> Result<&mut ArrayOfTables, String> {
     if doc.get("folder").is_none() {
         doc["folder"] = Item::ArrayOfTables(ArrayOfTables::new());
     }
-    doc["folder"].as_array_of_tables_mut().ok_or_else(|| "`folder` in the config is not a list of [[folder]] tables".to_string())
+    doc["folder"]
+        .as_array_of_tables_mut()
+        .ok_or_else(|| "`folder` in the config is not a list of [[folder]] tables".to_string())
 }
 
 fn valid_prefix(prefix: &str) -> Result<String, String> {
@@ -101,7 +114,10 @@ pub fn add_folder(text: &str, path: &str, prefix: Option<&str>) -> Result<String
     let prefix = prefix.map(valid_prefix).transpose()?;
     let mut doc = parse(text)?;
     let folders = folders_mut(&mut doc)?;
-    if folders.iter().any(|f| f.get("path").and_then(Item::as_str) == Some(path)) {
+    if folders
+        .iter()
+        .any(|f| f.get("path").and_then(Item::as_str) == Some(path))
+    {
         return Err(format!("folder {path} is already configured"));
     }
     let mut folder = Table::new();
@@ -116,9 +132,17 @@ pub fn set_folder_prefix(text: &str, path: &str, prefix: &str) -> Result<String,
     let prefix = valid_prefix(prefix)?;
     let mut doc = parse(text)?;
     let folders = folders_mut(&mut doc)?;
-    let index = { folders.iter().position(|f| f.get("path").and_then(Item::as_str) == Some(path)) };
+    let index = {
+        folders
+            .iter()
+            .position(|f| f.get("path").and_then(Item::as_str) == Some(path))
+    };
     if let Some(index) = index {
-        set_folder_table(folders.get_mut(index).expect("folder index exists"), path, Some(&prefix));
+        set_folder_table(
+            folders.get_mut(index).expect("folder index exists"),
+            path,
+            Some(&prefix),
+        );
     } else {
         let mut folder = Table::new();
         set_folder_table(&mut folder, path, Some(&prefix));
@@ -131,7 +155,8 @@ fn descendant(path: &str, parent: &str) -> Option<String> {
     if path == parent {
         Some(String::new())
     } else {
-        path.strip_prefix(&(parent.to_string() + "/")).map(str::to_string)
+        path.strip_prefix(&(parent.to_string() + "/"))
+            .map(str::to_string)
     }
 }
 
@@ -151,16 +176,28 @@ pub fn rename_folder(
     }
     let mut doc = parse(text)?;
     for tag in tags_mut(&mut doc)?.iter_mut() {
-        let Some(dest) = tag.get("dest").and_then(Item::as_str) else { continue };
+        let Some(dest) = tag.get("dest").and_then(Item::as_str) else {
+            continue;
+        };
         if let Some(rest) = descendant(dest, from) {
-            tag["dest"] = value(if rest.is_empty() { to.to_string() } else { format!("{to}/{rest}") });
+            tag["dest"] = value(if rest.is_empty() {
+                to.to_string()
+            } else {
+                format!("{to}/{rest}")
+            });
         }
     }
     let folders = folders_mut(&mut doc)?;
     for folder in folders.iter_mut() {
-        let Some(path) = folder.get("path").and_then(Item::as_str) else { continue };
+        let Some(path) = folder.get("path").and_then(Item::as_str) else {
+            continue;
+        };
         if let Some(rest) = descendant(path, from) {
-            folder["path"] = value(if rest.is_empty() { to.to_string() } else { format!("{to}/{rest}") });
+            folder["path"] = value(if rest.is_empty() {
+                to.to_string()
+            } else {
+                format!("{to}/{rest}")
+            });
         }
     }
     for (path, prefix) in prefix_pins {
@@ -168,7 +205,11 @@ pub fn rename_folder(
             .iter_mut()
             .position(|folder| folder.get("path").and_then(Item::as_str) == Some(path));
         if let Some(index) = index {
-            set_folder_table(folders.get_mut(index).expect("folder index exists"), path, Some(prefix));
+            set_folder_table(
+                folders.get_mut(index).expect("folder index exists"),
+                path,
+                Some(prefix),
+            );
         } else {
             let mut folder = Table::new();
             set_folder_table(&mut folder, path, Some(prefix));
@@ -188,7 +229,12 @@ pub fn merge_folder(text: &str, from: &str, to: &str) -> Result<String, String> 
     }
     let mut doc = parse(text)?;
     for tag in tags_mut(&mut doc)?.iter_mut() {
-        if tag.get("dest").and_then(Item::as_str).and_then(|path| descendant(path, from)).is_some() {
+        if tag
+            .get("dest")
+            .and_then(Item::as_str)
+            .and_then(|path| descendant(path, from))
+            .is_some()
+        {
             tag["dest"] = value(to);
         }
     }
@@ -196,7 +242,12 @@ pub fn merge_folder(text: &str, from: &str, to: &str) -> Result<String, String> 
     let remove: Vec<usize> = folders
         .iter()
         .enumerate()
-        .filter_map(|(i, f)| f.get("path").and_then(Item::as_str).and_then(|path| descendant(path, from)).map(|_| i))
+        .filter_map(|(i, f)| {
+            f.get("path")
+                .and_then(Item::as_str)
+                .and_then(|path| descendant(path, from))
+                .map(|_| i)
+        })
         .collect();
     for i in remove.into_iter().rev() {
         folders.remove(i);
@@ -217,7 +268,9 @@ pub fn update_tag(text: &str, index: usize, spec: &TagSpec) -> Result<String, St
     validate(spec)?;
     let mut doc = parse(text)?;
     let tags = tags_mut(&mut doc)?;
-    let t = tags.get_mut(index).ok_or_else(|| format!("no tag number {index}"))?;
+    let t = tags
+        .get_mut(index)
+        .ok_or_else(|| format!("no tag number {index}"))?;
     fill(t, spec);
     Ok(doc.to_string())
 }
@@ -243,4 +296,162 @@ pub fn set_gap_mode(text: &str, mode: &str) -> Result<String, String> {
     }
     doc["settings"]["gap_mode"] = value(mode);
     Ok(doc.to_string())
+}
+
+pub fn undo_rename_folder(
+    text: &str,
+    before: &str,
+    after: &str,
+    from: &str,
+    to: &str,
+) -> Result<String, String> {
+    let before_doc = parse(before)?;
+    let after_doc = parse(after)?;
+    let mut doc = parse(text)?;
+
+    let before_folders = before_doc
+        .get("folder")
+        .and_then(Item::as_array_of_tables)
+        .cloned();
+    let after_folders = after_doc
+        .get("folder")
+        .and_then(Item::as_array_of_tables)
+        .cloned();
+    if let (Some(before_folders), Some(after_folders)) = (before_folders, after_folders) {
+        let changed: Vec<String> = after_folders
+            .iter()
+            .enumerate()
+            .filter_map(|(i, folder)| {
+                let path = folder.get("path")?.as_str()?;
+                let old_path = before_folders.get(i)?.get("path")?.as_str()?;
+                (old_path == from || old_path.starts_with(&(from.to_string() + "/")))
+                    .then_some(path.to_string())
+            })
+            .collect();
+        if let Ok(folders) = folders_mut(&mut doc) {
+            for path in changed {
+                if let Some(folder) = folders
+                    .iter_mut()
+                    .find(|folder| folder.get("path").and_then(Item::as_str) == Some(path.as_str()))
+                {
+                    let rest = path.strip_prefix(to).unwrap_or("");
+                    let old = if rest.is_empty() {
+                        from.to_string()
+                    } else {
+                        format!("{from}/{}", rest.trim_start_matches('/'))
+                    };
+                    folder["path"] = value(old);
+                }
+            }
+        }
+    }
+
+    let before_tags = before_doc
+        .get("tag")
+        .and_then(Item::as_array_of_tables)
+        .cloned();
+    let after_tags = after_doc
+        .get("tag")
+        .and_then(Item::as_array_of_tables)
+        .cloned();
+    if let (Some(before_tags), Some(after_tags)) = (before_tags, after_tags) {
+        let changed: Vec<String> = after_tags
+            .iter()
+            .enumerate()
+            .filter_map(|(i, tag)| {
+                let dest = tag.get("dest")?.as_str()?;
+                let old_dest = before_tags.get(i)?.get("dest")?.as_str()?;
+                (old_dest == from || old_dest.starts_with(&(from.to_string() + "/")))
+                    .then_some(dest.to_string())
+            })
+            .collect();
+        if let Ok(tags) = tags_mut(&mut doc) {
+            for dest in changed {
+                if let Some(tag) = tags
+                    .iter_mut()
+                    .find(|tag| tag.get("dest").and_then(Item::as_str) == Some(dest.as_str()))
+                {
+                    let rest = dest.strip_prefix(to).unwrap_or("");
+                    let old = if rest.is_empty() {
+                        from.to_string()
+                    } else {
+                        format!("{from}/{}", rest.trim_start_matches('/'))
+                    };
+                    tag["dest"] = value(old);
+                }
+            }
+        }
+    }
+
+    Ok(doc.to_string())
+}
+
+pub fn undo_merge_folder(
+    text: &str,
+    before: &str,
+    after: &str,
+    from: &str,
+    to: &str,
+) -> Result<String, String> {
+    let before_doc = parse(before)?;
+    let after_doc = parse(after)?;
+    let mut doc = parse(text)?;
+
+    if let (Some(before_tags), Some(after_tags)) = (
+        before_doc.get("tag").and_then(Item::as_array_of_tables),
+        after_doc.get("tag").and_then(Item::as_array_of_tables),
+    ) {
+        let changed: Vec<(String, String)> = before_tags
+            .iter()
+            .enumerate()
+            .filter_map(|(i, tag)| {
+                let old_dest = tag.get("dest")?.as_str()?;
+                let new_dest = after_tags.get(i)?.get("dest")?.as_str()?;
+                ((old_dest == from || old_dest.starts_with(&(from.to_string() + "/")))
+                    && (new_dest == to || new_dest.starts_with(&(to.to_string() + "/"))))
+                .then(|| (new_dest.to_string(), old_dest.to_string()))
+            })
+            .collect();
+        if let Ok(tags) = tags_mut(&mut doc) {
+            for tag in tags.iter_mut() {
+                let Some(dest) = tag.get("dest").and_then(Item::as_str).map(str::to_string) else {
+                    continue;
+                };
+                if let Some((_, old_dest)) = changed.iter().find(|(new_dest, _)| *new_dest == dest)
+                {
+                    tag["dest"] = value(old_dest);
+                }
+            }
+        }
+    }
+
+    if let Some(before_folders) = before_doc.get("folder").and_then(Item::as_array_of_tables) {
+        let old_paths: Vec<String> = before_folders
+            .iter()
+            .filter_map(|folder| {
+                let path = folder.get("path")?.as_str()?;
+                (path == from || path.starts_with(&(from.to_string() + "/")))
+                    .then(|| path.to_string())
+            })
+            .collect();
+        if let Ok(folders) = folders_mut(&mut doc) {
+            for path in old_paths {
+                if !folders
+                    .iter()
+                    .any(|folder| folder.get("path").and_then(Item::as_str) == Some(path.as_str()))
+                {
+                    let mut table = Table::new();
+                    table["path"] = value(path);
+                    folders.push(table);
+                }
+            }
+        }
+    }
+
+    Ok(doc.to_string())
+}
+
+pub fn undo_prefix_change(text: &str, before: &str, folder: &str) -> Result<String, String> {
+    let cfg = sorter_core::Config::from_toml(before).map_err(|e| e.to_string())?;
+    set_folder_prefix(text, folder, &cfg.prefix_for(folder))
 }

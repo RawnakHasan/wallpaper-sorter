@@ -1,7 +1,7 @@
 //! The small web server: the JSON API the UI talks to, images and thumbnails, and a placeholder page.
 //! It listens on 127.0.0.1 only, and refuses requests that did not come from a page served by itself.
 
-use crate::daemon::Shared;
+use crate::daemon::{ConfigUndoKind, Shared};
 use crate::thumbs::Thumbs;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -547,15 +547,25 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                     "folder rename has no movable images or contains destination conflicts",
                 ));
             }
-            let prefix_pins = ctx.shared.lock().rename_folder_prefix_pins(&b.from, &b.to)?;
+            let prefix_pins = ctx
+                .shared
+                .lock()
+                .rename_folder_prefix_pins(&b.from, &b.to)?;
             let config_before = ctx
                 .shared
                 .config_text()
                 .map_err(|e| ApiError::new(400, e))?;
             let out = ctx.shared.lock().rename_folder(&b.from, &b.to)?;
-            finish_folder_change(ctx, &out, config_before, |text| {
-                edit_rename_folder(text, &b.from, &b.to, &prefix_pins)
-            })?;
+            finish_folder_change(
+                ctx,
+                &out,
+                config_before,
+                ConfigUndoKind::Rename,
+                Some(b.from.clone()),
+                Some(b.to.clone()),
+                None,
+                |text| edit_rename_folder(text, &b.from, &b.to, &prefix_pins),
+            )?;
             Ok(Resp::json(200, &outcome_json(&out)))
         }
         (Method::Post, ["api", "folder-merge"]) => {
@@ -572,9 +582,16 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 .config_text()
                 .map_err(|e| ApiError::new(400, e))?;
             let out = ctx.shared.lock().merge_folder(&b.from, &b.to)?;
-            finish_folder_change(ctx, &out, config_before, |text| {
-                edit_merge_folder(text, &b.from, &b.to)
-            })?;
+            finish_folder_change(
+                ctx,
+                &out,
+                config_before,
+                ConfigUndoKind::Merge,
+                Some(b.from.clone()),
+                Some(b.to.clone()),
+                None,
+                |text| edit_merge_folder(text, &b.from, &b.to),
+            )?;
             Ok(Resp::json(200, &outcome_json(&out)))
         }
         (Method::Put, ["api", "folder-prefix"]) => {
@@ -601,9 +618,16 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 .config_text()
                 .map_err(|e| ApiError::new(400, e))?;
             let out = ctx.shared.lock().change_prefix(&b.folder, &b.prefix)?;
-            finish_folder_change(ctx, &out, config_before, |text| {
-                set_folder_prefix(text, &b.folder, &b.prefix)
-            })?;
+            finish_folder_change(
+                ctx,
+                &out,
+                config_before,
+                ConfigUndoKind::Prefix,
+                Some(b.folder.clone()),
+                None,
+                Some(b.prefix.clone()),
+                |text| set_folder_prefix(text, &b.folder, &b.prefix),
+            )?;
             Ok(Resp::json(200, &outcome_json(&out)))
         }
         (Method::Post, ["api", "rescan"]) => {
@@ -691,6 +715,10 @@ fn finish_folder_change(
     ctx: &Ctx,
     out: &Outcome,
     config_before: String,
+    kind: ConfigUndoKind,
+    from: Option<String>,
+    to: Option<String>,
+    prefix: Option<String>,
     change: impl FnOnce(&str) -> Result<String, String>,
 ) -> Result<(), ApiError> {
     let has_file_changes = !out.report.done.is_empty();
@@ -707,9 +735,9 @@ fn finish_folder_change(
         return Err(ApiError::new(400, e));
     }
     if has_file_changes {
-        if let Err(e) = ctx
-            .shared
-            .record_config_undo(out.report.batch, config_before)
+        if let Err(e) =
+            ctx.shared
+                .record_config_undo(out.report.batch, config_before, kind, from, to, prefix)
         {
             ctx.shared.undo_batch(out.report.batch)?;
             return Err(ApiError::new(500, e));
