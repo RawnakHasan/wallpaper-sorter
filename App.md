@@ -285,7 +285,7 @@ engine/   touches the disk
   scan, exec, log, undo, index, origins, pipeline, ops, cfgedit
 daemon/   the program
   watcher (inotify), debounce, daemon (run loop), web (tiny_http), thumbs, main
-ui/       Vite source and checked-in production bundle, embedded in the binary
+ui/       Vite + React/TanStack Router source and checked-in bundle, embedded in the binary
 spec/     the rules as data, plus a Python reference matcher
 scripts/  collect-report.sh
 ```

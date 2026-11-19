@@ -41,7 +41,7 @@
     let shown = 0;
     const grid = h('div', { class: 'grid', role: 'list' });
     const more = h('div', { class: 'more' });
-    const root = h('div', {}, grid, more);
+    const root = h('div', { class: 'grid-scroll' }, grid, more);
 
     function sync() {
       const sel = WS.selection.keys;

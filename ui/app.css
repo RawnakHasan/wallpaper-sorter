@@ -31,6 +31,14 @@ a{color:var(--ac)}
 .nv.on{background:var(--sel);color:var(--ac)}
 .count{font-family:'JetBrains Mono',monospace;font-size:12px}
 .main{flex:1;min-width:0;overflow:auto}
+.page-host{min-width:0}
+.library-scroll-shell{display:flex;flex-direction:column;overflow:hidden}
+.library-scroll-shell .page-host{display:flex;flex:1;min-height:0;flex-direction:column}
+.library-scroll-shell .page{display:flex;flex:1;min-height:0;max-width:none;flex-direction:column;overflow:hidden}
+.library-scroll-shell .lib{flex:1;min-height:0;align-items:stretch;overflow:hidden}
+.library-scroll-shell .tree{height:auto;max-height:none;min-height:0}
+.library-scroll-shell .lib-main{display:flex;min-height:0;flex-direction:column;overflow:hidden}
+.library-scroll-shell .grid-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
 .page{padding:20px 24px 80px;max-width:1500px}
 .page-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
 .page-head .sub{color:var(--t2)}
@@ -212,6 +220,9 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
   .page{padding:16px 12px 24px}
   .lib{flex-direction:column}
   .tree{width:100%;max-height:200px;border-right:0;border-bottom:1px solid var(--bd);padding:0 0 8px}
+  .library-scroll-shell .lib{flex:1}
+  .library-scroll-shell .tree{height:auto;max-height:200px;flex:none}
+  .library-scroll-shell .lib-main{flex:1}
   .topbar .status span.t{display:none}
   .toast{bottom:76px}
   .tbl .hide-s{display:none}

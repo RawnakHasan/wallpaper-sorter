@@ -126,11 +126,19 @@ async function openPage(sorter, hash) {
     pretendToBeVisual: true,
     beforeParse(w) {
       w.fetch = (u, init) => fetch(new URL(u, w.location.href).href, init);
+      w.scrollTo = () => {};
     },
   });
   const w = dom.window;
-  for (const source of scriptSources) w.eval(await fetchText(sorter, source));
+  const pendingRequests = new Set();
   const d = w.document;
+  w.fetch = (u, init) => {
+    const request = fetch(new URL(u, w.location.href).href, init);
+    pendingRequests.add(request);
+    request.then(() => pendingRequests.delete(request), () => pendingRequests.delete(request));
+    return request;
+  };
+  for (const source of scriptSources) w.eval(await fetchText(sorter, source));
   const ui = {
     dom, w, d,
     q: (sel, root) => (root || d).querySelector(sel),
@@ -151,7 +159,14 @@ async function openPage(sorter, hash) {
     go(hash) {
       w.location.hash = hash;
     },
-    close: () => w.close(),
+    async close() {
+      w.dispatchEvent(new w.Event('pagehide'));
+      for (let i = 0; i < 20 && pendingRequests.size; i++) {
+        await Promise.allSettled([...pendingRequests]);
+        await sleep(5);
+      }
+      w.close();
+    },
   };
   await waitFor(() => ui.q('#main .page'), 'the first page');
   return ui;
@@ -167,7 +182,7 @@ async function withSorter(prep, hash, fn) {
     ui = await openPage(s, hash);
     await fn(ui, s);
   } finally {
-    if (ui) ui.close();
+    if (ui) await ui.close();
     s.stop();
   }
 }
@@ -358,6 +373,8 @@ test('library: browse a folder and close the gaps', () =>
       assert.equal(ui.q('.more').textContent, '', 'no literal null after the final image chunk');
       assert.equal(ui.q('.cell img').alt, 'Chisa 1.png');
       assert.ok(ui.q('.cell').classList.contains('loading'));
+      assert.ok(ui.q('#main.library-scroll-shell .tree'), 'the folder tree has its own scroll region');
+      assert.ok(ui.q('#main.library-scroll-shell .grid-scroll'), 'the thumbnail list has its own scroll region');
       ui.q('.cell img').dispatchEvent(new ui.w.Event('load'));
       assert.equal(ui.q('.cell').classList.contains('loading'), false);
       const details = ui.q('.cell .open');
@@ -370,6 +387,7 @@ test('library: browse a folder and close the gaps', () =>
       assert.match(css, /\.cell\.loading\{[^}]*animation:thumb-shimmer/);
       assert.match(css, /@keyframes thumb-shimmer/);
       assert.match(css, /prefers-reduced-motion:reduce[^}]*\.cell\.loading\{animation:none\}/);
+      assert.match(css, /\.library-scroll-shell \.grid-scroll\{[^}]*overflow:auto/);
       assert.match(ui.q('.facts').textContent, /Prefix\s*Chisa/);
       assert.match(ui.q('.facts').textContent, /Next number\s*5/);
       assert.match(ui.q('.facts').textContent, /Gaps\s*1 \(2\)/);
@@ -754,6 +772,7 @@ test('first-run setup shows a welcome card and can be completed', () =>
     async (ui, s) => {
       await api(s, 'PUT', '/api/settings', { setup_complete: false });
       ui.go('#/settings');
+      await waitFor(() => ui.q('#main h1')?.textContent === 'Settings', 'the settings route');
       ui.go('#/');
       await waitFor(() => ui.q('.welcome'), 'the welcome card');
       ui.click(ui.byText('button', 'Finish setup'));

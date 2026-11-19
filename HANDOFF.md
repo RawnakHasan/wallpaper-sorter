@@ -227,9 +227,12 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 3.6 UI notes
 
-- Files: `core.js` (helpers, API client, toast, sheets, pickers), `pages.js` (grid, assign and detail sheets, Overview,
-  Inbox, Library), `pages2.js` (Activity, Tags, Duplicates, Data, Settings), `main.js` (shell, hash routing, 3-second
-  status polling, keyboard). Everything hangs off `window.WS`. `WS.refresh()` re-renders the current page.
+- `src/main.jsx` is the React shell and TanStack hash router; `src/legacy.js` imports the current page modules into a
+  compatibility bridge. `core.js` (helpers, API client, toast, sheets, pickers), `pages.js` (grid, assign and detail
+  sheets, Overview, Inbox, Library), and `pages2.js` (Activity, Tags, Duplicates, Data, Settings) still expose
+  `window.WS`. This keeps behavior stable while routes can be migrated to React one at a time.
+- The shell owns the 3-second status polling, keyboard shortcuts, navigation, and theme. `WS.refresh()` re-renders the
+  active legacy page.
 - Styling uses CSS variables copied from the design mock-up (`ui/design-mock.html`); four font sizes, no shadows or
   gradients, dark first. Fonts are self-hosted from `ui/fonts/`.
 - The Library folder header shows source counts; each image counts under its first known source, or Unknown if none.

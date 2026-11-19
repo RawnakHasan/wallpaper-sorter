@@ -63,7 +63,7 @@ For normal use:
 While it runs, the web page and API are at http://127.0.0.1:8421/ (`--port N` or `[server] port` in the config
 to change it, `--no-web` to turn it off). The page there is the real UI (Vite-built static assets embedded in the binary); no frontend server or network access is needed at runtime.
 
-For frontend development, install the UI build dependencies with `npm --prefix ui ci`, then run `npm --prefix ui run dev` while the sorter is running on port 8421. Vite proxies API requests to the local sorter. A normal Cargo build automatically rebuilds the UI when those npm dependencies are installed; otherwise it uses the checked-in `daemon/ui-dist/` bundle.
+For frontend development, install the UI build dependencies with `npm --prefix ui ci`, then run `npm --prefix ui run dev` while the sorter is running on port 8421. The UI shell uses React and TanStack Router with hash URLs; existing page views are being migrated incrementally. Vite proxies API requests to the local sorter. A normal Cargo build automatically rebuilds the UI when those npm dependencies are installed; otherwise it uses the checked-in `daemon/ui-dist/` bundle.
 
 What it does: it watches the library folder (top level only) and every folder listed under `[[intake]]` in the
 config (subfolders included, also ones created later). Files already waiting are sorted at start. Images in the

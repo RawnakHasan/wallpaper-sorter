@@ -10,7 +10,6 @@ fn main() {
         "core.js",
         "pages.js",
         "pages2.js",
-        "main.js",
         "vite.config.js",
         "package.json",
         "package-lock.json",
