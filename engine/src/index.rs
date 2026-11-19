@@ -21,6 +21,24 @@ pub struct RefreshStats {
     pub hashed: usize,
     pub reused: usize,
     pub removed: usize,
+    pub skipped: usize,
+}
+
+fn add_cached_subtree(
+    entries: &BTreeMap<String, IndexEntry>,
+    path: &str,
+    paths: &mut BTreeSet<String>,
+) {
+    if entries.contains_key(path) {
+        paths.insert(path.to_string());
+    }
+    let prefix = format!("{path}/");
+    paths.extend(
+        entries
+            .keys()
+            .filter(|entry_path| entry_path.starts_with(&prefix))
+            .cloned(),
+    );
 }
 
 /// BLAKE3 of the file's content, as lowercase hex.
@@ -198,56 +216,126 @@ impl Index {
     pub fn refresh(&mut self, root: &Path, image_exts: &[String]) -> io::Result<RefreshStats> {
         let mut stats = RefreshStats::default();
         let mut seen: BTreeSet<String> = BTreeSet::new();
+        let mut missing: BTreeSet<String> = BTreeSet::new();
+        let mut incomplete = false;
         let mut stack = vec![root.to_path_buf()];
         while let Some(dir) = stack.pop() {
-            for entry in fs::read_dir(&dir)? {
-                let entry = entry?;
+            let directory = match fs::read_dir(&dir) {
+                Ok(directory) => directory,
+                Err(error) if dir == root => return Err(error),
+                Err(error) => {
+                    stats.skipped += 1;
+                    if let Some(relative) = rel_inside(root, &dir) {
+                        if error.kind() == io::ErrorKind::NotFound {
+                            add_cached_subtree(&self.entries, &relative, &mut missing);
+                        } else {
+                            add_cached_subtree(&self.entries, &relative, &mut seen);
+                        }
+                    }
+                    continue;
+                }
+            };
+            for entry_result in directory {
+                let entry = match entry_result {
+                    Ok(entry) => entry,
+                    Err(_) => {
+                        stats.skipped += 1;
+                        incomplete = true;
+                        continue;
+                    }
+                };
                 let name = entry.file_name().to_string_lossy().to_string();
                 if name.starts_with('.') {
                     continue;
                 }
-                let kind = entry.file_type()?;
+                let path = entry.path();
+                let relative = match rel_inside(root, &path) {
+                    Some(relative) => relative,
+                    None => continue,
+                };
+                let kind = match entry.file_type() {
+                    Ok(kind) => kind,
+                    Err(error) => {
+                        stats.skipped += 1;
+                        if error.kind() == io::ErrorKind::NotFound {
+                            add_cached_subtree(&self.entries, &relative, &mut missing);
+                        } else {
+                            add_cached_subtree(&self.entries, &relative, &mut seen);
+                        }
+                        continue;
+                    }
+                };
                 if kind.is_dir() {
-                    stack.push(entry.path());
-                    continue;
-                }
-                if !kind.is_file() {
+                    stack.push(path);
                     continue;
                 }
                 let ext = name.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
                 if !image_exts.iter().any(|e| e.eq_ignore_ascii_case(ext)) {
                     continue;
                 }
-                let rel = match rel_inside(root, &entry.path()) {
-                    Some(r) => r,
-                    None => continue,
-                };
-                let (size, mtime_ns) = file_stat(&entry.path())?;
-                seen.insert(rel.clone());
-                match self.entries.get(&rel) {
-                    Some(old) if old.size == size && old.mtime_ns == mtime_ns => stats.reused += 1,
-                    _ => {
-                        let hash = hash_file(&entry.path())?;
-                        self.entries.insert(
-                            rel.clone(),
-                            IndexEntry {
-                                path: rel,
-                                size,
-                                mtime_ns,
-                                hash,
-                            },
-                        );
-                        stats.hashed += 1;
+                if kind.is_symlink() {
+                    stats.skipped += 1;
+                    missing.insert(relative);
+                    continue;
+                }
+                if !kind.is_file() {
+                    continue;
+                }
+                let (size, mtime_ns) = match file_stat(&path) {
+                    Ok(stat) => stat,
+                    Err(error) => {
+                        stats.skipped += 1;
+                        if error.kind() == io::ErrorKind::NotFound {
+                            missing.insert(relative);
+                        } else {
+                            seen.insert(relative);
+                        }
+                        continue;
                     }
+                };
+                match self.entries.get(&relative) {
+                    Some(old) if old.size == size && old.mtime_ns == mtime_ns => {
+                        seen.insert(relative);
+                        stats.reused += 1;
+                    }
+                    _ => match hash_file(&path) {
+                        Ok(hash) => {
+                            seen.insert(relative.clone());
+                            self.entries.insert(
+                                relative.clone(),
+                                IndexEntry {
+                                    path: relative,
+                                    size,
+                                    mtime_ns,
+                                    hash,
+                                },
+                            );
+                            stats.hashed += 1;
+                        }
+                        Err(error) => {
+                            stats.skipped += 1;
+                            if error.kind() == io::ErrorKind::NotFound {
+                                missing.insert(relative);
+                            } else {
+                                seen.insert(relative);
+                            }
+                        }
+                    },
                 }
             }
         }
-        let gone: Vec<String> = self
-            .entries
-            .keys()
-            .filter(|k| !seen.contains(*k))
-            .cloned()
-            .collect();
+        let gone: Vec<String> = if incomplete {
+            missing
+                .into_iter()
+                .filter(|path| self.entries.contains_key(path))
+                .collect()
+        } else {
+            self.entries
+                .keys()
+                .filter(|path| missing.contains(*path) || !seen.contains(*path))
+                .cloned()
+                .collect()
+        };
         stats.removed = gone.len();
         for g in gone {
             self.entries.remove(&g);

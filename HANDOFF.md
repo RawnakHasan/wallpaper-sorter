@@ -256,6 +256,7 @@ tables are the real specification; do not regenerate them from the code.
   purpose, so the sorter's own moves into subfolders do not loop.
 - After an undo, the restored file is held using a persisted size and modification-time fingerprint, so it is left alone across daemon restarts until it changes.
 - Re-sort reserves hashes for numbered in-place files before duplicate matching, and uses exact library-relative paths for destination checks so nested folders with matching tails are not mistaken for stays.
+- Index refresh skips unreadable files and child directories; it retains cached entries when access fails, removes entries only for confirmed missing paths, and still reports library-root errors.
 - Startup truncates a malformed final log record, discards and rebuilds a corrupt hash index, and preserves corrupt origin data in a uniquely named `.corrupt` backup before rebuilding.
 
 ---

@@ -347,6 +347,28 @@ fn whole_library_resort_matches_the_real_tree_and_is_idempotent() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn library_snapshot_skips_an_unreadable_child_directory() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let d = Dirs::new();
+    put(&d.lib.join("Blocked/file.png"), "blocked");
+    let blocked = d.lib.join("Blocked");
+    fs::set_permissions(&blocked, fs::Permissions::from_mode(0o000)).unwrap();
+    let snapshot = sorter_engine::library_snapshot(&d.lib);
+    fs::set_permissions(&blocked, fs::Permissions::from_mode(0o700)).unwrap();
+
+    let snapshot = snapshot.unwrap();
+    assert_eq!(
+        snapshot.folders.get("Blocked").unwrap(),
+        &Vec::<String>::new()
+    );
+}
+
 #[test]
 fn folder_rename_prefix_change_and_merge_are_previewable_and_undoable() {
     let d = Dirs::new();

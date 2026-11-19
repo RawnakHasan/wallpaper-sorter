@@ -151,6 +151,7 @@ A `naive-` prefix is ignored. You can set a source by hand on the Data page.
 - Delete = move to `.sorter/trash`, undoable. The trash is emptied only on request.
 - Folder changes (rename, merge, prefix) save inverse-operation metadata plus before/after config text. Undo applies the inverse to the current config, preserving unrelated later edits.
 - Startup truncates a malformed final log record, rebuilds a corrupt hash cache, and preserves corrupt origin records in a `.corrupt` backup before rebuilding them from library files.
+- Per-file scan failures are skipped; unreadable files keep their old cache entry, while confirmed missing files are removed. A failure to read the library root still stops startup.
 
 ---
 

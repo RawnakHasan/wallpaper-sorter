@@ -74,6 +74,7 @@ Behaviour worth knowing: partial downloads (`.crdownload`, `.part`) are ignored 
 name; files that an undo put back are left alone until they change, including across daemon restarts; an intake folder that does not exist yet is
 picked up when it appears; an empty subfolder of an intake folder is removed after ten minutes without a file.
 On startup, a malformed final action-log record is discarded, a corrupt hash cache is rebuilt, and corrupt origin data is preserved in a `.corrupt` backup before rebuilding.
+Unreadable or vanished individual files do not abort the library scan; old hash entries are retained on access errors and removed when a path is confirmed missing.
 
 ## The API
 

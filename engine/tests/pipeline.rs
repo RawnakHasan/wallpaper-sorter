@@ -357,3 +357,43 @@ fn corrupt_origin_data_is_backed_up_and_pipeline_rebuilds_records() {
         corrupt
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn dangling_image_symlink_is_counted_as_skipped_during_open() {
+    use std::os::unix::fs::symlink;
+
+    let d = Dirs::new();
+    let link = d.lib.join("Nature/dangling.png");
+    fs::create_dir_all(link.parent().unwrap()).unwrap();
+    symlink("missing.png", &link).unwrap();
+
+    let pipeline = Pipeline::open(&d.lib, cfg()).unwrap();
+
+    assert_eq!(pipeline.last_refresh.skipped, 1);
+    assert!(pipeline.index.get("Nature/dangling.png").is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn unreadable_cached_file_is_skipped_and_keeps_its_old_index_entry() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let d = Dirs::new();
+    let path = d.lib.join("Nature/Nature 1.png");
+    put(&path, &png(10, 10, "cached"));
+    let mut pipeline = Pipeline::open(&d.lib, cfg()).unwrap();
+    let cached = pipeline.index.get("Nature/Nature 1.png").unwrap().clone();
+
+    put(&path, &png(10, 10, "changed and longer"));
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
+    let stats = pipeline.reconcile().unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+
+    assert_eq!(stats.skipped, 1);
+    assert_eq!(stats.removed, 0);
+    assert_eq!(pipeline.index.get("Nature/Nature 1.png"), Some(&cached));
+}

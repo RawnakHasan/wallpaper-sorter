@@ -7,18 +7,30 @@ use std::path::Path;
 
 fn rel(root: &Path, dir: &Path) -> String {
     dir.strip_prefix(root)
-        .map(|p| p.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect::<Vec<_>>().join("/"))
+        .map(|p| {
+            p.components()
+                .map(|c| c.as_os_str().to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+                .join("/")
+        })
         .unwrap_or_default()
 }
 
 fn walk(root: &Path, dir: &Path, lib: &mut Library) -> io::Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if dir == root => return Err(error),
+        Err(_) => return Ok(()),
+    };
+    for entry in entries {
+        let Ok(entry) = entry else { continue };
         let name = entry.file_name().to_string_lossy().to_string();
         if name.starts_with('.') {
             continue; // .sorter and other hidden folders are not part of the library
         }
-        let kind = entry.file_type()?;
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
         if kind.is_dir() {
             lib.folders.entry(rel(root, &entry.path())).or_default();
             walk(root, &entry.path(), lib)?;
