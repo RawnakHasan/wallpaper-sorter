@@ -19,6 +19,8 @@ fn spec(kw: &[&str], dest: &str) -> TagSpec {
         match_mode: MatchMode::Word,
         strict_words: vec![],
         generic: false,
+        expected_keywords: None,
+        expected_dest: None,
     }
 }
 

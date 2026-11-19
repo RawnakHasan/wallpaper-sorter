@@ -1196,3 +1196,18 @@ fn watched_intake_folders_can_be_edited_and_rescanned() {
     let cfg = fs::read_to_string(&e.cfg_path).unwrap();
     assert!(!cfg.contains("wallpaper-sorter-intake"));
 }
+
+#[test]
+fn bad_assignment_tag_leaves_files_unmoved() {
+    let e = setup(|lib, _| {
+        put(&lib.join("Violet Evergarden.jpg"), "one");
+    });
+    let file = e.lib.join("Violet Evergarden.jpg");
+    let r = e.send(
+        "POST",
+        "/api/assign",
+        json!({ "paths": [file.to_string_lossy()], "folder": "Series/Violet", "tag": { "keywords": ["   "], "dest": "Series/Violet" } }),
+    );
+    assert_eq!(r.status, 400);
+    assert!(file.is_file());
+}

@@ -384,8 +384,8 @@ The owner wants to **discuss before big steps**. Ask first about:
 - [x] T8 starter config embedded and structurally generated
 - [x] T9 symlinked config preserved by atomic writes
 - [x] T10 config reload by mtime and SIGHUP
-- [ ] T11 assign + tag order
-- [ ] T12 tag edit by content check
+- [x] T11 assignment validates tags before moving files
+- [x] T12 tag updates/deletes reject stale page content
 - [ ] T13 AVIF/GIF/BMP thumbnails
 - [ ] T14 smaller robustness items
 - [ ] T15 docs updated and tests re-counted

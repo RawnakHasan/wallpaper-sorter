@@ -7,11 +7,11 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sorter_core::matcher::{split_name, tokens};
-use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site};
+use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site };
 use sorter_engine::cfgedit::{
-    add_folder, add_intake, add_tag, delete_tag, merge_folder as edit_merge_folder, remove_intake,
+    add_folder, add_intake, add_tag, delete_tag_checked, merge_folder as edit_merge_folder, remove_intake,
     rename_folder as edit_rename_folder, set_folder_prefix, set_gap_mode, set_setup_complete,
-    update_intake, update_tag, TagSpec,
+    update_intake, update_tag_checked, validate_tag, TagSpec,
 };
 use sorter_engine::{Origin, Outcome, UndoError};
 use std::collections::HashMap;
@@ -305,6 +305,13 @@ struct AssignBody {
     tag: Option<TagSpec>,
 }
 #[derive(Deserialize)]
+struct DeleteTagBody {
+    #[serde(default)]
+    expected_keywords: Option<Vec<String>>,
+    #[serde(default)]
+    expected_dest: Option<String>,
+}
+#[derive(Deserialize)]
 struct UndoBody {
     #[serde(default)]
     batch: Option<u64>,
@@ -497,6 +504,9 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
 
         (Method::Post, ["api", "assign"]) => {
             let b: AssignBody = read_json(req)?;
+            if let Some(spec) = &b.tag {
+                validate_tag(spec).map_err(|e| ApiError::new(400, e))?;
+            }
             let out = {
                 let mut p = ctx.shared.lock();
                 let files = resolve_all(&p, &b.paths)?;
@@ -694,8 +704,19 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 .map_err(|_| ApiError::new(400, "bad tag number"))?;
             let spec: TagSpec = read_json(req)?;
             ctx.shared
-                .edit_config(|t| update_tag(t, i, &spec))
-                .map_err(|e| ApiError::new(400, e))?;
+                .edit_config(|t| {
+                    update_tag_checked(
+                        t,
+                        i,
+                        &spec,
+                        spec.expected_keywords.as_deref(),
+                        spec.expected_dest.as_deref(),
+                    )
+                })
+                .map_err(|e| {
+                    let status = if e.contains("tag changed since") { 409 } else { 400 };
+                    ApiError::new(status, e)
+                })?;
             ctx.shared.request_rescan();
             Ok(Resp::json(200, &tags_json(ctx)))
         }
@@ -703,9 +724,20 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             let i: usize = i
                 .parse()
                 .map_err(|_| ApiError::new(400, "bad tag number"))?;
+            let expected: DeleteTagBody = read_json(req)?;
             ctx.shared
-                .edit_config(|t| delete_tag(t, i))
-                .map_err(|e| ApiError::new(400, e))?;
+                .edit_config(|t| {
+                    delete_tag_checked(
+                        t,
+                        i,
+                        expected.expected_keywords.as_deref(),
+                        expected.expected_dest.as_deref(),
+                    )
+                })
+                .map_err(|e| {
+                    let status = if e.contains("tag changed since") { 409 } else { 400 };
+                    ApiError::new(status, e)
+                })?;
             Ok(Resp::json(200, &tags_json(ctx)))
         }
         (Method::Put, ["api", "origins"]) => {

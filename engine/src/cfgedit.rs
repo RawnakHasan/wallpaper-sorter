@@ -17,6 +17,10 @@ pub struct TagSpec {
     pub strict_words: Vec<String>,
     #[serde(default)]
     pub generic: bool,
+    #[serde(default)]
+    pub expected_keywords: Option<Vec<String>>,
+    #[serde(default)]
+    pub expected_dest: Option<String>,
 }
 
 fn validate(spec: &TagSpec) -> Result<(), String> {
@@ -272,7 +276,7 @@ pub fn merge_folder(text: &str, from: &str, to: &str) -> Result<String, String> 
 }
 
 pub fn add_tag(text: &str, spec: &TagSpec) -> Result<String, String> {
-    validate(spec)?;
+    validate_tag(spec)?;
     let mut doc = parse(text)?;
     let mut t = Table::new();
     fill(&mut t, spec);
@@ -281,7 +285,7 @@ pub fn add_tag(text: &str, spec: &TagSpec) -> Result<String, String> {
 }
 
 pub fn update_tag(text: &str, index: usize, spec: &TagSpec) -> Result<String, String> {
-    validate(spec)?;
+    validate_tag(spec)?;
     let mut doc = parse(text)?;
     let tags = tags_mut(&mut doc)?;
     let t = tags
@@ -289,6 +293,47 @@ pub fn update_tag(text: &str, index: usize, spec: &TagSpec) -> Result<String, St
         .ok_or_else(|| format!("no tag number {index}"))?;
     fill(t, spec);
     Ok(doc.to_string())
+}
+
+pub fn update_tag_checked(
+    text: &str,
+    index: usize,
+    spec: &TagSpec,
+    expected_keywords: Option<&[String]>,
+    expected_dest: Option<&str>,
+) -> Result<String, String> {
+    let doc = parse(text)?;
+    let tags = doc
+        .get("tag")
+        .and_then(Item::as_array_of_tables)
+        .ok_or_else(|| "`tag` is not a list of [[tag]] tables".to_string())?;
+    let current = tags
+        .get(index)
+        .ok_or_else(|| format!("no tag number {index}"))?;
+    if let Some(expected) = expected_keywords {
+        let actual: Vec<String> = current
+            .get("keywords")
+            .and_then(Item::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if actual != expected {
+            return Err(
+                "tag changed since this page was loaded; refresh and try again".to_string(),
+            );
+        }
+    }
+    if let Some(expected) = expected_dest {
+        if current.get("dest").and_then(Item::as_str) != Some(expected) {
+            return Err(
+                "tag changed since this page was loaded; refresh and try again".to_string(),
+            );
+        }
+    }
+    update_tag(text, index, spec)
 }
 
 pub fn delete_tag(text: &str, index: usize) -> Result<String, String> {
@@ -299,6 +344,46 @@ pub fn delete_tag(text: &str, index: usize) -> Result<String, String> {
     }
     tags.remove(index);
     Ok(doc.to_string())
+}
+
+pub fn delete_tag_checked(
+    text: &str,
+    index: usize,
+    expected_keywords: Option<&[String]>,
+    expected_dest: Option<&str>,
+) -> Result<String, String> {
+    let doc = parse(text)?;
+    let tags = doc
+        .get("tag")
+        .and_then(Item::as_array_of_tables)
+        .ok_or_else(|| "`tag` is not a list of [[tag]] tables".to_string())?;
+    let current = tags
+        .get(index)
+        .ok_or_else(|| format!("no tag number {index}"))?;
+    if let Some(expected) = expected_keywords {
+        let actual: Vec<String> = current
+            .get("keywords")
+            .and_then(Item::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if actual != expected {
+            return Err(
+                "tag changed since this page was loaded; refresh and try again".to_string(),
+            );
+        }
+    }
+    if let Some(expected) = expected_dest {
+        if current.get("dest").and_then(Item::as_str) != Some(expected) {
+            return Err(
+                "tag changed since this page was loaded; refresh and try again".to_string(),
+            );
+        }
+    }
+    delete_tag(text, index)
 }
 
 /// Sets `[settings] gap_mode`.
@@ -609,4 +694,20 @@ fn validate_intake_path(doc: &DocumentMut, raw: &str) -> Result<String, String> 
         }
     }
     Ok(path.to_string_lossy().into_owned())
+}
+
+/// Expose tag validation so assignment can validate before moving files.
+pub fn validate_tag(spec: &TagSpec) -> Result<(), String> {
+    if spec.keywords.iter().all(|k| k.trim().is_empty()) {
+        return Err("a tag needs at least one keyword".to_string());
+    }
+    crate::ops::check_folder(&spec.dest).map_err(|e| e.to_string())
+}
+
+/// Expose tag validation so assignment can validate before moving files.
+pub fn validate_tag_duplicate(spec: &TagSpec) -> Result<(), String> {
+    if spec.keywords.iter().all(|k| k.trim().is_empty()) {
+        return Err("a tag needs at least one keyword".to_string());
+    }
+    crate::ops::check_folder(&spec.dest).map_err(|e| e.to_string())
 }

@@ -97,7 +97,7 @@
     const save = h('button', { class: 'btn primary', text: 'Save' });
     save.addEventListener('click', async () => {
       problem.textContent = '';
-      const spec = { keywords: kws.get(), dest: picker.get(), prefix: prefix.value.trim() || null, match: match.value, strict_words: strict.get(), generic: generic.checked };
+      const spec = { keywords: kws.get(), dest: picker.get(), prefix: prefix.value.trim() || null, match: match.value, strict_words: strict.get(), generic: generic.checked, expected_keywords: tag ? tag.keywords : undefined, expected_dest: tag ? tag.dest : undefined };
       save.disabled = true;
       try {
         await WS.api(tag ? 'PUT' : 'POST', tag ? `/api/tags/${tag.index}` : '/api/tags', spec);
@@ -181,7 +181,7 @@
               onclick: async () => {
                 if (!(await WS.confirmBox(`Delete the tag “${t.keywords.join(', ')}”? Images already sorted stay where they are.`, 'Delete tag', true))) return;
                 try {
-                  await WS.api('DELETE', `/api/tags/${t.index}`);
+                  await WS.api('DELETE', `/api/tags/${t.index}`, { expected_keywords: t.keywords, expected_dest: t.dest });
                   WS.toast('Tag deleted');
                   WS.refresh();
                 } catch (e) {
