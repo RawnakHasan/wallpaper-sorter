@@ -231,3 +231,9 @@ expect = [
   "rename: Wuthering-Waves/Chisa/Chisa 3.png -> Wuthering-Waves/Chisa/Chisa 2.png",
   "move: Wuthering-Waves/Chisa/Chisa original.png -> Wuthering-Waves/Chisa/Chisa 3.png",
 ]
+
+[[case]]
+name = "nested folder with the destination tail is not in place"
+library = { "Wuthering-Waves/Chisa" = ["Chisa 1.png"] }
+incoming = ["Series/Wuthering-Waves/Chisa/Chisa 1.png"]
+expect = ["move: Series/Wuthering-Waves/Chisa/Chisa 1.png -> Wuthering-Waves/Chisa/Chisa 2.png"]

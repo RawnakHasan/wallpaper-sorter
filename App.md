@@ -322,9 +322,9 @@ Items 1 to 4 are from my reading of the latest code and are not yet confirmed by
 
 | # | Issue | Effect |
 |---|---|---|
-| 1 | In a whole-library Re-sort, a numbered file that stays in place is not registered in the duplicate index. | An older loose copy can take the numbered slot, and the original in place goes to Duplicates instead. Nothing is lost, but it is the wrong way round. Fix: register in-place files' hashes before the loop, add a spec row and an engine test with two identical files. |
-| 2 | The re-sort API's `changes` number counts "stay" items. | The page computes its own count, so it looks right, but the API value is wrong when stays exist. Folder merge previews can also be affected. Fix: exclude `stay` in the filter. |
-| 3 | "Already in its destination" is decided by a path suffix check. | A nested folder with the same tail (for example `Series/Wuthering-Waves/Chisa` merged into `Wuthering-Waves/Chisa`) can be mistaken for in place, leaving files stranded while the config is repointed. Fix: pass the library-relative current path to the planner. |
+| 1 | ~~Numbered in-place Re-sort files were missing from duplicate-hash registration.~~ **Resolved:** exact in-place hashes are reserved before planning. | Identical loose copies now point to the numbered in-place file as their original. |
+| 2 | ~~Re-sort API `changes` counted stay items.~~ **Resolved:** change counts include only move, rename, and duplicate actions. | Stays and leaves no longer inflate preview or merge change counts. |
+| 3 | ~~Destination detection used a path suffix.~~ **Resolved:** Re-sort uses exact library-relative paths. | A nested folder with the same tail is no longer mistaken for an already-in-place file. |
 | 4 | The Re-sort preview is a GET that hashes the whole library, writes index and record files, and holds the single mutex. | The page and API stall during a large preview. |
 | 5 | ~~Folder-change undo is blocked after later config edits.~~ **Resolved:** inverse-operation undo. | Undo rewrites only the folder changes on the current config text, preserving unrelated later edits. |
 | 6 | The "held after undo" set is in memory. | **Resolved:** undo holds now persist. Restored files keep their size and modification-time fingerprint in the log and remain held across restarts until changed. |

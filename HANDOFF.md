@@ -254,6 +254,7 @@ tables are the real specification; do not regenerate them from the code.
 - inotify does not report moves inside folders that are not watched; the library root is watched non-recursively on
   purpose, so the sorter's own moves into subfolders do not loop.
 - After an undo, the restored file is held using a persisted size and modification-time fingerprint, so it is left alone across daemon restarts until it changes.
+- Re-sort reserves hashes for numbered in-place files before duplicate matching, and uses exact library-relative paths for destination checks so nested folders with matching tails are not mistaken for stays.
 
 ---
 

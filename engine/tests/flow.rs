@@ -50,11 +50,18 @@ fn read(path: &Path) -> String {
 }
 
 fn incoming(path: &Path, hash: Option<&str>) -> Incoming {
-    Incoming { path: path.to_string_lossy().to_string(), hash: hash.map(|h| h.to_string()) }
+    Incoming {
+        path: path.to_string_lossy().to_string(),
+        library_path: None,
+        hash: hash.map(|h| h.to_string()),
+    }
 }
 
 fn names(dir: &Path) -> Vec<String> {
-    let mut v: Vec<String> = fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().to_string()).collect();
+    let mut v: Vec<String> = fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+        .collect();
     v.sort();
     v
 }
@@ -69,16 +76,25 @@ fn scan_plan_apply_and_log() {
     put(&src, "new");
 
     let snap = library_snapshot(&d.lib).unwrap();
-    assert_eq!(snap.folders.keys().cloned().collect::<Vec<_>>(), ["Wuthering-Waves", "Wuthering-Waves/Chisa"]);
+    assert_eq!(
+        snap.folders.keys().cloned().collect::<Vec<_>>(),
+        ["Wuthering-Waves", "Wuthering-Waves/Chisa"]
+    );
     let plan = build_plan(&cfg(), &snap, &[incoming(&src, None)]);
 
     let mut log = d.log();
     let report = apply(&plan, &d.lib, &mut log);
     assert!(report.error.is_none(), "{:?}", report.error);
     assert_eq!(report.done.len(), 1);
-    assert_eq!(read(&d.lib.join("Wuthering-Waves/Chisa/Chisa 2.png")), "new");
+    assert_eq!(
+        read(&d.lib.join("Wuthering-Waves/Chisa/Chisa 2.png")),
+        "new"
+    );
     assert!(!src.exists());
-    assert_eq!(read(&d.lib.join("Wuthering-Waves/Chisa/Chisa 1.jpg")), "old");
+    assert_eq!(
+        read(&d.lib.join("Wuthering-Waves/Chisa/Chisa 1.jpg")),
+        "old"
+    );
 
     let reopened = d.log();
     assert_eq!(reopened.entries(), log.entries());
@@ -116,7 +132,9 @@ fn a_vanished_source_is_skipped_and_the_rest_continues() {
         rule: Rule::OneFolder,
         matched: vec![],
     };
-    let plan = Plan { actions: vec![mv("gone.png", "X/gone.png"), mv("b.png", "X/b.png")] };
+    let plan = Plan {
+        actions: vec![mv("gone.png", "X/gone.png"), mv("b.png", "X/b.png")],
+    };
     let mut log = d.log();
     let report = apply(&plan, &d.lib, &mut log);
     assert!(report.error.is_none());
@@ -144,7 +162,10 @@ fn undo_puts_the_file_back_once() {
     undo_entry(&mut log, id).unwrap();
     assert_eq!(read(&src), "new");
     assert!(!d.lib.join("Wuthering-Waves/Chisa/Chisa 2.png").exists());
-    assert!(matches!(undo_entry(&mut log, id), Err(UndoError::AlreadyUndone(_))));
+    assert!(matches!(
+        undo_entry(&mut log, id),
+        Err(UndoError::AlreadyUndone(_))
+    ));
 }
 
 #[test]
@@ -154,7 +175,10 @@ fn undo_adds_a_suffix_when_the_old_name_is_taken() {
     put(&src, "someone else");
     undo_entry(&mut log, id).unwrap();
     assert_eq!(read(&src), "someone else");
-    assert_eq!(read(&d.dl.join("Kuchiba.Chisa.full.4511113 (2).png")), "new");
+    assert_eq!(
+        read(&d.dl.join("Kuchiba.Chisa.full.4511113 (2).png")),
+        "new"
+    );
 }
 
 #[test]
@@ -162,14 +186,20 @@ fn undo_explains_when_the_file_was_moved_since() {
     let d = Dirs::new();
     let (mut log, _src, id) = sorted_once(&d);
     fs::remove_file(d.lib.join("Wuthering-Waves/Chisa/Chisa 2.png")).unwrap();
-    assert!(matches!(undo_entry(&mut log, id), Err(UndoError::FileMovedSince(_))));
+    assert!(matches!(
+        undo_entry(&mut log, id),
+        Err(UndoError::FileMovedSince(_))
+    ));
 }
 
 #[test]
 fn undo_batch_unwinds_renames_and_moves() {
     let d = Dirs::new();
     for (n, c) in [(1, "one"), (3, "three"), (4, "four")] {
-        put(&d.lib.join(format!("Wuthering-Waves/Chisa/Chisa {n}.jpg")), c);
+        put(
+            &d.lib.join(format!("Wuthering-Waves/Chisa/Chisa {n}.jpg")),
+            c,
+        );
     }
     let src = d.dl.join("Chisa x.png");
     put(&src, "new");
@@ -183,7 +213,10 @@ fn undo_batch_unwinds_renames_and_moves() {
     let report = apply(&plan, &d.lib, &mut log);
     assert!(report.error.is_none());
     let chisa = d.lib.join("Wuthering-Waves/Chisa");
-    assert_eq!(names(&chisa), ["Chisa 1.jpg", "Chisa 2.jpg", "Chisa 3.jpg", "Chisa 4.png"]);
+    assert_eq!(
+        names(&chisa),
+        ["Chisa 1.jpg", "Chisa 2.jpg", "Chisa 3.jpg", "Chisa 4.png"]
+    );
     assert_eq!(read(&chisa.join("Chisa 2.jpg")), "four");
 
     let undone = undo_batch(&mut log, report.batch).unwrap();
@@ -196,16 +229,28 @@ fn undo_batch_unwinds_renames_and_moves() {
 #[test]
 fn a_duplicate_goes_to_the_duplicates_folder() {
     let d = Dirs::new();
-    put(&d.lib.join("Wuthering-Waves/Chisa/Chisa 1.jpg"), "same bytes");
+    put(
+        &d.lib.join("Wuthering-Waves/Chisa/Chisa 1.jpg"),
+        "same bytes",
+    );
     let src = d.dl.join("Kuchiba.Chisa.full.4511113.png");
     put(&src, "same bytes");
     let mut snap = library_snapshot(&d.lib).unwrap();
-    snap.hashes.insert("h1".to_string(), "Wuthering-Waves/Chisa/Chisa 1.jpg".to_string());
+    snap.hashes.insert(
+        "h1".to_string(),
+        "Wuthering-Waves/Chisa/Chisa 1.jpg".to_string(),
+    );
     let plan = build_plan(&cfg(), &snap, &[incoming(&src, Some("h1"))]);
     let mut log = d.log();
     let report = apply(&plan, &d.lib, &mut log);
     assert!(report.error.is_none());
-    assert_eq!(read(&d.lib.join("Duplicates/Kuchiba.Chisa.full.4511113.png")), "same bytes");
+    assert_eq!(
+        read(&d.lib.join("Duplicates/Kuchiba.Chisa.full.4511113.png")),
+        "same bytes"
+    );
     assert_eq!(names(&d.lib.join("Wuthering-Waves/Chisa")), ["Chisa 1.jpg"]);
-    assert_eq!(report.done[0].note, "duplicate of Wuthering-Waves/Chisa/Chisa 1.jpg");
+    assert_eq!(
+        report.done[0].note,
+        "duplicate of Wuthering-Waves/Chisa/Chisa 1.jpg"
+    );
 }

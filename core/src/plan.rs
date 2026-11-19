@@ -20,11 +20,28 @@ pub enum LeaveReason {
 /// every other path is relative to the library root and uses '/' as separator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
-    Move { from: String, to: String, rule: Rule, matched: Vec<String> },
-    Rename { from: String, to: String },
-    ToDuplicates { from: String, to: String, duplicate_of: String },
-    Leave { path: String, reason: LeaveReason },
-    Ignore { path: String },
+    Move {
+        from: String,
+        to: String,
+        rule: Rule,
+        matched: Vec<String>,
+    },
+    Rename {
+        from: String,
+        to: String,
+    },
+    ToDuplicates {
+        from: String,
+        to: String,
+        duplicate_of: String,
+    },
+    Leave {
+        path: String,
+        reason: LeaveReason,
+    },
+    Ignore {
+        path: String,
+    },
 }
 
 impl fmt::Display for Action {
@@ -32,10 +49,16 @@ impl fmt::Display for Action {
         match self {
             Action::Move { from, to, .. } => write!(f, "move: {from} -> {to}"),
             Action::Rename { from, to } => write!(f, "rename: {from} -> {to}"),
-            Action::ToDuplicates { from, to, duplicate_of } => write!(f, "dup: {from} -> {to} (of {duplicate_of})"),
+            Action::ToDuplicates {
+                from,
+                to,
+                duplicate_of,
+            } => write!(f, "dup: {from} -> {to} (of {duplicate_of})"),
             Action::Leave { path, reason } => match reason {
                 LeaveReason::NoMatch => write!(f, "leave: {path} (no match)"),
-                LeaveReason::Conflict(tags) => write!(f, "leave: {path} (conflict: {})", tags.join(";")),
+                LeaveReason::Conflict(tags) => {
+                    write!(f, "leave: {path} (conflict: {})", tags.join(";"))
+                }
                 LeaveReason::Problem(p) => write!(f, "leave: {path} (problem: {p})"),
             },
             Action::Ignore { path } => write!(f, "ignore: {path}"),
@@ -66,6 +89,8 @@ pub struct Library {
 #[derive(Debug, Clone)]
 pub struct Incoming {
     pub path: String,
+    /// Exact library-relative path when this file is inside the library.
+    pub library_path: Option<String>,
     /// Content hash, if known. Without it the file cannot be recognised as a duplicate.
     pub hash: Option<String>,
 }
@@ -100,35 +125,71 @@ pub fn build_plan(cfg: &Config, library: &Library, incoming: &[Incoming]) -> Pla
     build_plan_with(cfg, library, incoming, &PlanOptions::default())
 }
 
-pub fn build_plan_with(cfg: &Config, library: &Library, incoming: &[Incoming], opts: &PlanOptions) -> Plan {
+pub fn build_plan_with(
+    cfg: &Config,
+    library: &Library,
+    incoming: &[Incoming],
+    opts: &PlanOptions,
+) -> Plan {
     let mut folders = library.folders.clone();
     let mut hashes = library.hashes.clone();
     let dup_folder = cfg.settings.duplicates_folder.clone();
     let mut actions = Vec::new();
 
+    // Re-sort inputs inside the library reserve their own numbered destination before any
+    // duplicate matching. This lets a later loose copy identify the numbered file as original.
+    for inc in incoming {
+        let name = file_name(&inc.path);
+        let Some(library_path) = inc.library_path.as_deref() else {
+            continue;
+        };
+        let decision = classify(name, cfg);
+        let Dest::Folder(dest) = &decision.dest else {
+            continue;
+        };
+        let prefix = cfg.prefix_for(dest);
+        if library_path == format!("{dest}/{name}")
+            && parse_numbered(name, &prefix, &cfg.settings.image_extensions).is_some()
+        {
+            if let Some(hash) = &inc.hash {
+                hashes.insert(hash.clone(), library_path.to_string());
+            }
+        }
+    }
+
     for inc in incoming {
         let name = file_name(&inc.path);
         let decision = classify(name, cfg);
+        let exact_library_path = inc.library_path.as_deref().unwrap_or(&inc.path);
         if decision.dest == Dest::Ignore {
-            actions.push(Action::Ignore { path: inc.path.clone() });
+            actions.push(Action::Ignore {
+                path: inc.path.clone(),
+            });
             continue;
         }
 
         // Duplicates are checked before matching: a copy of anything we already hold goes to Duplicates.
         if let Some(original) = inc.hash.as_ref().and_then(|h| hashes.get(h)).cloned() {
-            let in_dups = folders.entry(dup_folder.clone()).or_default();
-            let unique = unique_name(in_dups, name);
-            in_dups.push(unique.clone());
-            actions.push(Action::ToDuplicates {
-                from: inc.path.clone(),
-                to: format!("{dup_folder}/{unique}"),
-                duplicate_of: original,
-            });
-            continue;
+            if exact_library_path != original {
+                let in_dups = folders.entry(dup_folder.clone()).or_default();
+                let unique = unique_name(in_dups, name);
+                in_dups.push(unique.clone());
+                actions.push(Action::ToDuplicates {
+                    from: inc.path.clone(),
+                    to: format!("{dup_folder}/{unique}"),
+                    duplicate_of: original,
+                });
+                continue;
+            }
         }
 
         let decision = match &opts.forced_dest {
-            Some(f) => Decision { dest: Dest::Folder(f.clone()), rule: Rule::Assigned, matched: vec![], ignored: String::new() },
+            Some(f) => Decision {
+                dest: Dest::Folder(f.clone()),
+                rule: Rule::Assigned,
+                matched: vec![],
+                ignored: String::new(),
+            },
             None => decision,
         };
 
@@ -143,7 +204,10 @@ pub fn build_plan_with(cfg: &Config, library: &Library, incoming: &[Incoming], o
                 } else {
                     LeaveReason::NoMatch
                 };
-                actions.push(Action::Leave { path: inc.path.clone(), reason });
+                actions.push(Action::Leave {
+                    path: inc.path.clone(),
+                    reason,
+                });
             }
             Dest::Folder(dest) => {
                 // Extension exactly as saved (classify already checked that there is one).
@@ -155,17 +219,26 @@ pub fn build_plan_with(cfg: &Config, library: &Library, incoming: &[Incoming], o
                 // already in its destination and already has this folder's numbered name is
                 // a reserved number, not an arrival: leave it in `files` and do not plan a
                 // move.  The path suffix also covers the absolute paths supplied by engine.
-                if (inc.path == destination || inc.path.ends_with(&format!("/{destination}")))
+                if exact_library_path == destination
                     && files.iter().any(|file| file == name)
                     && parse_numbered(name, &prefix, &cfg.settings.image_extensions).is_some()
                 {
-                    actions.push(Action::Ignore { path: inc.path.clone() });
+                    actions.push(Action::Ignore {
+                        path: inc.path.clone(),
+                    });
                     continue;
                 }
-                match plan_new_file(files, &prefix, ext, cfg.settings.gap_mode, &cfg.settings.image_extensions) {
+                match plan_new_file(
+                    files,
+                    &prefix,
+                    ext,
+                    cfg.settings.gap_mode,
+                    &cfg.settings.image_extensions,
+                ) {
                     Ok(p) => {
                         for r in &p.renames {
-                            let (old, new) = (format!("{dest}/{}", r.from), format!("{dest}/{}", r.to));
+                            let (old, new) =
+                                (format!("{dest}/{}", r.from), format!("{dest}/{}", r.to));
                             for v in hashes.values_mut() {
                                 if *v == old {
                                     *v = new.clone();

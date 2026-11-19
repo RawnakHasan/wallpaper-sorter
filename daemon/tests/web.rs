@@ -726,6 +726,7 @@ fn re_sort_previews_then_applies_a_folder_as_one_batch() {
                 .unwrap()
                 .ends_with("Wuthering-Waves/Chisa/Chisa 1.png")
     }));
+    assert_eq!(whole["changes"], 1);
 }
 
 #[test]
@@ -1056,4 +1057,16 @@ fn the_page_and_its_files_are_served_with_a_strict_policy() {
     assert_eq!(&e.get("/fonts/hanken-grotesk.woff2").body[..4], b"wOF2");
     assert_eq!(e.get("/fonts/other.woff2").status, 404);
     assert_eq!(e.get("/api/status").json()["activity_last_id"], 0);
+}
+
+#[test]
+fn re_sort_stays_report_zero_changes() {
+    let e = setup(|lib, _| put(&lib.join("Nature/Nature 1.png"), "nature"));
+    let preview = e.get("/api/resort").json();
+    assert_eq!(preview["changes"], 0);
+    assert!(preview["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item["kind"] == "stay"));
 }

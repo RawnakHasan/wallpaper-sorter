@@ -30,8 +30,10 @@ struct Case {
 #[test]
 fn plan_cases_toml() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../spec");
-    let base = Config::from_toml(&std::fs::read_to_string(dir.join("tags.starter.toml")).unwrap()).unwrap();
-    let cases: Cases = toml::from_str(&std::fs::read_to_string(dir.join("plan_cases.toml")).unwrap()).unwrap();
+    let base = Config::from_toml(&std::fs::read_to_string(dir.join("tags.starter.toml")).unwrap())
+        .unwrap();
+    let cases: Cases =
+        toml::from_str(&std::fs::read_to_string(dir.join("plan_cases.toml")).unwrap()).unwrap();
 
     let mut bad = Vec::new();
     for c in &cases.case {
@@ -39,18 +41,40 @@ fn plan_cases_toml() {
         if let Some(m) = c.gap_mode {
             cfg.settings.gap_mode = m;
         }
-        let library = Library { folders: c.library.clone(), hashes: c.hashes.clone() };
+        let library = Library {
+            folders: c.library.clone(),
+            hashes: c.hashes.clone(),
+        };
         let incoming: Vec<Incoming> = c
             .incoming
             .iter()
-            .map(|p| Incoming { path: p.clone(), hash: c.incoming_hashes.get(p).cloned() })
+            .map(|p| Incoming {
+                path: p.clone(),
+                library_path: None,
+                hash: c.incoming_hashes.get(p).cloned(),
+            })
             .collect();
-        let opts = PlanOptions { forced_dest: c.assign_to.clone() };
+        let opts = PlanOptions {
+            forced_dest: c.assign_to.clone(),
+        };
         let got = build_plan_with(&cfg, &library, &incoming, &opts).describe();
         if got != c.expect {
-            bad.push(format!("{}\n   want {:#?}\n   got  {:#?}", c.name, c.expect, got));
+            bad.push(format!(
+                "{}\n   want {:#?}\n   got  {:#?}",
+                c.name, c.expect, got
+            ));
         }
     }
-    assert!(cases.case.len() >= 27, "expected at least 20 cases, found {}", cases.case.len());
-    assert!(bad.is_empty(), "{} of {} cases differ:\n{}", bad.len(), cases.case.len(), bad.join("\n"));
+    assert!(
+        cases.case.len() >= 27,
+        "expected at least 20 cases, found {}",
+        cases.case.len()
+    );
+    assert!(
+        bad.is_empty(),
+        "{} of {} cases differ:\n{}",
+        bad.len(),
+        cases.case.len(),
+        bad.join("\n")
+    );
 }

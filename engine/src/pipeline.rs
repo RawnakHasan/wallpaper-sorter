@@ -8,7 +8,9 @@ use crate::origins::{Origin, OriginStore};
 use crate::scan::library_snapshot;
 use crate::undo::{undo_batch, undo_entry, UndoError};
 use crate::util::unix_now;
-use sorter_core::{build_plan_with, classify, parse_source, Config, Dest, Incoming, Plan, PlanOptions};
+use sorter_core::{
+    build_plan_with, classify, parse_source, Config, Dest, Incoming, Plan, PlanOptions,
+};
 use std::collections::{BTreeSet, HashMap};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -36,11 +38,15 @@ pub(crate) struct FileMeta {
 }
 
 pub(crate) fn name_of(p: &Path) -> String {
-    p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+    p.file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default()
 }
 
 pub(crate) fn dims_of(p: &Path) -> (u32, u32) {
-    imagesize::size(p).map(|s| (s.width as u32, s.height as u32)).unwrap_or((0, 0))
+    imagesize::size(p)
+        .map(|s| (s.width as u32, s.height as u32))
+        .unwrap_or((0, 0))
 }
 
 impl Pipeline {
@@ -65,7 +71,9 @@ impl Pipeline {
     /// vanished ones forgotten, files without a record get one, and a record whose file moved (for example
     /// by hand in the file manager) follows it, because the content hash is the identity.
     pub fn reconcile(&mut self) -> io::Result<RefreshStats> {
-        let stats = self.index.refresh(&self.root, &self.cfg.settings.image_extensions)?;
+        let stats = self
+            .index
+            .refresh(&self.root, &self.cfg.settings.image_extensions)?;
         self.last_refresh = stats;
         let dup_prefix = format!("{}/", self.cfg.settings.duplicates_folder);
         let now = unix_now();
@@ -97,7 +105,11 @@ impl Pipeline {
             if paths.is_empty() || paths.iter().any(|p| *p == o.path) {
                 continue;
             }
-            let best = paths.iter().find(|p| !p.starts_with(&dup_prefix)).or(paths.first()).map(|p| p.to_string());
+            let best = paths
+                .iter()
+                .find(|p| !p.starts_with(&dup_prefix))
+                .or(paths.first())
+                .map(|p| p.to_string());
             if let Some(best) = best {
                 self.origins.set_path_for_hash(&o.hash, &best);
             }
@@ -118,11 +130,24 @@ impl Pipeline {
             let mut hash = None;
             if classify(&name, &self.cfg).dest != Dest::Ignore {
                 if let Some(h) = self.hash_of(f) {
-                    meta.insert(path.clone(), FileMeta { hash: h.clone(), name, parent, dims: dims_of(f) });
+                    meta.insert(
+                        path.clone(),
+                        FileMeta {
+                            hash: h.clone(),
+                            name,
+                            parent,
+                            dims: dims_of(f),
+                        },
+                    );
                     hash = Some(h);
                 }
             }
-            incoming.push(Incoming { path, hash });
+            let library_path = rel_inside(&self.root, f);
+            incoming.push(Incoming {
+                path,
+                library_path,
+                hash,
+            });
         }
         (meta, incoming)
     }
@@ -138,13 +163,22 @@ impl Pipeline {
         hash_file(f).ok()
     }
 
-    pub(crate) fn prepare_with(&self, files: &[PathBuf], opts: &PlanOptions) -> io::Result<(HashMap<String, FileMeta>, Plan)> {
+    pub(crate) fn prepare_with(
+        &self,
+        files: &[PathBuf],
+        opts: &PlanOptions,
+    ) -> io::Result<(HashMap<String, FileMeta>, Plan)> {
         let (meta, incoming) = self.meta_for(files);
         let mut library = library_snapshot(&self.root)?;
         // Files that are already inside the library (loose ones in the root, or ones being moved) are being looked
         // at again: they must not count as the original of themselves.
-        let own: BTreeSet<String> = files.iter().filter_map(|f| rel_inside(&self.root, f)).collect();
-        library.hashes = self.index.library_hashes_except(&self.cfg.settings.duplicates_folder, &own);
+        let own: BTreeSet<String> = files
+            .iter()
+            .filter_map(|f| rel_inside(&self.root, f))
+            .collect();
+        library.hashes = self
+            .index
+            .library_hashes_except(&self.cfg.settings.duplicates_folder, &own);
         Ok((meta, build_plan_with(&self.cfg, &library, &incoming, opts)))
     }
 
@@ -158,13 +192,21 @@ impl Pipeline {
         self.process_with(files, &PlanOptions::default())
     }
 
-    pub(crate) fn process_with(&mut self, files: &[PathBuf], opts: &PlanOptions) -> io::Result<Outcome> {
+    pub(crate) fn process_with(
+        &mut self,
+        files: &[PathBuf],
+        opts: &PlanOptions,
+    ) -> io::Result<Outcome> {
         let (meta, plan) = self.prepare_with(files, opts)?;
         self.run_plan(plan, meta)
     }
 
     /// Applies a plan and brings the index and the records up to date.
-    pub(crate) fn run_plan(&mut self, plan: Plan, meta: HashMap<String, FileMeta>) -> io::Result<Outcome> {
+    pub(crate) fn run_plan(
+        &mut self,
+        plan: Plan,
+        meta: HashMap<String, FileMeta>,
+    ) -> io::Result<Outcome> {
         let report = apply(&plan, &self.root, &mut self.log);
         self.record(&report, &meta)?;
         Ok(Outcome { plan, report })
@@ -172,11 +214,20 @@ impl Pipeline {
 
     fn index_file(&mut self, rel: &str, abs: &Path, hash: &str) {
         if let Ok((size, mtime_ns)) = file_stat(abs) {
-            self.index.insert(IndexEntry { path: rel.to_string(), size, mtime_ns, hash: hash.to_string() });
+            self.index.insert(IndexEntry {
+                path: rel.to_string(),
+                size,
+                mtime_ns,
+                hash: hash.to_string(),
+            });
         }
     }
 
-    pub(crate) fn record(&mut self, report: &Report, meta: &HashMap<String, FileMeta>) -> io::Result<()> {
+    pub(crate) fn record(
+        &mut self,
+        report: &Report,
+        meta: &HashMap<String, FileMeta>,
+    ) -> io::Result<()> {
         let now = unix_now();
 
         // Files that were left where they are still get a record (and an index entry if they are in the library).
@@ -259,7 +310,8 @@ impl Pipeline {
                     if let Some(to_rel) = rel_inside(&self.root, &to_abs) {
                         self.index_file(&to_rel, &to_abs, &m.hash);
                     }
-                    self.origins.add_source(&m.hash, parse_source(&m.name, &m.parent));
+                    self.origins
+                        .add_source(&m.hash, parse_source(&m.name, &m.parent));
                 }
                 Kind::Undo => {}
             }

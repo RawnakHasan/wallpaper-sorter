@@ -795,7 +795,7 @@ fn resort_json(plan: &Plan) -> Value {
         .collect();
     let changes = items
         .iter()
-        .filter(|item| item["kind"] != "leave" && item["kind"] != "ignore")
+        .filter(|item| matches!(item["kind"].as_str(), Some("move" | "rename" | "duplicate")))
         .count();
     json!({ "items": items, "changes": changes })
 }

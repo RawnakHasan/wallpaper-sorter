@@ -249,11 +249,22 @@ fn whole_library_resort_matches_the_real_tree_and_is_idempotent() {
     let spec = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../spec");
     let mut folder = String::new();
     let mut tree = Vec::new();
-    for line in fs::read_to_string(spec.join("tree_images.txt")).unwrap().lines() {
+    for line in fs::read_to_string(spec.join("tree_images.txt"))
+        .unwrap()
+        .lines()
+    {
         if let Some(name) = line.strip_prefix("## ") {
-            folder = if name == "(root)" { String::new() } else { name.to_string() };
+            folder = if name == "(root)" {
+                String::new()
+            } else {
+                name.to_string()
+            };
         } else if !line.is_empty() {
-            let rel = if folder.is_empty() { line.to_string() } else { format!("{folder}/{line}") };
+            let rel = if folder.is_empty() {
+                line.to_string()
+            } else {
+                format!("{folder}/{line}")
+            };
             tree.push(rel);
         }
     }
@@ -268,7 +279,11 @@ fn whole_library_resort_matches_the_real_tree_and_is_idempotent() {
         .filter_map(|line| {
             let columns: Vec<_> = line.split(',').collect();
             (columns.len() >= 6 && columns[0] == "real").then(|| {
-                let folder = if columns[2] == "(root)" { "" } else { columns[2] };
+                let folder = if columns[2] == "(root)" {
+                    ""
+                } else {
+                    columns[2]
+                };
                 let rel = if folder.is_empty() {
                     columns[1].to_string()
                 } else {
@@ -278,21 +293,33 @@ fn whole_library_resort_matches_the_real_tree_and_is_idempotent() {
             })
         })
         .collect();
-    assert_eq!(rows.len(), tree.len(), "every tree image has a real spec row");
+    assert_eq!(
+        rows.len(),
+        tree.len(),
+        "every tree image has a real spec row"
+    );
 
     let mut p = Pipeline::open(&d.lib, d.cfg()).unwrap();
     let preview = p.resort_preview(None).unwrap();
     for (source, expected_dest, status) in &rows {
-        let action = preview.actions.iter().find(|action| match action {
-            sorter_core::Action::Move { from, .. }
-            | sorter_core::Action::Rename { from, .. }
-            | sorter_core::Action::ToDuplicates { from, .. } => {
-                Path::new(from).strip_prefix(&d.lib).ok().is_some_and(|p| p == Path::new(source))
-            }
-            sorter_core::Action::Leave { path, .. } | sorter_core::Action::Ignore { path } => {
-                Path::new(path).strip_prefix(&d.lib).ok().is_some_and(|p| p == Path::new(source))
-            }
-        }).unwrap_or_else(|| panic!("no action for {source}"));
+        let action = preview
+            .actions
+            .iter()
+            .find(|action| match action {
+                sorter_core::Action::Move { from, .. }
+                | sorter_core::Action::Rename { from, .. }
+                | sorter_core::Action::ToDuplicates { from, .. } => Path::new(from)
+                    .strip_prefix(&d.lib)
+                    .ok()
+                    .is_some_and(|p| p == Path::new(source)),
+                sorter_core::Action::Leave { path, .. } | sorter_core::Action::Ignore { path } => {
+                    Path::new(path)
+                        .strip_prefix(&d.lib)
+                        .ok()
+                        .is_some_and(|p| p == Path::new(source))
+                }
+            })
+            .unwrap_or_else(|| panic!("no action for {source}"));
         match status.as_str() {
             "would-sort" | "agrees" => assert!(
                 matches!(action, sorter_core::Action::Move { to, .. }
@@ -310,10 +337,14 @@ fn whole_library_resort_matches_the_real_tree_and_is_idempotent() {
     let out = p.resort(None).unwrap();
     assert!(out.report.error.is_none(), "{:#?}", out.report.error);
     let second = p.resort_preview(None).unwrap();
-    assert!(second.actions.iter().all(|action| matches!(
-        action,
-        sorter_core::Action::Leave { .. } | sorter_core::Action::Ignore { .. }
-    )), "second preview has changes: {:#?}", second.actions);
+    assert!(
+        second.actions.iter().all(|action| matches!(
+            action,
+            sorter_core::Action::Leave { .. } | sorter_core::Action::Ignore { .. }
+        )),
+        "second preview has changes: {:#?}",
+        second.actions
+    );
 }
 
 #[test]
@@ -520,4 +551,44 @@ fn a_record_can_be_given_a_source_by_hand() {
         Site::Wallhaven,
         "saved to disk"
     );
+}
+
+#[test]
+fn re_sort_keeps_the_numbered_original_when_an_identical_loose_copy_is_present() {
+    let d = Dirs::new();
+    put(&d.lib.join("Wuthering-Waves/Chisa/Chisa 1.png"), "same");
+    put(&d.lib.join("Archive/Chisa loose.png"), "same");
+
+    let mut p = Pipeline::open(&d.lib, d.cfg()).unwrap();
+    let preview = p.resort_preview(None).unwrap();
+
+    assert!(preview.actions.iter().any(|a| matches!(
+        a,
+        sorter_core::Action::Ignore { path } if path.ends_with("Wuthering-Waves/Chisa/Chisa 1.png")
+    )));
+    assert!(preview.actions.iter().any(|a| matches!(
+        a,
+        sorter_core::Action::ToDuplicates { from, duplicate_of, .. }
+        if from.ends_with("Archive/Chisa loose.png")
+            && duplicate_of == "Wuthering-Waves/Chisa/Chisa 1.png"
+    )));
+}
+
+#[test]
+fn re_sort_does_not_treat_a_nested_tail_as_in_place() {
+    let d = Dirs::new();
+    put(
+        &d.lib.join("Series/Wuthering-Waves/Chisa/Chisa 1.png"),
+        "nested",
+    );
+
+    let mut p = Pipeline::open(&d.lib, d.cfg()).unwrap();
+    let preview = p.resort_preview(None).unwrap();
+
+    assert!(preview.actions.iter().any(|a| matches!(
+        a,
+        sorter_core::Action::Move { from, to, .. }
+        if from.ends_with("Series/Wuthering-Waves/Chisa/Chisa 1.png")
+            && to == "Wuthering-Waves/Chisa/Chisa 1.png"
+    )));
 }
