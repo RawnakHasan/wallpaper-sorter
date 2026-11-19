@@ -74,7 +74,10 @@
     if (!hash) return h('span');
     const img = h('img', { src: `/api/thumb/${hash}`, alt: alt || '', loading: 'lazy', decoding: 'async' });
     img.addEventListener('load', () => img.classList.add('loaded'));
-    img.addEventListener('error', () => img.classList.add('broken'));
+    img.addEventListener('error', () => {
+      const ext = (alt || '').includes('.') ? alt.split('.').pop().toUpperCase() : 'IMAGE';
+      img.replaceWith(h('span', { class: 'thumb-placeholder', text: ext }));
+    });
     return img;
   };
   const ICONS = {

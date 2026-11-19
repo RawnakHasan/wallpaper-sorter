@@ -147,6 +147,7 @@ impl From<io::Error> for ApiError {
             io::ErrorKind::NotFound => 404,
             io::ErrorKind::AlreadyExists => 409,
             io::ErrorKind::WouldBlock => 503,
+            io::ErrorKind::Unsupported => 415,
             _ => 500,
         };
         if status == 503 {

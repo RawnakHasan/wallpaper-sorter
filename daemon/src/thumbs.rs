@@ -86,9 +86,51 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::WouldBlock);
         let _ = fs::remove_dir_all(&temp);
     }
+
+    #[test]
+    fn gif_and_bmp_formats_draw_and_avif_is_unsupported() {
+        let temp =
+            std::env::temp_dir().join(format!("sorter-thumbs-formats-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        fs::create_dir_all(&temp).unwrap();
+        let image = image::RgbImage::from_fn(40, 20, |x, y| image::Rgb([x as u8, y as u8, 100]));
+
+        let gif = temp.join("image.gif");
+        image.save(&gif).unwrap();
+        let bmp = temp.join("image.bmp");
+        image.save(&bmp).unwrap();
+
+        let gif_bytes = Thumbs::new(temp.join("cache-gif"))
+            .get(&"2".repeat(64), &gif)
+            .unwrap();
+        let bmp_bytes = Thumbs::new(temp.join("cache-bmp"))
+            .get(&"3".repeat(64), &bmp)
+            .unwrap();
+        assert!(gif_bytes.starts_with(&[0xff, 0xd8]));
+        assert!(bmp_bytes.starts_with(&[0xff, 0xd8]));
+
+        let avif = temp.join("image.avif");
+        fs::write(&avif, b"not real avif bytes").unwrap();
+        let err = Thumbs::new(temp.join("cache-avif"))
+            .get(&"4".repeat(64), &avif)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::Unsupported);
+
+        let _ = fs::remove_dir_all(&temp);
+    }
 }
 
 fn draw(source: &Path) -> io::Result<Vec<u8>> {
+    if source
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("avif"))
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "AVIF thumbnails are not supported yet",
+        ));
+    }
     let bad = |e: String| io::Error::new(io::ErrorKind::InvalidData, e);
     let img = image::ImageReader::open(source)?
         .with_guessed_format()?
