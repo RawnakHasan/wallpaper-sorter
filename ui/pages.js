@@ -48,7 +48,7 @@
       const el = h(
         'div',
         { class: 'cell' + (on ? ' sel' : ''), role: 'listitem', tabindex: '0', 'aria-pressed': String(on), 'aria-label': it.name, dataset: { key: it.key } },
-        WS.thumb(it.hash, ''),
+        WS.thumb(it.hash, it.name),
         it.label ? h('span', { class: 'label ' + (it.labelClass || ''), title: it.title || '', text: it.label }) : null,
         h('span', { class: 'check', text: '✓' }),
         h('button', { class: 'open', type: 'button', 'aria-label': `Details of ${it.name}`, title: 'Details', onclick: (e) => { e.stopPropagation(); it.onOpen(); } }, WS.icon('info')),

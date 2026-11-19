@@ -356,6 +356,7 @@ test('library: browse a folder and close the gaps', () =>
     async (ui, s) => {
       await waitFor(() => ui.qa('.cell').length === 3, 'three images');
       assert.equal(ui.q('.more').textContent, '', 'no literal null after the final image chunk');
+      assert.equal(ui.q('.cell img').alt, 'Chisa 1.png');
       const details = ui.q('.cell .open');
       assert.match(details.getAttribute('aria-label'), /^Details of /);
       assert.ok(details.querySelector('svg[aria-hidden="true"]'), 'details uses an accessible icon button');
@@ -375,6 +376,40 @@ test('library: browse a folder and close the gaps', () =>
       const names = (await api(s, 'GET', '/api/images?folder=Wuthering-Waves/Chisa')).map((i) => i.name);
       assert.deepEqual(names, ['Chisa 1.png', 'Chisa 2.png', 'Chisa 3.png']);
       await waitFor(() => !ui.byText('button', 'Close gaps'), 'the button to go once there are no gaps');
+    }
+  ));
+
+test('thumbnail loading retries busy responses and labels unsupported formats', () =>
+  withSorter(
+    () => {},
+    '',
+    async (ui) => {
+      let requests = 0;
+      let unsupported = false;
+      const revoked = [];
+      ui.w.URL.createObjectURL = () => 'blob:thumbnail';
+      ui.w.URL.revokeObjectURL = (url) => revoked.push(url);
+      ui.w.fetch = async () => {
+        requests++;
+        if (unsupported) return new Response('', { status: 415 });
+        if (requests === 1) return new Response('', { status: 503, headers: { 'Retry-After': '0' } });
+        return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { 'Content-Type': 'image/jpeg' } });
+      };
+
+      const retrying = ui.w.WS.thumb('a'.repeat(64), 'Chisa 6.jpg');
+      ui.d.body.append(retrying);
+      retrying.dispatchEvent(new ui.w.Event('error'));
+      await waitFor(() => retrying.src === 'blob:thumbnail', 'thumbnail retry after a busy response');
+      assert.equal(requests, 2);
+      retrying.dispatchEvent(new ui.w.Event('load'));
+      assert.deepEqual(revoked, ['blob:thumbnail']);
+
+      unsupported = true;
+      const failed = ui.w.WS.thumb('b'.repeat(64), 'wallpaper.avif');
+      ui.d.body.append(failed);
+      failed.dispatchEvent(new ui.w.Event('error'));
+      await waitFor(() => ui.q('.thumb-placeholder'), 'unsupported format placeholder');
+      assert.equal(ui.q('.thumb-placeholder').textContent, 'AVIF');
     }
   ));
 

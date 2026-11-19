@@ -72,11 +72,70 @@
   // ---------- small components
   WS.thumb = function thumb(hash, alt) {
     if (!hash) return h('span');
-    const img = h('img', { src: `/api/thumb/${hash}`, alt: alt || '', loading: 'lazy', decoding: 'async' });
-    img.addEventListener('load', () => img.classList.add('loaded'));
-    img.addEventListener('error', () => {
+    const src = `/api/thumb/${hash}`;
+    const img = h('img', { src, alt: alt || '', loading: 'lazy', decoding: 'async' });
+    let retrying = false;
+    let objectUrl = null;
+    const placeholder = () => {
+      if (!img.isConnected) return;
       const ext = (alt || '').includes('.') ? alt.split('.').pop().toUpperCase() : 'IMAGE';
       img.replaceWith(h('span', { class: 'thumb-placeholder', text: ext }));
+    };
+    img.addEventListener('load', () => {
+      img.classList.add('loaded');
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+    });
+    img.addEventListener('error', () => {
+      if (retrying) {
+        placeholder();
+        return;
+      }
+      retrying = true;
+      const retry = async () => {
+        while (img.isConnected) {
+          let response;
+          try {
+            response = await fetch(src);
+          } catch {
+            placeholder();
+            return;
+          }
+          if (response.status !== 503) {
+            if (!response.ok) {
+              placeholder();
+              return;
+            }
+            try {
+              objectUrl = URL.createObjectURL(await response.blob());
+            } catch {
+              placeholder();
+              return;
+            }
+            if (!img.isConnected) {
+              URL.revokeObjectURL(objectUrl);
+              objectUrl = null;
+              return;
+            }
+            img.src = objectUrl;
+            return;
+          }
+          const retryAfter = response.headers.get('Retry-After');
+          let delay = 1000;
+          if (retryAfter) {
+            const seconds = Number(retryAfter);
+            if (Number.isFinite(seconds)) delay = seconds * 1000;
+            else {
+              const retryAt = Date.parse(retryAfter);
+              if (Number.isFinite(retryAt)) delay = retryAt - Date.now();
+            }
+          }
+          await new Promise((resolve) => setTimeout(resolve, Math.max(0, delay)));
+        }
+      };
+      retry();
     });
     return img;
   };
