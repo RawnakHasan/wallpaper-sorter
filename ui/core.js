@@ -73,13 +73,13 @@
   WS.thumb = function thumb(hash, alt) {
     if (!hash) return h('span');
     const src = `/api/thumb/${hash}`;
-    const img = h('img', { src, alt: alt || '', loading: 'lazy', decoding: 'async' });
+    const img = h('img', { src, alt: alt || '', loading: 'lazy', decoding: 'async', dataset: { thumbHash: hash } });
     let retrying = false;
     let objectUrl = null;
     const placeholder = () => {
       if (!img.isConnected) return;
       const ext = (alt || '').includes('.') ? alt.split('.').pop().toUpperCase() : 'IMAGE';
-      img.replaceWith(h('span', { class: 'thumb-placeholder', text: ext }));
+      img.replaceWith(h('span', { class: 'thumb-placeholder', text: ext, dataset: { thumbHash: hash, thumbName: alt || '' } }));
     };
     img.addEventListener('load', () => {
       img.classList.add('loaded');
@@ -138,6 +138,19 @@
       retry();
     });
     return img;
+  };
+  WS.rebuildThumbnail = async function rebuildThumbnail(hash) {
+    await WS.post(`/api/thumb/${hash}/refresh`, {});
+    const src = `/api/thumb/${hash}?v=${Date.now()}`;
+    for (const thumb of document.querySelectorAll('[data-thumb-hash]')) {
+      if (thumb.dataset.thumbHash !== hash) continue;
+      if (thumb.tagName === 'IMG') thumb.src = src;
+      else {
+        const img = WS.thumb(hash, thumb.dataset.thumbName || '');
+        thumb.replaceWith(img);
+        img.src = src;
+      }
+    }
   };
   const ICONS = {
     close: ['M18 6 6 18', 'm6 6 12 12'],

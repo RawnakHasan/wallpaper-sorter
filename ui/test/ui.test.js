@@ -379,6 +379,35 @@ test('library: browse a folder and close the gaps', () =>
     }
   ));
 
+test('thumbnails can be rebuilt from details or the selection toolbar', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Nature/Nature 1.png'));
+      put(path.join(lib, 'Nature/Nature 2.png'));
+    },
+    '#/library?folder=Nature',
+    async (ui, s) => {
+      await waitFor(() => ui.qa('.cell').length === 2, 'two library images');
+      const images = await api(s, 'GET', '/api/images?folder=Nature');
+      ui.click(ui.qa('.cell')[0]);
+      ui.click(ui.qa('.cell')[1]);
+      ui.click(ui.byText('button', 'Rebuild thumbnails'));
+      await waitFor(() => ui.toast().includes('Rebuilt 2 thumbnails'), 'selected thumbnail rebuild');
+      for (const image of images) {
+        assert.ok(fs.existsSync(path.join(s.base, 'cache/wallpaper-sorter/thumbs', `${image.hash}.jpg`)));
+      }
+
+      const cache = path.join(s.base, 'cache/wallpaper-sorter/thumbs', `${images[0].hash}.jpg`);
+      fs.writeFileSync(cache, 'stale thumbnail');
+      ui.click(ui.q('.cell .open'));
+      const sheet = await waitFor(() => ui.q('.sheet'), 'image details');
+      ui.click(ui.byText('footer button', 'Rebuild thumbnail', sheet));
+      await waitFor(() => ui.toast().includes('Rebuilt 1 thumbnail'), 'details thumbnail rebuild');
+      assert.deepEqual(fs.readFileSync(cache).subarray(0, 2), Buffer.from([0xff, 0xd8]));
+      assert.match(ui.q('.cell img').getAttribute('src'), /\?v=/);
+    }
+  ));
+
 test('thumbnail loading retries busy responses and labels unsupported formats', () =>
   withSorter(
     () => {},

@@ -612,6 +612,17 @@ fn thumbnails_are_cached_by_hash_and_survive_a_move() {
     assert_eq!((img.width(), img.height()), (400, 200));
     assert!(e.thumbs.join(format!("{hash}.jpg")).exists());
 
+    fs::write(e.thumbs.join(format!("{hash}.jpg")), b"stale thumbnail").unwrap();
+    let refreshed = e.send("POST", &format!("/api/thumb/{hash}/refresh"), json!({}));
+    assert_eq!(
+        refreshed.status,
+        200,
+        "{}",
+        String::from_utf8_lossy(&refreshed.body)
+    );
+    let r = e.get(&format!("/api/thumb/{hash}"));
+    assert_eq!(&r.body[..2], &[0xFF, 0xD8]);
+
     // move the image: same hash, so the cached thumbnail is reused, nothing new is drawn
     let r = e.send(
         "POST",
@@ -630,6 +641,11 @@ fn thumbnails_are_cached_by_hash_and_survive_a_move() {
     assert_eq!(&full.body[..4], b"\x89PNG");
     assert_eq!(e.get("/api/thumb/not-a-hash").status, 400);
     assert_eq!(e.get(&format!("/api/thumb/{}", "0".repeat(64))).status, 404);
+    assert_eq!(
+        e.send("POST", "/api/thumb/not-a-hash/refresh", json!({}))
+            .status,
+        400
+    );
 }
 
 #[test]

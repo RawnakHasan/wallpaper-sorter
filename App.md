@@ -164,7 +164,7 @@ Runs at `http://127.0.0.1:8421/` (`--port N` or `[server] port` changes it, `--n
 | Overview | Counts (Inbox, library images, Duplicates, records), the last 8 actions with Undo, watched folders, a Re-sort link. |
 | Inbox | Thumbnail grid of waiting images with the reason (No match, Conflict, Ready). Filter by reason and by intake folder. Click or shift-click to select, Ctrl+A for all, Esc to clear, `a` to assign, Delete to delete. Details sheet shows the full image and its origin link. |
 | Assign sheet | Folder picker with type-ahead and recent folders, a live preview of the new name, and an optional "Also save a tag" with keyword suggestions from the filename. Shows an Undo toast afterwards. |
-| Library | Folder tree, breadcrumbs, facts (prefix, next number, image count, gaps, counts per source), image grid in number order. New folder, Manage folder (rename, merge, prefix, each with a preview), Close gaps. The grid shows 240 at a time with a "show more" button. |
+| Library | Folder tree, breadcrumbs, facts (prefix, next number, image count, gaps, counts per source), image grid in number order. New folder, Manage folder (rename, merge, prefix, each with a preview), Close gaps. Rebuild thumbnails from an image's details or the selection toolbar. The grid shows 240 at a time with a "show more" button. |
 | Tags | Tags grouped by destination folder, add/edit/delete, and a filename tester showing the words, the rule, the folder and the new name. |
 | Duplicates | List with what each one duplicates, Restore as a new numbered image, Delete, Empty Duplicates folder (to trash). |
 | Data | Origin records table with search, site filter, folder filter, "Unknown source" filter, 50 per page. Set a source by hand. |
@@ -253,7 +253,7 @@ JSON over HTTP on 127.0.0.1 only. Security: the `Host` header must match, anythi
 | `PUT /api/origins` | Set a source by hand |
 | `GET/PUT /api/settings` | Settings (`gap_mode`, `setup_complete`) |
 | `POST /api/rescan` | Look at all folders again |
-| `GET /api/thumb/<hash>`, `GET /api/image/<hash>` | Thumbnail (400 px JPEG, cached by hash) and full image |
+| `GET /api/thumb/<hash>`, `POST /api/thumb/<hash>/refresh`, `GET /api/image/<hash>` | Thumbnail (400 px JPEG, cached by hash), regenerate a thumbnail, and full image |
 | `POST /api/duplicates/restore` | Restore selected duplicates into a destination folder while bypassing duplicate detection once |
 
 ---

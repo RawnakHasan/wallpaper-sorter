@@ -13,6 +13,27 @@
     return h('div', { class: 'page' }, h('div', { class: 'page-head' }, h('h1', { text: title }), sub ? h('span', { class: 'sub', text: sub }) : null, h('span', { class: 'spacer' }), actions || null), ...kids);
   }
 
+  async function rebuildThumbnails(hashes) {
+    const unique = [...new Set(hashes.filter(Boolean))];
+    if (!unique.length) {
+      WS.toast('No thumbnails available to rebuild', { error: true });
+      return;
+    }
+    WS.toast(`Rebuilding ${WS.plural(unique.length, 'thumbnail')}…`);
+    let done = 0;
+    const errors = [];
+    for (const hash of unique) {
+      try {
+        await WS.rebuildThumbnail(hash);
+        done++;
+      } catch (e) {
+        errors.push(e.message);
+      }
+    }
+    if (errors.length) WS.toast(`Rebuilt ${done} of ${unique.length}; ${errors.length} failed: ${errors[0]}`, { error: true });
+    else WS.toast(`Rebuilt ${WS.plural(done, 'thumbnail')}`);
+  }
+
   // ---------- image grid with selection (used by the Inbox and the Library)
   // items: [{ key, hash, name, sub, label, labelClass, title, onOpen }]
   function imageGrid(items, bar) {
@@ -233,6 +254,7 @@
 
     const content = h('div', {}, d.hash ? h('img', { class: 'preview', src: `/api/image/${d.hash}`, alt: d.name }) : null, kv, sources, d.extra || null);
     const footer = [];
+    if (d.hash) footer.push(h('button', { class: 'btn', text: 'Rebuild thumbnail', onclick: () => rebuildThumbnails([d.hash]) }));
     if (d.onAssign) footer.push(h('button', { class: 'btn primary', text: d.assignText || 'Assign…', onclick: () => { WS.closeLayer(); d.onAssign(); } }));
     if (d.onDelete) footer.push(h('button', { class: 'btn danger', text: 'Delete', onclick: () => { WS.closeLayer(); d.onDelete(); } }));
     WS.openSheet(d.name, content, footer.length ? footer : null);
@@ -410,6 +432,7 @@
     const bar = selectionBar(
       [
         { text: 'Assign to folder…', cls: 'primary', run: () => openAssign({ files: selected().map((i) => ({ path: i.path, name: i.name })), withTag: true }) },
+        { text: 'Rebuild thumbnails', run: () => rebuildThumbnails(selected().map((i) => i.origin && i.origin.hash)) },
         { text: 'Delete', cls: 'danger', run: () => deleteFiles(selected().map((i) => i.path), WS.plural(selected().length, 'image')) },
       ],
       () => items.map((i) => i.path)
@@ -467,6 +490,7 @@
     const bar = selectionBar(
       [
         { text: 'Move to folder…', cls: 'primary', run: () => openAssign({ files: selected().map((i) => ({ path: i.path, name: i.name })), title: 'Move to folder', verb: 'Move' }) },
+        { text: 'Rebuild thumbnails', run: () => rebuildThumbnails(selected().map((i) => i.hash)) },
         { text: 'Delete', cls: 'danger', run: () => deleteFiles(selected().map((i) => i.path), WS.plural(selected().length, 'image')) },
       ],
       () => images.map((i) => i.path)

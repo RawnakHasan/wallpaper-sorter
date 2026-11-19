@@ -30,12 +30,12 @@ about each image's origin, the activity log with undo, and settings.
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. HTTP and thumbnail tests pass. |
-| Web UI (`ui/`) | Written and served. The jsdom UI tests cover the pages, Re-sort, folder management, watched folders, and Library source counts; use the browser checklist below for visual checks. |
+| Web UI (`ui/`) | Written and served. The jsdom UI tests cover the pages, Re-sort, folder management, watched folders, Library source counts, and manual thumbnail rebuilds; use the browser checklist below for visual checks. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
 Final verification for this handoff: `cargo build --all-targets` completed with 0 warnings; `cargo test --workspace`
 passed 116 Rust tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap`
-passed 23 UI tests. Many Rust tests are table-driven with hundreds of rows.
+passed 25 UI tests. Many Rust tests are table-driven with hundreds of rows.
 
 ---
 
@@ -102,7 +102,7 @@ hash cache, log), never images.
 Do these in a real browser, at a wide window and at a phone-width window (about 390 px), in dark and light:
 
 1. **Overview**: counts match reality; "Scan now" shows a message.
-2. **Inbox**: thumbnails appear; click selects (outline and tick); shift-click selects a range; Ctrl+A selects all;
+2. **Inbox**: thumbnails appear; select images and use **Rebuild thumbnails** if needed; click selects (outline and tick); shift-click selects a range; Ctrl+A selects all;
    Esc clears; "Details" opens a side panel with the full image and its origin link.
 3. **Assign**: pick a folder by typing (suggestions appear), see the new file name in the preview, tick "Also save a
    tag", add a keyword, assign. A message with **Undo** appears. Undo it. Assign again.

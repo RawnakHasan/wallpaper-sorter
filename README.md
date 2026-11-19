@@ -111,7 +111,7 @@ folder is not a logged file action.
 | `GET/PUT /api/settings` | settings (`gap_mode`, `setup_complete`) |
 | `POST /api/rescan` | look at the library folder and intake folders again (also done after a tag is added or changed) |
 | `POST /api/intake` `{path, recursive, remove_empty_folders}` / `PUT /api/intake/N` / `DELETE /api/intake/N` | add, edit or remove an intake folder; watch state and errors are returned in `/api/status` |
-| `GET /api/thumb/<hash>`, `GET /api/image/<hash>` | thumbnail and full image, addressed by content hash |
+| `GET /api/thumb/<hash>`, `POST /api/thumb/<hash>/refresh`, `GET /api/image/<hash>` | cached thumbnail, regenerate a thumbnail, and full image, addressed by content hash |
 | `POST /api/duplicates/restore` | restore duplicate copies into a destination folder as new numbered images, undoable |
 
 ## Run the tests

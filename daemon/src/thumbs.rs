@@ -37,12 +37,7 @@ impl Thumbs {
 
     /// The JPEG thumbnail for the image with this hash, drawn from `source` if it is not cached yet.
     pub fn get(&self, hash: &str, source: &Path) -> io::Result<Vec<u8>> {
-        if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "not a content hash",
-            ));
-        }
+        validate_hash(hash)?;
         let cached = self.dir.join(format!("{hash}.jpg"));
         if let Ok(bytes) = fs::read(&cached) {
             return Ok(bytes);
@@ -56,6 +51,24 @@ impl Thumbs {
         if let Ok(bytes) = fs::read(&cached) {
             return Ok(bytes); // another request drew it while we waited
         }
+        self.draw_and_cache(hash, source)
+    }
+
+    /// Regenerates the cached thumbnail, waiting for any other thumbnail draw to finish.
+    pub fn refresh(&self, hash: &str, source: &Path) -> io::Result<()> {
+        validate_hash(hash)?;
+        let _one_at_a_time = self.drawing.lock().map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "thumbnail generation lock is poisoned",
+            )
+        })?;
+        self.draw_and_cache(hash, source)?;
+        Ok(())
+    }
+
+    fn draw_and_cache(&self, hash: &str, source: &Path) -> io::Result<Vec<u8>> {
+        let cached = self.dir.join(format!("{hash}.jpg"));
         let bytes = draw(source)?;
         fs::create_dir_all(&self.dir)?;
         let tmp = cached.with_extension("tmp");
@@ -63,6 +76,16 @@ impl Thumbs {
         fs::rename(&tmp, &cached)?;
         Ok(bytes)
     }
+}
+
+fn validate_hash(hash: &str) -> io::Result<()> {
+    if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "not a content hash",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

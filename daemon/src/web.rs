@@ -497,6 +497,11 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             let src = image_source(ctx, hash)?;
             Ok(Resp::image("image/jpeg", ctx.thumbs.get(hash, &src)?))
         }
+        (Method::Post, ["api", "thumb", hash, "refresh"]) => {
+            let src = image_source(ctx, hash)?;
+            ctx.thumbs.refresh(hash, &src)?;
+            Ok(Resp::json(200, &json!({ "refreshed": true })))
+        }
         (Method::Get, ["api", "image", hash]) => {
             let src = image_source(ctx, hash)?;
             Ok(Resp::image(content_type_for(&src), std::fs::read(&src)?))
