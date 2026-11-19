@@ -10,7 +10,8 @@ use sorter_core::matcher::{split_name, tokens};
 use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site};
 use sorter_engine::cfgedit::{
     add_folder, add_tag, delete_tag, merge_folder as edit_merge_folder,
-    rename_folder as edit_rename_folder, set_folder_prefix, set_gap_mode, update_tag, TagSpec,
+    rename_folder as edit_rename_folder, set_folder_prefix, set_gap_mode, set_setup_complete,
+    update_tag, TagSpec,
 };
 use sorter_engine::{Origin, Outcome, UndoError};
 use std::collections::HashMap;
@@ -303,6 +304,8 @@ struct OriginBody {
 struct SettingsBody {
     #[serde(default)]
     gap_mode: Option<String>,
+    #[serde(default)]
+    setup_complete: Option<bool>,
 }
 #[derive(Deserialize)]
 struct TestBody {
@@ -687,6 +690,11 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                     .edit_config(|t| set_gap_mode(t, &mode))
                     .map_err(|e| ApiError::new(400, e))?;
             }
+            if let Some(complete) = b.setup_complete {
+                ctx.shared
+                    .edit_config(|t| set_setup_complete(t, complete))
+                    .map_err(|e| ApiError::new(400, e))?;
+            }
             Ok(Resp::json(200, &ctx.shared.lock().cfg.settings))
         }
         (Method::Post, ["api", "duplicates", "restore"]) => {
@@ -848,6 +856,7 @@ fn status(ctx: &Ctx) -> Result<Resp, ApiError> {
                 "records": p.origins.len(),
             },
             "settings": p.cfg.settings,
+            "setup_complete": p.cfg.setup_complete,
         }),
     ))
 }

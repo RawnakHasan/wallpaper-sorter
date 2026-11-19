@@ -31,7 +31,7 @@ about each image's origin, the activity log with undo, and settings.
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. 16 HTTP tests passed; smoke-tested with curl. |
 | Web UI (`ui/`) | Written and served. The 22 jsdom UI tests cover the pages, Re-sort, folder management, and Library source counts; use the browser checklist below for visual checks. |
-| Not built | First-run welcome flow; editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
+| Not built | Editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
 
 Final verification for this handoff: `cargo build --all-targets` completed with 0 warnings; `cargo test --workspace`
 passed 86 Rust tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap`
@@ -281,7 +281,7 @@ the original config text.
 
 | Feature | Sketch |
 |---|---|
-| First-run welcome | Pick library and intake folders, run the first scan, offer the re-sort. Needs config writing for `library` and `[[intake]]`. |
+| First-run welcome | Implemented: missing config plus `--library` creates a starter config; the Overview page tracks setup completion. |
 | Size caps | Thumbnail cache (delete oldest), `log.jsonl` (keep recent entries; origin records stay forever). |
 | Videos | The extension list is a setting; `Video/` files would need their own thumbnails. Parked by the owner ("later"). |
 | Fetch wallpapers from site APIs | Parked by the owner. The matcher takes a plain list of words, so API tags can feed it later. Not Pixiv. |

@@ -667,3 +667,18 @@ test('the page says so when the sorter stops', () =>
     s.stop();
     await waitFor(() => ui.q('.status').textContent.includes('Not connected'), 'the chip to change', 12000);
   }));
+
+test('first-run setup shows a welcome card and can be completed', () =>
+  withSorter(
+    (lib) => put(path.join(lib, 'Nature/Nature 1.png'), 1),
+    '#/',
+    async (ui, s) => {
+      await api(s, 'PUT', '/api/settings', { setup_complete: false });
+      ui.go('#/settings');
+      ui.go('#/');
+      await waitFor(() => ui.q('.welcome'), 'the welcome card');
+      ui.click(ui.byText('button', 'Finish setup'));
+      await waitFor(() => !ui.q('.welcome'), 'setup completed');
+      assert.equal((await api(s, 'GET', '/api/status')).setup_complete, true);
+    }
+  ));

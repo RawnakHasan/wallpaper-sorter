@@ -308,7 +308,6 @@ Test suites: table tests in core, end-to-end tests on real temporary folders in 
 
 ## 17. Not built yet
 
-- First-run welcome flow (pick library and intake folders, first scan).
 - Editing watched folders from the Settings page (config file only for now).
 - Size caps for the thumbnail cache and the log.
 - Videos (the `Video/` folder of mp4s). Parked by the owner.

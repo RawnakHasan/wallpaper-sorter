@@ -1104,3 +1104,26 @@ fn a_duplicate_can_be_restored_as_a_new_image_and_undone() {
     );
     assert!(e.lib.join("Duplicates/Chisa copy.png").exists());
 }
+
+#[test]
+fn first_run_setup_can_be_completed() {
+    let e = setup(|_, _| {});
+    assert_eq!(e.get("/api/status").json()["setup_complete"], true);
+
+    let text = fs::read_to_string(&e.cfg_path).unwrap();
+    assert!(text.contains("setup_complete = true"));
+
+    assert_eq!(
+        e.send("PUT", "/api/settings", json!({ "setup_complete": false }))
+            .status,
+        200
+    );
+    assert_eq!(e.get("/api/status").json()["setup_complete"], false);
+
+    assert_eq!(
+        e.send("PUT", "/api/settings", json!({ "setup_complete": true }))
+            .status,
+        200
+    );
+    assert_eq!(e.get("/api/status").json()["setup_complete"], true);
+}

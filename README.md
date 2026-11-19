@@ -135,4 +135,4 @@ To change a matching rule: edit `spec/ref_matcher.py`, run `cd spec && python3 g
 - `Cargo.lock` pins `indexmap`, `hashbrown`, `blake3` and `image` to older releases so the project also builds with Rust 1.75.
   BLAKE3 is built with its `pure` feature, so no C compiler is needed.
   On a current toolchain you can run `cargo update` to take the newest versions.
-- Not built yet: the first-run welcome flow, a size cap for the thumbnail cache, and a size cap for the log.
+- Not built yet: a size cap for the thumbnail cache and a size cap for the log.

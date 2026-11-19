@@ -92,12 +92,16 @@ pub struct ServerCfg {
 
 impl Default for ServerCfg {
     fn default() -> Self {
-        ServerCfg { port: default_port() }
+        ServerCfg {
+            port: default_port(),
+        }
     }
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Config {
+    #[serde(default)]
+    pub setup_complete: bool,
     #[serde(default)]
     pub server: ServerCfg,
     /// The library folder, e.g. "~/Pictures/Wallpapers". Can also be given on the command line.

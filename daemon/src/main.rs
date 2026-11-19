@@ -157,12 +157,38 @@ fn run() -> Result<(), String> {
     let args = parse_args()?;
     let config_path = args.config.clone().unwrap_or_else(default_config_path);
     let config_path = std::fs::canonicalize(&config_path).unwrap_or(config_path);
-    let text = std::fs::read_to_string(&config_path).map_err(|e| {
-        format!(
-            "cannot read {}: {e}\nCopy spec/tags.starter.toml there and edit it to start.",
-            config_path.display()
-        )
-    })?;
+    let text = match std::fs::read_to_string(&config_path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound && args.library.is_some() => {
+            let starter = std::fs::read_to_string(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../spec/tags.starter.toml"),
+            )
+            .map_err(|e| format!("cannot read starter config: {e}"))?;
+            let library = args.library.as_ref().expect("checked above");
+            let text = starter
+                .replace(
+                    "library = \"~/Pictures/Wallpapers\"",
+                    &format!("library = \"{}\"", library.display()),
+                )
+                .replace(
+                    "path = \"~/Downloads/pixiv\"",
+                    &format!("path = \"{}\"", library.join(".sorter/intake").display()),
+                );
+            if let Some(parent) = config_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("cannot create config folder: {e}"))?;
+            }
+            std::fs::write(&config_path, &text)
+                .map_err(|e| format!("cannot write {}: {e}", config_path.display()))?;
+            text
+        }
+        Err(e) => {
+            return Err(format!(
+                "cannot read {}: {e}\nCopy spec/tags.starter.toml there and edit it to start.",
+                config_path.display()
+            ))
+        }
+    };
     let cfg = Config::from_toml(&text).map_err(|e| format!("{}: {e}", config_path.display()))?;
     let library = args
         .library

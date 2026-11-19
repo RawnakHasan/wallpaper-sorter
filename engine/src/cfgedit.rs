@@ -455,3 +455,10 @@ pub fn undo_prefix_change(text: &str, before: &str, folder: &str) -> Result<Stri
     let cfg = sorter_core::Config::from_toml(before).map_err(|e| e.to_string())?;
     set_folder_prefix(text, folder, &cfg.prefix_for(folder))
 }
+
+/// Sets `setup_complete`.
+pub fn set_setup_complete(text: &str, complete: bool) -> Result<String, String> {
+    let mut doc = parse(text)?;
+    doc["setup_complete"] = value(complete);
+    Ok(doc.to_string())
+}

@@ -105,3 +105,38 @@ fn cli_preview_counts_before_changes_and_does_not_move_files() {
     assert!(!library.join("Nature/Nature 1.png").exists());
     fs::remove_dir_all(base).unwrap();
 }
+
+#[test]
+fn first_run_with_library_creates_starter_config() {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base =
+        std::env::temp_dir().join(format!("sorter-first-run-{}-{nonce}", std::process::id()));
+    let library = base.join("Pictures/Wallpapers");
+    let config = base.join("config.toml");
+    fs::create_dir_all(&library).unwrap();
+
+    let binary = env!("CARGO_BIN_EXE_wallpaper-sorter");
+    let result = Command::new(binary)
+        .args([
+            "--config",
+            config.to_str().unwrap(),
+            "--library",
+            library.to_str().unwrap(),
+            "--once",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(config.is_file());
+
+    let text = fs::read_to_string(&config).unwrap();
+    assert!(text.contains(&format!("library = \"{}\"", library.display())));
+    fs::remove_dir_all(base).unwrap();
+}

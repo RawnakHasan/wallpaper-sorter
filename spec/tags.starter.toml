@@ -11,6 +11,7 @@
 #                 and the cleaned name is short (see generic_max_words)
 
 library = "~/Pictures/Wallpapers"
+setup_complete = true
 
 # Folders whose new images are sorted into the library (the Pixiv extension's folder, for example).
 [[intake]]
