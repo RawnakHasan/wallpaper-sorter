@@ -479,6 +479,21 @@ pub fn set_setup_complete(text: &str, complete: bool) -> Result<String, String> 
     Ok(doc.to_string())
 }
 
+pub fn set_starter_paths(text: &str, library: &str, intake: &str) -> Result<String, String> {
+    let mut doc = parse(text)?;
+    doc["library"] = value(library);
+    let intake_tables = doc
+        .get_mut("intake")
+        .and_then(Item::as_array_of_tables_mut)
+        .ok_or_else(|| "starter config has no [[intake]] table".to_string())?;
+    let table = intake_tables
+        .iter_mut()
+        .next()
+        .ok_or_else(|| "starter config has no intake entry".to_string())?;
+    table["path"] = value(intake);
+    Ok(doc.to_string())
+}
+
 pub fn add_intake(
     text: &str,
     path: &str,

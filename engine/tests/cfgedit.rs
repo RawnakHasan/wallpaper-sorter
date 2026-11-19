@@ -1,7 +1,7 @@
 use sorter_core::{Config, MatchMode};
 use sorter_engine::cfgedit::{
     add_folder, add_intake, add_tag, delete_tag, merge_folder, rename_folder, set_folder_prefix,
-    set_gap_mode, update_intake, update_tag, TagSpec,
+    set_gap_mode, set_starter_paths, update_intake, update_tag, TagSpec,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -182,4 +182,14 @@ fn intake_paths_are_validated() {
     assert_eq!(cfg.intake.len(), 1);
     assert_eq!(cfg.intake[0].remove_empty_folders, false);
     assert!(update_intake(&out, 0, "/", true, false).is_err());
+}
+
+#[test]
+fn starter_paths_are_escaped_structurally() {
+    let library = "/tmp/wallpaper \"quotes\" /back\\slash/library";
+    let intake = "/tmp/wallpaper \"quotes\" /back\\slash/intake";
+    let out = set_starter_paths(&starter(), library, intake).unwrap();
+    let cfg = Config::from_toml(&out).unwrap();
+    assert_eq!(cfg.library.as_deref(), Some(library));
+    assert_eq!(cfg.intake.first().map(|i| i.path.as_str()), Some(intake));
 }

@@ -1,5 +1,6 @@
 use sorter_core::{expand_home, Action, Config, Plan};
 use sorter_daemon::{describe, serve, Daemon, Notice, Options, Thumbs};
+use sorter_engine::cfgedit::set_starter_paths;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -160,20 +161,13 @@ fn run() -> Result<(), String> {
     let text = match std::fs::read_to_string(&config_path) {
         Ok(text) => text,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound && args.library.is_some() => {
-            let starter = std::fs::read_to_string(
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../spec/tags.starter.toml"),
-            )
-            .map_err(|e| format!("cannot read starter config: {e}"))?;
             let library = args.library.as_ref().expect("checked above");
-            let text = starter
-                .replace(
-                    "library = \"~/Pictures/Wallpapers\"",
-                    &format!("library = \"{}\"", library.display()),
-                )
-                .replace(
-                    "path = \"~/Downloads/pixiv\"",
-                    &format!("path = \"{}\"", library.join(".sorter/intake").display()),
-                );
+            let text = set_starter_paths(
+                STARTER,
+                &library.to_string_lossy(),
+                &library.join(".sorter/intake").to_string_lossy(),
+            )
+            .map_err(|e| format!("cannot create starter config: {e}"))?;
             if let Some(parent) = config_path.parent() {
                 std::fs::create_dir_all(parent)
                     .map_err(|e| format!("cannot create config folder: {e}"))?;
@@ -267,6 +261,8 @@ fn run() -> Result<(), String> {
     println!("stopped");
     Ok(())
 }
+
+const STARTER: &str = include_str!("../../spec/tags.starter.toml");
 
 fn main() {
     if let Err(e) = run() {
