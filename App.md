@@ -2,7 +2,7 @@
 
 A small Linux background program, written in Rust, that sorts new wallpaper images into numbered folders by their filenames, with a local web page to manage everything. This file describes what the app is and how it behaves, as of the latest repository snapshot.
 
-How this was written: from reading the source files (core, engine, daemon, ui, spec, tests, HANDOFF.md, README.md). The code was built and tested for the latest undo persistence work. The Rust workspace passed, including restart-specific watcher tests, and all 22 UI tests passed.
+How this was written: from reading the source files (core, engine, daemon, ui, spec, tests, HANDOFF.md, README.md). The code was built and tested for the latest robustness work. The Rust workspace passed 116 tests, and all 23 UI tests passed.
 
 ---
 
@@ -247,10 +247,11 @@ JSON over HTTP on 127.0.0.1 only. Security: the `Host` header must match, anythi
 | `GET/POST /api/gap-fill` | Preview and close gaps |
 | `GET/POST /api/resort` | Preview and apply a re-sort |
 | `POST /api/folders` | Create a folder |
+| `POST /api/intake` / `PUT /api/intake/N` / `DELETE /api/intake/N` | Add, edit, or remove a watched intake folder |
 | `GET/POST /api/folder-rename`, `GET/POST /api/folder-merge`, `GET/PUT /api/folder-prefix` | Preview and apply folder changes |
 | `POST /api/undo` | Undo a batch or one entry |
 | `PUT /api/origins` | Set a source by hand |
-| `GET/PUT /api/settings` | Settings (gap mode) |
+| `GET/PUT /api/settings` | Settings (`gap_mode`, `setup_complete`) |
 | `POST /api/rescan` | Look at all folders again |
 | `GET /api/thumb/<hash>`, `GET /api/image/<hash>` | Thumbnail (400 px JPEG, cached by hash) and full image |
 | `POST /api/duplicates/restore` | Restore selected duplicates into a destination folder while bypassing duplicate detection once |
@@ -289,7 +290,7 @@ spec/     the rules as data, plus a Python reference matcher
 scripts/  collect-report.sh
 ```
 
-Main dependencies: serde, serde_json, toml, toml_edit, blake3 (pure feature, no C compiler), imagesize, inotify, libc, tiny_http, image (png, jpeg, webp only). `Cargo.lock` pins a few crates so it builds on Rust 1.75.
+Main dependencies: serde, serde_json, toml, toml_edit, blake3 (pure feature, no C compiler), imagesize, inotify, libc, tiny_http, image (PNG, JPEG, WebP, GIF, and BMP; AVIF uses a placeholder). `Cargo.lock` pins a few crates so it builds on Rust 1.75.
 
 Data flow for a new file: watcher event, debounce, hash, plan (pure), apply (moves and log), update the hash index and origin records.
 
@@ -312,7 +313,6 @@ Test suites: table tests in core, end-to-end tests on real temporary folders in 
 
 ## 17. Not built yet
 
-- Editing watched folders from the Settings page (config file only for now).
 - Size caps for the thumbnail cache and the log.
 - Videos (the `Video/` folder of mp4s). Parked by the owner.
 - Fetching wallpapers from site APIs. Parked by the owner (never Pixiv).
@@ -321,7 +321,7 @@ Test suites: table tests in core, end-to-end tests on real temporary folders in 
 
 ## 18. Known issues
 
-Items 1 to 4 are from my reading of the latest code and are not yet confirmed by a run. Items 5 to 9 were already known.
+Items 1 to 4 cover the remaining audit findings and are tested or documented where possible. Items 5 to 9 cover known design or implementation limits.
 
 | # | Issue | Effect |
 |---|---|---|

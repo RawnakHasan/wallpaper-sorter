@@ -68,7 +68,7 @@ fn plan_cases_toml() {
     }
     assert!(
         cases.case.len() >= 27,
-        "expected at least 20 cases, found {}",
+        "expected at least 27 cases, found {}",
         cases.case.len()
     );
     assert!(

@@ -387,6 +387,6 @@ The owner wants to **discuss before big steps**. Ask first about:
 - [x] T11 assignment validates tags before moving files
 - [x] T12 tag updates/deletes reject stale page content
 - [x] T13 GIF/BMP thumbnails with AVIF placeholders
-- [ ] T14 smaller robustness items
-- [ ] T15 docs updated and tests re-counted
+- [x] T14 smaller robustness items
+- [x] T15 docs updated and tests re-counted
 - [ ] T16 `chat.json`, `/design`, build and service settings

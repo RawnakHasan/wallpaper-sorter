@@ -108,7 +108,7 @@ folder is not a logged file action.
 | `GET /api/folder-prefix?folder=&prefix=` / `PUT /api/folder-prefix` `{folder, prefix}` | preview and change a folder's numbering prefix |
 | `POST /api/undo` `{batch}` or `{id}` | undo a batch or one action |
 | `PUT /api/origins` `{hash, site, id}` | set an image's source by hand |
-| `GET/PUT /api/settings` | settings (`gap_mode` can be changed) |
+| `GET/PUT /api/settings` | settings (`gap_mode`, `setup_complete`) |
 | `POST /api/rescan` | look at the library folder and intake folders again (also done after a tag is added or changed) |
 | `POST /api/intake` `{path, recursive, remove_empty_folders}` / `PUT /api/intake/N` / `DELETE /api/intake/N` | add, edit or remove an intake folder; watch state and errors are returned in `/api/status` |
 | `GET /api/thumb/<hash>`, `GET /api/image/<hash>` | thumbnail and full image, addressed by content hash |

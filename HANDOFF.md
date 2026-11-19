@@ -29,13 +29,13 @@ about each image's origin, the activity log with undo, and settings.
 | Matching rules, numbering, the plan (list of actions), source detection from filenames | Done. Driven by hand-checked tables in `spec/`; all passed at my last run. |
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
-| Web server and JSON API, thumbnails | Done. 16 HTTP tests passed; smoke-tested with curl. |
-| Web UI (`ui/`) | Written and served. The 22 jsdom UI tests cover the pages, Re-sort, folder management, and Library source counts; use the browser checklist below for visual checks. |
+| Web server and JSON API, thumbnails | Done. HTTP and thumbnail tests pass. |
+| Web UI (`ui/`) | Written and served. The jsdom UI tests cover the pages, Re-sort, folder management, watched folders, and Library source counts; use the browser checklist below for visual checks. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
 Final verification for this handoff: `cargo build --all-targets` completed with 0 warnings; `cargo test --workspace`
-passed 86 Rust tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap`
-passed 22 UI tests. Many Rust tests are table-driven with hundreds of rows.
+passed 116 Rust tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap`
+passed 23 UI tests. Many Rust tests are table-driven with hundreds of rows.
 
 ---
 
