@@ -1,10 +1,14 @@
 use sorter_core::{Config, MatchMode};
-use sorter_engine::cfgedit::{add_folder, add_tag, delete_tag, merge_folder, rename_folder, set_folder_prefix, set_gap_mode, update_tag, TagSpec};
+use sorter_engine::cfgedit::{
+    add_folder, add_intake, add_tag, delete_tag, merge_folder, rename_folder, set_folder_prefix,
+    set_gap_mode, update_intake, update_tag, TagSpec,
+};
 use std::fs;
 use std::path::PathBuf;
 
 fn starter() -> String {
-    fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../spec/tags.starter.toml")).unwrap()
+    fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../spec/tags.starter.toml"))
+        .unwrap()
 }
 
 fn spec(kw: &[&str], dest: &str) -> TagSpec {
@@ -26,13 +30,19 @@ fn adding_a_tag_keeps_comments_and_other_tags() {
     s.prefix = Some("Violet".to_string());
     s.generic = false;
     let out = add_tag(&text, &s).unwrap();
-    assert!(out.contains("# ---------- Wuthering Waves ----------"), "comments stay");
+    assert!(
+        out.contains("# ---------- Wuthering Waves ----------"),
+        "comments stay"
+    );
     assert!(out.contains("[[intake]]"));
     let cfg = Config::from_toml(&out).unwrap();
     assert_eq!(cfg.tags.len(), before + 1);
     let t = cfg.tags.last().unwrap();
     assert_eq!(t.keywords, ["violet evergarden", "violet"]);
-    assert_eq!((t.dest.as_str(), t.prefix.as_deref()), ("Series/Violet Evergarden", Some("Violet")));
+    assert_eq!(
+        (t.dest.as_str(), t.prefix.as_deref()),
+        ("Series/Violet Evergarden", Some("Violet"))
+    );
     assert_eq!(cfg.prefix_for("Series/Violet Evergarden"), "Violet");
 }
 
@@ -53,7 +63,11 @@ fn optional_fields_round_trip() {
 fn updating_a_tag_changes_only_that_tag() {
     let text = starter();
     let cfg = Config::from_toml(&text).unwrap();
-    let i = cfg.tags.iter().position(|t| t.keywords == ["chisa"]).unwrap();
+    let i = cfg
+        .tags
+        .iter()
+        .position(|t| t.keywords == ["chisa"])
+        .unwrap();
     let mut s = spec(&["chisa", "kuchiba"], "Wuthering-Waves/Chisa");
     s.prefix = Some("Chisa K".to_string());
     let out = update_tag(&text, i, &s).unwrap();
@@ -71,7 +85,11 @@ fn updating_a_tag_changes_only_that_tag() {
 fn deleting_a_tag() {
     let text = starter();
     let cfg = Config::from_toml(&text).unwrap();
-    let i = cfg.tags.iter().position(|t| t.keywords == ["aemeath"]).unwrap();
+    let i = cfg
+        .tags
+        .iter()
+        .position(|t| t.keywords == ["aemeath"])
+        .unwrap();
     let out = delete_tag(&text, i).unwrap();
     let after = Config::from_toml(&out).unwrap();
     assert_eq!(after.tags.len(), cfg.tags.len() - 1);
@@ -93,7 +111,10 @@ fn bad_specs_are_refused() {
 #[test]
 fn the_gap_mode_setting() {
     let out = set_gap_mode(&starter(), "last").unwrap();
-    assert_eq!(format!("{:?}", Config::from_toml(&out).unwrap().settings.gap_mode), "LastIntoGap");
+    assert_eq!(
+        format!("{:?}", Config::from_toml(&out).unwrap().settings.gap_mode),
+        "LastIntoGap"
+    );
     assert!(out.contains("image_extensions"), "other settings stay");
     assert!(set_gap_mode(&starter(), "whatever").is_err());
 }
@@ -134,4 +155,31 @@ fn folder_rename_adds_only_the_prefix_pins_computed_by_its_caller() {
 
     let unchanged = rename_folder(&renamed, "Landscapes", "Nature-Scenes", &[]).unwrap();
     assert!(!unchanged.contains("path = \"Nature-Scenes\"\nprefix = \"Nature-Scenes\""));
+}
+
+#[test]
+fn intake_paths_are_validated() {
+    let text = "library = \"/tmp/wallpaper-sorter-test/library\"\nsetup_complete = true\n";
+    assert!(add_intake(text, "/", true, false).is_err());
+    assert!(add_intake(text, "/tmp", true, false).is_err());
+    assert!(add_intake(text, "/tmp/wallpaper-sorter-test/library", true, false).is_err());
+    assert!(add_intake(
+        text,
+        "/tmp/wallpaper-sorter-test/library/.sorter",
+        true,
+        false
+    )
+    .is_err());
+
+    let out = add_intake(
+        text,
+        "/tmp/wallpaper-sorter-test/library/inbox",
+        true,
+        false,
+    )
+    .unwrap();
+    let cfg = Config::from_toml(&out).unwrap();
+    assert_eq!(cfg.intake.len(), 1);
+    assert_eq!(cfg.intake[0].remove_empty_folders, false);
+    assert!(update_intake(&out, 0, "/", true, false).is_err());
 }

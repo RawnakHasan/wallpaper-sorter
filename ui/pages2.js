@@ -390,15 +390,67 @@
         }
       },
     });
-    const watchedEntry = (path, badges) =>
-      h('div', { class: 'watched-entry' }, h('span', { class: 'm watched-path', text: path }), h('span', { class: 'watched-badges' }, ...badges));
+    const openIntakeSheet = (intake) => {
+      const path = h('input', { class: 'input wide', value: intake ? intake.path : '', 'aria-label': 'Intake folder path', placeholder: '/absolute/path/to/downloads' });
+      const recursive = h('input', { type: 'checkbox', id: 'intake-recursive' });
+      recursive.checked = intake ? intake.recursive : true;
+      const removeEmpty = h('input', { type: 'checkbox', id: 'intake-remove-empty' });
+      removeEmpty.checked = !!(intake && intake.remove_empty_folders);
+      const problem = h('div', { class: 'error', role: 'alert' });
+      const save = h('button', { class: 'btn primary', text: 'Save' });
+      save.addEventListener('click', async () => {
+        problem.textContent = '';
+        save.disabled = true;
+        try {
+          await WS.api(intake ? 'PUT' : 'POST', intake ? `/api/intake/${intake.index}` : '/api/intake', {
+            path: path.value,
+            recursive: recursive.checked,
+            remove_empty_folders: removeEmpty.checked,
+          });
+          WS.closeLayer();
+          WS.toast(intake ? 'Intake folder updated' : 'Intake folder added');
+          WS.refresh();
+        } catch (e) {
+          problem.textContent = e.message;
+          save.disabled = false;
+        }
+      });
+      WS.openSheet(intake ? 'Edit intake folder' : 'Add intake folder', h('div', {},
+        h('div', { class: 'field' }, h('label', { text: 'Folder path' }), path),
+        h('div', { class: 'field' }, h('div', { class: 'check-row' }, recursive, h('label', { for: 'intake-recursive', text: 'Include subfolders' }))),
+        h('div', { class: 'field' }, h('div', { class: 'check-row' }, removeEmpty, h('label', { for: 'intake-remove-empty', text: 'Remove empty subfolders' })), h('span', { class: 'faint', text: 'Off by default. Hidden folders are never removed.' })),
+        problem
+      ), [h('button', { class: 'btn', text: 'Cancel', onclick: WS.closeLayer }), save]);
+    };
+
+    const watchedEntry = (intake) => h('div', { class: 'watched-entry' },
+      h('span', { class: 'm watched-path', text: intake.path }),
+      h('span', { class: 'watched-badges' },
+        intake.library ? WS.badge('library, top level', 'good') : (intake.watching ? WS.badge('watching', 'good') : WS.badge(intake.exists ? 'not watching' : 'folder not found yet', 'warn')),
+        !intake.library && intake.recursive ? WS.badge('includes subfolders') : null,
+        !intake.library && intake.remove_empty_folders ? WS.badge('removes empty folders', 'warn') : null),
+      !intake.library ? h('span', { class: 'watched-actions' },
+        h('button', { class: 'btn small', text: 'Edit', onclick: () => openIntakeSheet(intake) }),
+        h('button', { class: 'btn small danger', text: 'Remove', onclick: async () => {
+          if (!(await WS.confirmBox(`Stop watching ${intake.path}?`, 'Remove', true))) return;
+          try {
+            await WS.api('DELETE', `/api/intake/${intake.index}`);
+            WS.toast('Intake folder removed');
+            WS.refresh();
+          } catch (e) {
+            WS.toast(e.message, { error: true });
+          }
+        } })) : null,
+      intake.error ? h('p', { class: 'error watched-error', text: intake.error }) : null);
+
+    const addIntake = h('button', { class: 'btn small', text: 'Add folder', onclick: () => openIntakeSheet(null) });
 
     return page(
       'Settings',
       `version ${st.version}`,
       null,
       h('div', { class: 'panel' }, h('h2', { text: 'Numbering' }), h('div', { class: 'field' }, h('label', { text: 'Gaps in the numbering' }), gap, note)),
-      h('div', { class: 'panel watched-folders' }, h('h2', { text: 'Watched folders' }), h('div', { class: 'watched-list' }, watchedEntry(st.library, [WS.badge('library, top level', 'good')]), ...st.intake.map((i) => watchedEntry(i.path, [WS.badge('includes subfolders'), i.exists ? null : WS.badge('not found yet', 'warn')]))), h('p', { class: 'faint', text: `Edit these in the config file: ${st.config_file || 'not available'}` })),
+      h('div', { class: 'panel watched-folders' }, h('h2', { text: 'Watched folders' }), h('div', { class: 'watched-list' }, watchedEntry({ library: true, path: st.library }), ...st.intake.map((i) => watchedEntry(i))), h('div', { class: 'watched-footer' }, addIntake)),
       h('div', { class: 'panel' }, h('h2', { text: 'Images' }), h('div', { class: 'row' }, ...s.image_extensions.map((e) => h('span', { class: 'tagchip', text: e }))), h('p', { class: 'faint', text: `Copies of images you already have go to the “${s.duplicates_folder}” folder.` })),
       h('div', { class: 'panel' }, h('h2', { text: 'Appearance' }), seg),
       h('div', { class: 'panel' }, h('h2', { text: 'Trash' }), h('p', { class: 'muted', text: 'Deleted images wait in a hidden folder inside the library until you empty it.' }), trash),

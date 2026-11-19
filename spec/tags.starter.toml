@@ -17,7 +17,7 @@ setup_complete = true
 [[intake]]
 path = "~/Downloads/pixiv"
 recursive = true              # also watch artist subfolders, including new ones
-remove_empty_folders = true   # remove an artist folder once it has been empty for a while
+remove_empty_folders = false  # opt-in: remove an artist folder once it has been empty for a while
 
 [settings]
 image_extensions = ["jpg", "jpeg", "png", "webp", "avif", "gif", "bmp"]

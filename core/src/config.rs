@@ -66,6 +66,10 @@ fn yes() -> bool {
     true
 }
 
+fn no() -> bool {
+    false
+}
+
 /// A folder outside (or inside) the library whose new images are sorted into the library.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Intake {
@@ -74,8 +78,8 @@ pub struct Intake {
     /// Also watch subfolders, including ones created later (default true).
     #[serde(default = "yes")]
     pub recursive: bool,
-    /// Remove subfolders once they have stayed empty for a while (default true).
-    #[serde(default = "yes")]
+    /// Remove subfolders once they have stayed empty for a while (default false).
+    #[serde(default = "no")]
     pub remove_empty_folders: bool,
 }
 

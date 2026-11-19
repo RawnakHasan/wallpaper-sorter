@@ -652,6 +652,15 @@ test('settings: change how gaps are handled, and the theme', () =>
     assert.equal(ui.d.documentElement.dataset.theme, 'dark');
     ui.click(ui.byText('.seg button', 'System'));
     assert.equal(ui.d.documentElement.dataset.theme, undefined);
+
+    ui.click(ui.byText('.watched-footer button', 'Add folder'));
+    const intakePath = await waitFor(() => ui.q('input[aria-label="Intake folder path"]'), 'the intake path field');
+    const addedPath = path.join(s.lib, 'incoming-ui-test');
+    intakePath.value = addedPath;
+    ui.click(ui.byText('.sheet button', 'Save'));
+    await waitFor(() => ui.toast().includes('Intake folder added'), 'the intake confirmation');
+    const status = await api(s, 'GET', '/api/status');
+    assert.equal(status.intake.some((i) => i.path === addedPath), true);
   }));
 
 test('the page follows the sorter: a file that arrives shows up without reloading', () =>

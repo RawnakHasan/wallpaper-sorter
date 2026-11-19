@@ -1,7 +1,8 @@
 //! Editing the config file's tags without disturbing the rest of it (comments and layout stay).
 
 use serde::Deserialize;
-use sorter_core::MatchMode;
+use sorter_core::{expand_home, MatchMode};
+use std::path::{Component, Path, PathBuf};
 use toml_edit::{value, Array, ArrayOfTables, DocumentMut, Item, Table};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -86,6 +87,15 @@ fn folders_mut(doc: &mut DocumentMut) -> Result<&mut ArrayOfTables, String> {
         .ok_or_else(|| "`folder` in the config is not a list of [[folder]] tables".to_string())
 }
 
+fn intake_mut(doc: &mut DocumentMut) -> Result<&mut ArrayOfTables, String> {
+    if doc.get("intake").is_none() {
+        doc["intake"] = Item::ArrayOfTables(ArrayOfTables::new());
+    }
+    doc["intake"]
+        .as_array_of_tables_mut()
+        .ok_or_else(|| "`intake` in the config is not a list of [[intake]] tables".to_string())
+}
+
 fn valid_prefix(prefix: &str) -> Result<String, String> {
     let prefix = prefix.trim();
     if prefix.is_empty() {
@@ -105,6 +115,12 @@ fn set_folder_table(table: &mut Table, path: &str, prefix: Option<&str>) {
             table.remove("prefix");
         }
     }
+}
+
+fn fill_intake(table: &mut Table, path: &str, recursive: bool, remove_empty_folders: bool) {
+    table["path"] = value(path);
+    table["recursive"] = value(recursive);
+    table["remove_empty_folders"] = value(remove_empty_folders);
 }
 
 /// Adds an explicit folder entry when it is not already present. Empty folders need this entry
@@ -461,4 +477,121 @@ pub fn set_setup_complete(text: &str, complete: bool) -> Result<String, String> 
     let mut doc = parse(text)?;
     doc["setup_complete"] = value(complete);
     Ok(doc.to_string())
+}
+
+pub fn add_intake(
+    text: &str,
+    path: &str,
+    recursive: bool,
+    remove_empty_folders: bool,
+) -> Result<String, String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("intake path cannot be empty".to_string());
+    }
+    let mut doc = parse(text)?;
+    let path = validate_intake_path(&doc, path)?;
+    let intake = intake_mut(&mut doc)?;
+    let mut table = Table::new();
+    fill_intake(&mut table, &path, recursive, remove_empty_folders);
+    intake.push(table);
+    Ok(doc.to_string())
+}
+
+pub fn update_intake(
+    text: &str,
+    index: usize,
+    path: &str,
+    recursive: bool,
+    remove_empty_folders: bool,
+) -> Result<String, String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("intake path cannot be empty".to_string());
+    }
+    let mut doc = parse(text)?;
+    let path = validate_intake_path(&doc, path)?;
+    let intake = intake_mut(&mut doc)?;
+    let table = intake
+        .get_mut(index)
+        .ok_or_else(|| format!("intake entry {index} does not exist"))?;
+    fill_intake(table, &path, recursive, remove_empty_folders);
+    Ok(doc.to_string())
+}
+
+pub fn remove_intake(text: &str, index: usize) -> Result<String, String> {
+    let mut doc = parse(text)?;
+    let intake = intake_mut(&mut doc)?;
+    if index >= intake.len() {
+        return Err(format!("intake entry {index} does not exist"));
+    }
+    intake.remove(index);
+    Ok(doc.to_string())
+}
+
+fn absolute_lexical(path: &Path) -> PathBuf {
+    let path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(path)
+    };
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::RootDir | Component::Prefix(_) | Component::Normal(_) => {
+                out.push(component.as_os_str())
+            }
+        }
+    }
+    out
+}
+
+fn validate_intake_path(doc: &DocumentMut, raw: &str) -> Result<String, String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err("intake path cannot be empty".to_string());
+    }
+    let path = absolute_lexical(&expand_home(raw));
+    if path == Path::new("/") {
+        return Err("the filesystem root cannot be an intake folder".to_string());
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        let home = absolute_lexical(&PathBuf::from(home));
+        if path == home {
+            return Err("the home folder cannot be an intake folder".to_string());
+        }
+    }
+    if path
+        .components()
+        .any(|component| component.as_os_str() == ".sorter")
+    {
+        return Err(
+            "a folder inside the library's .sorter directory cannot be an intake folder"
+                .to_string(),
+        );
+    }
+    if let Some(library) = doc.get("library").and_then(Item::as_str) {
+        let library = absolute_lexical(&expand_home(library));
+        if path == library {
+            return Err("the library root cannot be an intake folder".to_string());
+        }
+        if library.starts_with(&path) {
+            return Err(
+                "an intake folder cannot be the library's parent or an ancestor folder".to_string(),
+            );
+        }
+        if path.starts_with(&library) && path.starts_with(library.join(".sorter")) {
+            return Err(
+                "a folder inside the library's .sorter directory cannot be an intake folder"
+                    .to_string(),
+            );
+        }
+    }
+    Ok(path.to_string_lossy().into_owned())
 }

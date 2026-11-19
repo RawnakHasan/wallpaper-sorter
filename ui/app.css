@@ -217,3 +217,7 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
   .resort-summary .btn{margin-left:0}
   .resort-row{align-items:flex-start;flex-wrap:wrap}
 }
+
+.watched-actions{margin-left:0}
+.watched-footer{display:flex;justify-content:flex-end;margin-top:12px}
+.watched-error{flex-basis:100%;margin:0}
