@@ -9,9 +9,9 @@ use serde_json::{json, Value};
 use sorter_core::matcher::{split_name, tokens};
 use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site};
 use sorter_engine::cfgedit::{
-    add_folder, add_tag, delete_tag, merge_folder as edit_merge_folder,
+    add_folder, add_intake, add_tag, delete_tag, merge_folder as edit_merge_folder, remove_intake,
     rename_folder as edit_rename_folder, set_folder_prefix, set_gap_mode, set_setup_complete,
-    update_tag, TagSpec,
+    update_intake, update_tag, TagSpec,
 };
 use sorter_engine::{Origin, Outcome, UndoError};
 use std::collections::HashMap;
@@ -334,6 +334,18 @@ struct FolderPrefixBody {
 struct RestoreDuplicatesBody {
     paths: Vec<String>,
     folder: String,
+}
+#[derive(Deserialize)]
+struct IntakeBody {
+    path: String,
+    #[serde(default = "default_recursive")]
+    recursive: bool,
+    #[serde(default)]
+    remove_empty_folders: bool,
+}
+
+fn default_recursive() -> bool {
+    true
 }
 
 fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
@@ -706,6 +718,46 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             };
             Ok(Resp::json(200, &outcome_json(&out)))
         }
+        (Method::Post, ["api", "intake"]) => {
+            let b: IntakeBody = read_json(req)?;
+            ctx.shared
+                .edit_config(|text| add_intake(text, &b.path, b.recursive, b.remove_empty_folders))
+                .map_err(|e| ApiError::new(400, e))?;
+            ctx.shared.request_rescan();
+            Ok(Resp::json(
+                200,
+                &json!({ "intake": ctx.shared.lock().cfg.intake }),
+            ))
+        }
+        (Method::Put, ["api", "intake", i]) => {
+            let index: usize = i
+                .parse()
+                .map_err(|_| ApiError::new(400, "bad intake index"))?;
+            let b: IntakeBody = read_json(req)?;
+            ctx.shared
+                .edit_config(|text| {
+                    update_intake(text, index, &b.path, b.recursive, b.remove_empty_folders)
+                })
+                .map_err(|e| ApiError::new(400, e))?;
+            ctx.shared.request_rescan();
+            Ok(Resp::json(
+                200,
+                &json!({ "intake": ctx.shared.lock().cfg.intake }),
+            ))
+        }
+        (Method::Delete, ["api", "intake", i]) => {
+            let index: usize = i
+                .parse()
+                .map_err(|_| ApiError::new(400, "bad intake index"))?;
+            ctx.shared
+                .edit_config(|text| remove_intake(text, index))
+                .map_err(|e| ApiError::new(400, e))?;
+            ctx.shared.request_rescan();
+            Ok(Resp::json(
+                200,
+                &json!({ "intake": ctx.shared.lock().cfg.intake }),
+            ))
+        }
         _ => Err(ApiError::new(404, "not found")),
     }
 }
@@ -841,6 +893,7 @@ fn tags_json(ctx: &Ctx) -> Value {
 
 fn status(ctx: &Ctx) -> Result<Resp, ApiError> {
     let p = ctx.shared.lock();
+    let intake_watch = ctx.shared.intake_watch_status();
     Ok(Resp::json(
         200,
         &json!({
@@ -848,7 +901,15 @@ fn status(ctx: &Ctx) -> Result<Resp, ApiError> {
             "library": p.root,
             "config_file": ctx.shared.config_path,
             "activity_last_id": p.log.entries().last().map(|e| e.id).unwrap_or(0),
-            "intake": p.intake_dirs().iter().map(|d| json!({ "path": d, "exists": d.is_dir() })).collect::<Vec<_>>(),
+            "intake": intake_watch.iter().enumerate().map(|(index, d)| json!({
+                "index": index,
+                "path": d.path,
+                "exists": d.path.is_dir(),
+                "recursive": d.recursive,
+                "remove_empty_folders": d.remove_empty_folders,
+                "watching": d.watching,
+                "error": d.error,
+            })).collect::<Vec<_>>(),
             "counts": {
                 "library_images": p.index.len(),
                 "inbox": p.inbox()?.len(),

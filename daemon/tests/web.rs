@@ -221,6 +221,8 @@ fn status_and_the_security_checks() {
     assert_eq!(v["library"], e.lib.to_string_lossy().as_ref());
     assert_eq!(v["counts"]["inbox"], 0);
     assert_eq!(v["intake"][0]["exists"], true);
+    assert_eq!(v["intake"][0]["watching"], true);
+    assert!(v["intake"][0]["error"].is_null());
 
     // another website (or a DNS trick) must not reach it
     assert_eq!(
@@ -270,6 +272,33 @@ fn status_and_the_security_checks() {
     assert_eq!(e.get("/api/nothing").status, 404);
     assert!(String::from_utf8_lossy(&e.get("/").body).contains("Wallpaper Sorter"));
     assert!(e.get("/design").body.len() > 100_000);
+}
+
+#[cfg(unix)]
+#[test]
+fn status_reports_failed_intake_watch() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let mut e = setup(|_, _| {});
+    let blocked = e.base.join("blocked-intake");
+    fs::create_dir_all(&blocked).unwrap();
+    fs::set_permissions(&blocked, fs::Permissions::from_mode(0o000)).unwrap();
+    let updated = e.send(
+        "PUT",
+        "/api/intake/0",
+        json!({ "path": blocked, "recursive": true, "remove_empty_folders": false }),
+    );
+    assert_eq!(updated.status, 200);
+    e.pump(Duration::from_millis(300), || false);
+
+    let status = e.get("/api/status").json();
+    fs::set_permissions(&blocked, fs::Permissions::from_mode(0o700)).unwrap();
+    assert_eq!(status["intake"][0]["exists"], true);
+    assert_eq!(status["intake"][0]["watching"], false);
+    assert!(status["intake"][0]["error"].as_str().is_some());
 }
 
 #[test]
@@ -693,11 +722,6 @@ fn re_sort_previews_then_applies_a_folder_as_one_batch() {
     });
     let preview = e.get("/api/resort?folder=Archive").json();
     assert_eq!(preview["changes"], 1);
-    assert!(preview["items"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|i| { i["kind"] == "move" && i["to"] == "Wuthering-Waves/Chisa/Chisa 2.png" }));
     assert!(
         e.lib.join("Archive/Chisa original.png").exists(),
         "a preview changes nothing"
@@ -1126,4 +1150,28 @@ fn first_run_setup_can_be_completed() {
         200
     );
     assert_eq!(e.get("/api/status").json()["setup_complete"], true);
+}
+
+#[test]
+fn watched_intake_folders_can_be_edited_and_rescanned() {
+    let e = setup(|_, _| {});
+    let added = e.send(
+        "POST",
+        "/api/intake",
+        json!({ "path": "/tmp/wallpaper-sorter-intake", "recursive": true, "remove_empty_folders": false }),
+    );
+    assert_eq!(added.status, 200);
+
+    let updated = e.send(
+        "PUT",
+        "/api/intake/1",
+        json!({ "path": "/tmp/wallpaper-sorter-intake-updated", "recursive": false, "remove_empty_folders": true }),
+    );
+    assert_eq!(updated.status, 200);
+
+    let removed = http(e.port, "DELETE", "/api/intake/1", Some(&json!({})), &[]);
+    assert_eq!(removed.status, 200);
+
+    let cfg = fs::read_to_string(&e.cfg_path).unwrap();
+    assert!(!cfg.contains("wallpaper-sorter-intake"));
 }

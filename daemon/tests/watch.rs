@@ -161,6 +161,48 @@ fn folders_created_later_in_an_intake_folder_are_watched_and_cleaned_up() {
 }
 
 #[test]
+fn deleted_and_recreated_intake_root_is_watched_again() {
+    let t = Dirs::new();
+    let intake = t.base.join("pixiv");
+    fs::create_dir_all(&intake).unwrap();
+    let mut d = Daemon::start(t.lib.clone(), cfg(Some(&intake)), fast()).unwrap();
+    pump(&mut d, Duration::from_millis(250), || false);
+
+    fs::remove_dir_all(&intake).unwrap();
+    fs::create_dir_all(&intake).unwrap();
+    fs::write(intake.join("Chisa.png"), "pixels").unwrap();
+
+    assert!(pump(&mut d, WAIT, || t.lib.join(CHISA1).exists()));
+}
+
+#[cfg(unix)]
+#[test]
+fn unreadable_intake_subfolder_does_not_stop_sibling_folders() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let t = Dirs::new();
+    let intake = t.base.join("pixiv");
+    let blocked = intake.join("blocked");
+    let available = intake.join("available");
+    fs::create_dir_all(&blocked).unwrap();
+    fs::create_dir_all(&available).unwrap();
+    fs::write(available.join("Chisa.png"), "pixels").unwrap();
+    fs::set_permissions(&blocked, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let mut d = Daemon::start(t.lib.clone(), cfg(Some(&intake)), fast()).unwrap();
+    let sorted = pump(&mut d, WAIT, || t.lib.join(CHISA1).exists());
+    fs::set_permissions(&blocked, fs::Permissions::from_mode(0o700)).unwrap();
+
+    assert!(
+        sorted,
+        "an unreadable sibling must not abort intake scanning"
+    );
+}
+
+#[test]
 fn an_unsorted_intake_file_stays_where_it_is() {
     let t = Dirs::new();
     let intake = t.base.join("pixiv");

@@ -273,7 +273,7 @@
       h('h3', { text: 'Recent activity' }),
       act.length ? WS.activityRows(act, st.library, true) : WS.empty('Nothing yet', 'Sorted images show up here, with an Undo button.'),
       h('h3', { text: 'Watched folders' }),
-      h('div', { class: 'panel watched-folders' }, h('div', { class: 'watched-list' }, watchedEntry(st.library, [WS.badge('library, top level', 'good')]), ...st.intake.map((i) => watchedEntry(i.path, [i.exists ? WS.badge('watching', 'good') : WS.badge('folder not found yet', 'warn')])))),
+      h('div', { class: 'panel watched-folders' }, h('div', { class: 'watched-list' }, watchedEntry(st.library, [WS.badge('library, top level', 'good')]), ...st.intake.map((i) => h('div', {}, watchedEntry(i.path, [i.watching ? WS.badge('watching', 'good') : WS.badge(i.exists ? 'not watching' : 'folder not found yet', 'warn'), i.recursive ? WS.badge('includes subfolders') : null]), i.error ? h('p', { class: 'error', text: i.error }) : null)))) ,
       welcome
     );
   };

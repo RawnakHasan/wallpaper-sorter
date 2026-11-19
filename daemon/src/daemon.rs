@@ -44,6 +44,16 @@ struct IntakeDir {
     recursive: bool,
     remove_empty: bool,
     active: bool,
+    last_error: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct IntakeWatchStatus {
+    pub path: PathBuf,
+    pub recursive: bool,
+    pub remove_empty_folders: bool,
+    pub watching: bool,
+    pub error: Option<String>,
 }
 
 /// What the watcher thread and the web server share.
@@ -58,6 +68,7 @@ pub struct Shared {
     config_edit: Mutex<()>,
     config_undo: Mutex<HashMap<u64, ConfigUndo>>,
     config_undo_path: PathBuf,
+    intake_watch: Mutex<Vec<IntakeWatchStatus>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -92,6 +103,27 @@ impl Shared {
     /// Wakes the watcher loop so it looks at what changed.
     pub fn wake(&self) {
         let _ = (&self.wake).write(&[1]);
+    }
+
+    pub fn intake_watch_status(&self) -> Vec<IntakeWatchStatus> {
+        self.intake_watch
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    fn set_intake_watch_status(&self, intake: &[IntakeDir]) {
+        let status = intake
+            .iter()
+            .map(|dir| IntakeWatchStatus {
+                path: dir.path.clone(),
+                recursive: dir.recursive,
+                remove_empty_folders: dir.remove_empty,
+                watching: dir.active,
+                error: dir.last_error.clone(),
+            })
+            .collect();
+        *self.intake_watch.lock().unwrap_or_else(|e| e.into_inner()) = status;
     }
 
     /// Ask the watcher to look at everything again (files in the library folder and the intake folders).
@@ -357,6 +389,7 @@ impl Daemon {
                 recursive: i.recursive,
                 remove_empty: i.remove_empty_folders,
                 active: false,
+                last_error: None,
             })
             .collect();
         let pipeline = Pipeline::open(&root, cfg)?;
@@ -379,6 +412,7 @@ impl Daemon {
             config_edit: Mutex::new(()),
             config_undo: Mutex::new(config_undo),
             config_undo_path,
+            intake_watch: Mutex::new(Vec::new()),
         });
         shared.restore_held();
         let mut d = Daemon {
@@ -437,19 +471,65 @@ impl Daemon {
             let (path, recursive) = (self.intake[i].path.clone(), self.intake[i].recursive);
             if path.is_dir() {
                 if !self.intake[i].active {
-                    if let Ok(found) = self.watcher.add(&path, recursive) {
-                        self.intake[i].active = true;
-                        self.queue_found(found);
+                    let result = self.watcher.add(&path, recursive);
+                    let errors = self.watcher.take_errors();
+                    match result {
+                        Ok(found) => {
+                            self.intake[i].active = true;
+                            self.intake[i].last_error = None;
+                            self.queue_found(found);
+                        }
+                        Err(error) => {
+                            let message = error.to_string();
+                            eprintln!("wallpaper-sorter: {message}");
+                            self.intake[i].active = false;
+                            self.intake[i].last_error = Some(message);
+                        }
                     }
+                    self.record_watcher_errors(errors);
                 }
             } else {
                 self.intake[i].active = false;
+            }
+        }
+        self.shared.set_intake_watch_status(&self.intake);
+    }
+
+    fn record_watcher_errors(&mut self, errors: Vec<(PathBuf, String)>) {
+        for (path, error) in errors {
+            eprintln!("wallpaper-sorter: {error}");
+            if let Some(intake) = self
+                .intake
+                .iter_mut()
+                .filter(|intake| path.starts_with(&intake.path))
+                .max_by_key(|intake| intake.path.components().count())
+            {
+                intake.last_error = Some(error);
             }
         }
     }
 
     /// Looks at everything again (after the kernel dropped events, or on request).
     pub fn rescan(&mut self) {
+        // Intake configuration can change while the daemon is running. Rebuild the inotify
+        // set from the current config instead of only reacting to already-open watches.
+        self.watcher.clear();
+        if let Ok(found) = self.watcher.add(&self.root.clone(), false) {
+            self.queue_found(found);
+        }
+        let cfg_intake = self.shared.lock().cfg.intake.clone();
+        self.intake = cfg_intake
+            .iter()
+            .map(|i| IntakeDir {
+                path: expand_home(&i.path),
+                recursive: i.recursive,
+                remove_empty: i.remove_empty_folders,
+                active: false,
+                last_error: None,
+            })
+            .collect();
+        self.activate_intake();
+
         let mut found = Vec::new();
         if let Ok(rd) = fs::read_dir(&self.root) {
             found.extend(
@@ -513,11 +593,35 @@ impl Daemon {
         if self.shared.rescan.swap(false, Ordering::SeqCst) {
             self.rescan();
         }
+        let mut intake_watch_lost = false;
         for ev in self.watcher.read()? {
             match ev {
                 Event::File(p) => self.on_file(p),
                 Event::Overflow => self.rescan(),
+                Event::WatchLost(path) if path == self.root => {
+                    match self.watcher.add(&self.root.clone(), false) {
+                        Ok(found) => self.queue_found(found),
+                        Err(error) => eprintln!("wallpaper-sorter: {error}"),
+                    }
+                }
+                Event::WatchLost(path) => {
+                    for intake in &mut self.intake {
+                        if path.starts_with(&intake.path) {
+                            intake.active = false;
+                            intake.last_error =
+                                Some(format!("watch lost for {}; retrying", path.display()));
+                            intake_watch_lost = true;
+                        }
+                    }
+                }
             }
+        }
+        let watcher_errors = self.watcher.take_errors();
+        self.record_watcher_errors(watcher_errors);
+        if intake_watch_lost {
+            self.activate_intake();
+        } else {
+            self.shared.set_intake_watch_status(&self.intake);
         }
 
         let mut notices = Vec::new();
@@ -574,7 +678,9 @@ fn collect_files(dir: &Path, recursive: bool, out: &mut Vec<PathBuf>) {
 fn remove_empty_dirs(dir: &Path, min_age: Duration, is_root: bool) {
     let Ok(rd) = fs::read_dir(dir) else { return };
     for e in rd.flatten() {
-        if e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+        let name = e.file_name();
+        let hidden = name.to_string_lossy().starts_with('.');
+        if !hidden && e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
             remove_empty_dirs(&e.path(), min_age, false);
         }
     }
