@@ -278,13 +278,128 @@ function AppShell() {
   );
 }
 
+function OverviewPage() {
+  const { revision, refresh } = useContext(RefreshContext);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let disposed = false;
+    Promise.all([WS.get('/api/status'), WS.get('/api/activity?limit=8')])
+      .then(([status, activity]) => {
+        if (!disposed) {
+          setData({ status, activity });
+          setError(null);
+        }
+      })
+      .catch((cause) => {
+        if (!disposed) setError(cause);
+      });
+    return () => { disposed = true; };
+  }, [revision]);
+
+  if (error) {
+    return <div className="page"><p className="error" role="alert">{error.message}</p><button className="btn" onClick={refresh}>Try again</button></div>;
+  }
+  if (!data) return <div className="page"><p className="muted">Loading…</p></div>;
+
+  const { status, activity } = data;
+  const compactPath = (path) => path.startsWith(status.library + '/') ? path.slice(status.library.length + 1) : WS.basename(path);
+  const eventLabel = (event) => {
+    if (event.kind === 'undo') return 'Undone';
+    if (event.kind === 'rename') return 'Renamed';
+    if (event.kind === 'duplicate') return 'Sent to Duplicates';
+    if ((event.note || '').startsWith('Deleted')) return 'Deleted';
+    if ((event.note || '').startsWith('Assigned')) return 'Assigned';
+    return 'Sorted';
+  };
+  const undo = async (id) => {
+    try {
+      await WS.post('/api/undo', { id });
+      WS.toast('Undone');
+      refresh();
+    } catch (cause) {
+      WS.toast(cause.message, { error: true });
+    }
+  };
+  const watchedEntry = (path, badges, message) => (
+    <div className="watched-entry" key={path}>
+      <span className="m watched-path">{path}</span>
+      <span className="watched-badges">
+        {badges.map(([label, tone]) => <span className={`badge${tone ? ` ${tone}` : ''}`} key={label}>{label}</span>)}
+      </span>
+      {message ? <p className="error">{message}</p> : null}
+    </div>
+  );
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <h1>Overview</h1>
+        <span className="sub">{status.counts.library_images} images in {status.library}</span>
+        <span className="spacer" />
+        <Link className="btn" to="/resort">Re-sort library</Link>
+      </div>
+      <div className="stats">
+        <Link className="stat" to="/inbox"><div className="n">{status.counts.inbox}</div><div className="l">waiting in the Inbox</div></Link>
+        <Link className="stat" to="/library"><div className="n">{status.counts.library_images}</div><div className="l">images in the library</div></Link>
+        <Link className="stat" to="/duplicates"><div className="n">{status.counts.duplicates}</div><div className="l">in Duplicates</div></Link>
+        <Link className="stat" to="/data"><div className="n">{status.counts.records}</div><div className="l">records of where images came from</div></Link>
+      </div>
+      <h3>Recent activity</h3>
+      {activity.length ? (
+        <div className="batch">
+          {activity.map((event) => (
+            <div className="act" key={event.id}>
+              <span className="t m">{WS.fmtTime(event.time)}</span>
+              <span className="k">{eventLabel(event)}</span>
+              <span className="m grow" title={`${event.from} → ${event.to}`}>{compactPath(event.from)} → {compactPath(event.to)}</span>
+              {event.undone ? <span className="badge">undone</span> : event.undoable ? <button className="btn small" onClick={() => undo(event.id)}>Undo</button> : null}
+            </div>
+          ))}
+        </div>
+      ) : <div className="empty"><b>Nothing yet</b>Sorted images show up here, with an Undo button.</div>}
+      <h3>Watched folders</h3>
+      <div className="panel watched-folders">
+        <div className="watched-list">
+          {watchedEntry(status.library, [['library, top level', 'good']])}
+          {status.intake.map((intake) => watchedEntry(intake.path, [
+            [intake.watching ? 'watching' : intake.exists ? 'not watching' : 'folder not found yet', intake.watching ? 'good' : 'warn'],
+            ...(intake.recursive ? [['includes subfolders', '']] : []),
+          ], intake.error))}
+        </div>
+      </div>
+      {!status.setup_complete ? (
+        <div className="panel welcome">
+          <h3>Welcome to Wallpaper Sorter</h3>
+          <p className="muted">Library: {status.library}</p>
+          <button
+            className="btn primary"
+            onClick={async () => {
+              try {
+                await WS.api('PUT', '/api/settings', { setup_complete: true });
+                WS.toast('Setup complete');
+                refresh();
+              } catch (cause) {
+                WS.toast(cause.message, { error: true });
+              }
+            }}
+          >
+            Finish setup
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const rootRoute = createRootRoute({ component: AppShell });
 const routes = NAV.map(([path, , name]) =>
   createRoute({
     getParentRoute: () => rootRoute,
     path,
     validateSearch: (search) => search,
-    component: () => <LegacyPage name={name} />,
+    component: () => name === 'overview' ? <OverviewPage /> : <LegacyPage name={name} />,
   })
 );
 const router = createRouter({

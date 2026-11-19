@@ -261,45 +261,6 @@
   }
   WS.openDetail = openDetail;
 
-  // ---------- Overview
-  WS.pages.overview = async function () {
-    const [st, act] = await Promise.all([WS.get('/api/status'), WS.get('/api/activity?limit=8')]);
-    const stat = (n, l, href) => h('a', { class: 'stat', href }, h('div', { class: 'n', text: String(n) }), h('div', { class: 'l', text: l }));
-    const watchedEntry = (path, badges) =>
-      h('div', { class: 'watched-entry' }, h('span', { class: 'm watched-path', text: path }), h('span', { class: 'watched-badges' }, ...badges));
-    const welcome = !st.setup_complete ? h(
-      'div',
-      { class: 'panel welcome' },
-      h('h3', { text: 'Welcome to Wallpaper Sorter' }),
-      h('p', { class: 'muted', text: `Library: ${st.library}` }),
-      h('button', {
-        class: 'btn primary',
-        text: 'Finish setup',
-        onclick: async () => {
-          try {
-            await WS.api('PUT', '/api/settings', { setup_complete: true });
-            WS.toast('Setup complete');
-            WS.refresh();
-          } catch (e) {
-            WS.toast(e.message, { error: true });
-          }
-        },
-      })
-    ) : null;
-
-    return page(
-      'Overview',
-      `${st.counts.library_images} images in ${st.library}`,
-      h('a', { class: 'btn', href: '#/resort', text: 'Re-sort library' }),
-      h('div', { class: 'stats' }, stat(st.counts.inbox, 'waiting in the Inbox', '#/inbox'), stat(st.counts.library_images, 'images in the library', '#/library'), stat(st.counts.duplicates, 'in Duplicates', '#/duplicates'), stat(st.counts.records, 'records of where images came from', '#/data')),
-      h('h3', { text: 'Recent activity' }),
-      act.length ? WS.activityRows(act, st.library, true) : WS.empty('Nothing yet', 'Sorted images show up here, with an Undo button.'),
-      h('h3', { text: 'Watched folders' }),
-      h('div', { class: 'panel watched-folders' }, h('div', { class: 'watched-list' }, watchedEntry(st.library, [WS.badge('library, top level', 'good')]), ...st.intake.map((i) => h('div', {}, watchedEntry(i.path, [i.watching ? WS.badge('watching', 'good') : WS.badge(i.exists ? 'not watching' : 'folder not found yet', 'warn'), i.recursive ? WS.badge('includes subfolders') : null]), i.error ? h('p', { class: 'error', text: i.error }) : null)))) ,
-      welcome
-    );
-  };
-
   // ---------- Re-sort
   // Kept outside the page function because changing scope or returning after an undo should not
   // silently discard a preview until the user asks for a new one.
