@@ -38,7 +38,13 @@ fn cfg(intake: Option<&Path>) -> Config {
     let mut c = Config::from_toml(&fs::read_to_string(path).unwrap()).unwrap();
     c.library = None;
     c.intake = intake
-        .map(|p| vec![Intake { path: p.to_string_lossy().to_string(), recursive: true, remove_empty_folders: true }])
+        .map(|p| {
+            vec![Intake {
+                path: p.to_string_lossy().to_string(),
+                recursive: true,
+                remove_empty_folders: true,
+            }]
+        })
         .unwrap_or_default();
     c
 }
@@ -97,7 +103,10 @@ fn a_browser_download_is_sorted_only_after_the_final_rename() {
     fs::write(&partial, "the whole file").unwrap();
     fs::rename(&partial, t.lib.join("Chisa.png")).unwrap();
     assert!(pump(&mut d, WAIT, || t.lib.join(CHISA1).exists()));
-    assert_eq!(fs::read_to_string(t.lib.join(CHISA1)).unwrap(), "the whole file");
+    assert_eq!(
+        fs::read_to_string(t.lib.join(CHISA1)).unwrap(),
+        "the whole file"
+    );
 }
 
 #[test]
@@ -108,11 +117,17 @@ fn a_slow_writer_is_not_sorted_until_it_closes_the_file() {
     f.write_all(b"first part ").unwrap();
     f.flush().unwrap();
     pump(&mut d, Duration::from_millis(700), || false);
-    assert!(t.lib.join("Chisa slow.png").exists(), "must not be touched while it is still open");
+    assert!(
+        t.lib.join("Chisa slow.png").exists(),
+        "must not be touched while it is still open"
+    );
     f.write_all(b"second part").unwrap();
     drop(f);
     assert!(pump(&mut d, WAIT, || t.lib.join(CHISA1).exists()));
-    assert_eq!(fs::read_to_string(t.lib.join(CHISA1)).unwrap(), "first part second part");
+    assert_eq!(
+        fs::read_to_string(t.lib.join(CHISA1)).unwrap(),
+        "first part second part"
+    );
 }
 
 #[test]
@@ -122,7 +137,10 @@ fn files_already_waiting_at_start_are_sorted_without_any_event() {
     fs::write(t.lib.join("wallhaven-1q2le9.jpg"), "no tag").unwrap();
     let mut d = Daemon::start(t.lib.clone(), cfg(None), fast()).unwrap();
     assert!(pump(&mut d, WAIT, || t.lib.join(CHISA1).exists()));
-    assert!(t.lib.join("wallhaven-1q2le9.jpg").exists(), "no match: left where it is");
+    assert!(
+        t.lib.join("wallhaven-1q2le9.jpg").exists(),
+        "no match: left where it is"
+    );
 }
 
 #[test]
@@ -135,7 +153,10 @@ fn folders_created_later_in_an_intake_folder_are_watched_and_cleaned_up() {
     fs::create_dir_all(&artist).unwrap();
     fs::write(artist.join("Chisa.png"), "pixels").unwrap(); // written before the watch on the new folder exists
     assert!(pump(&mut d, WAIT, || t.lib.join(CHISA1).exists()));
-    assert!(pump(&mut d, WAIT, || !artist.exists()), "the empty artist folder is removed after a while");
+    assert!(
+        pump(&mut d, WAIT, || !artist.exists()),
+        "the empty artist folder is removed after a while"
+    );
     assert!(intake.exists(), "the intake folder itself stays");
 }
 
@@ -158,9 +179,18 @@ fn an_unsorted_intake_file_stays_where_it_is() {
         }
     }
     assert!(file.exists());
-    assert!(saw_left || d.pipeline().origins.all().any(|o| o.path == file.to_string_lossy()));
+    assert!(
+        saw_left
+            || d.pipeline()
+                .origins
+                .all()
+                .any(|o| o.path == file.to_string_lossy())
+    );
     pump(&mut d, Duration::from_millis(600), || false);
-    assert!(artist.exists(), "a folder that still holds a file is never removed");
+    assert!(
+        artist.exists(),
+        "a folder that still holds a file is never removed"
+    );
 }
 
 #[test]
@@ -190,6 +220,44 @@ fn undone_files_are_not_sorted_again_until_they_change() {
     assert!(!t.lib.join(CHISA1).exists());
 
     // a different file saved under the same name is a new download and is sorted
+    fs::write(&file, "different pixels, longer").unwrap();
+    assert!(pump(&mut d, WAIT, || t.lib.join(CHISA1).exists()));
+}
+
+#[test]
+fn undone_files_remain_held_after_daemon_restart() {
+    let t = Dirs::new();
+    let file = t.lib.join("Chisa.png");
+    {
+        let mut d = Daemon::start(t.lib.clone(), cfg(None), fast()).unwrap();
+        fs::write(&file, "pixels").unwrap();
+        assert!(pump(&mut d, WAIT, || t.lib.join(CHISA1).exists()));
+
+        let batch = d.pipeline().log.entries().last().unwrap().batch;
+        d.undo_batch(batch).unwrap();
+        assert!(file.exists());
+    }
+
+    let mut d = Daemon::start(t.lib.clone(), cfg(None), fast()).unwrap();
+    pump(&mut d, Duration::from_millis(900), || false);
+    assert!(file.exists(), "the undone file must stay put after restart");
+    assert!(!t.lib.join(CHISA1).exists());
+}
+
+#[test]
+fn undone_files_changed_after_daemon_restart_are_sorted() {
+    let t = Dirs::new();
+    let file = t.lib.join("Chisa.png");
+    {
+        let mut d = Daemon::start(t.lib.clone(), cfg(None), fast()).unwrap();
+        fs::write(&file, "pixels").unwrap();
+        assert!(pump(&mut d, WAIT, || t.lib.join(CHISA1).exists()));
+
+        let batch = d.pipeline().log.entries().last().unwrap().batch;
+        d.undo_batch(batch).unwrap();
+    }
+
+    let mut d = Daemon::start(t.lib.clone(), cfg(None), fast()).unwrap();
     fs::write(&file, "different pixels, longer").unwrap();
     assert!(pump(&mut d, WAIT, || t.lib.join(CHISA1).exists()));
 }

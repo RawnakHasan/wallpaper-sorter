@@ -70,7 +70,7 @@ It keeps its own files in `<library>/.sorter/` (hash cache, origin records, log)
 Try it on a copy of your library first: `--library /some/copy`.
 
 Behaviour worth knowing: partial downloads (`.crdownload`, `.part`) are ignored until they are renamed to an image
-name; files that an undo put back are left alone until they change; an intake folder that does not exist yet is
+name; files that an undo put back are left alone until they change, including across daemon restarts; an intake folder that does not exist yet is
 picked up when it appears; an empty subfolder of an intake folder is removed after ten minutes without a file.
 
 ## The API

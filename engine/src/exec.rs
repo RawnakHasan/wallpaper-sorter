@@ -16,7 +16,10 @@ pub enum ExecError {
 
 impl ExecError {
     pub(crate) fn io(path: &Path, source: io::Error) -> ExecError {
-        ExecError::Io { path: path.to_path_buf(), source }
+        ExecError::Io {
+            path: path.to_path_buf(),
+            source,
+        }
     }
 }
 
@@ -49,10 +52,15 @@ pub fn move_no_replace(from: &Path, to: &Path) -> Result<(), ExecError> {
         // 18 is EXDEV on Linux: source and target are on different drives.
         Err(e) if e.raw_os_error() == Some(18) => {
             let copied = fs::copy(from, to).map_err(|e| ExecError::io(to, e))?;
-            let size = fs::metadata(from).map_err(|e| ExecError::io(from, e))?.len();
+            let size = fs::metadata(from)
+                .map_err(|e| ExecError::io(from, e))?
+                .len();
             if copied != size {
                 let _ = fs::remove_file(to);
-                return Err(ExecError::io(to, io::Error::new(io::ErrorKind::Other, "copy size mismatch")));
+                return Err(ExecError::io(
+                    to,
+                    io::Error::new(io::ErrorKind::Other, "copy size mismatch"),
+                ));
             }
             fs::remove_file(from).map_err(|e| ExecError::io(from, e))
         }
@@ -75,7 +83,10 @@ pub struct Report {
 
 /// Applies the plan in order and logs each step. Stops at the first error.
 pub fn apply(plan: &Plan, root: &Path, log: &mut Log) -> Report {
-    let mut report = Report { batch: log.next_batch(), ..Default::default() };
+    let mut report = Report {
+        batch: log.next_batch(),
+        ..Default::default()
+    };
     for action in &plan.actions {
         let (kind, from, to, note) = match action {
             Action::Ignore { .. } => continue,
@@ -83,14 +94,25 @@ pub fn apply(plan: &Plan, root: &Path, log: &mut Log) -> Report {
                 report.left.push((path.clone(), reason.clone()));
                 continue;
             }
-            Action::Move { from, to, rule, matched } => (
+            Action::Move {
+                from,
+                to,
+                rule,
+                matched,
+            } => (
                 Kind::Move,
                 PathBuf::from(from),
                 root.join(to),
                 format!("{}; tags: {}", rule.label(), matched.join(";")),
             ),
-            Action::Rename { from, to } => (Kind::Rename, root.join(from), root.join(to), String::new()),
-            Action::ToDuplicates { from, to, duplicate_of } => (
+            Action::Rename { from, to } => {
+                (Kind::Rename, root.join(from), root.join(to), String::new())
+            }
+            Action::ToDuplicates {
+                from,
+                to,
+                duplicate_of,
+            } => (
                 Kind::Duplicate,
                 PathBuf::from(from),
                 root.join(to),
@@ -98,14 +120,24 @@ pub fn apply(plan: &Plan, root: &Path, log: &mut Log) -> Report {
             ),
         };
         match move_no_replace(&from, &to) {
-            Ok(()) => match log.append(kind, report.batch, &from.to_string_lossy(), &to.to_string_lossy(), &note, None) {
+            Ok(()) => match log.append(
+                kind,
+                report.batch,
+                &from.to_string_lossy(),
+                &to.to_string_lossy(),
+                &note,
+                None,
+                None,
+            ) {
                 Ok(entry) => report.done.push(entry),
                 Err(e) => {
                     report.error = Some(ExecError::io(&to, e));
                     break;
                 }
             },
-            Err(ExecError::SourceMissing(p)) => report.skipped.push(p.to_string_lossy().to_string()),
+            Err(ExecError::SourceMissing(p)) => {
+                report.skipped.push(p.to_string_lossy().to_string())
+            }
             Err(e) => {
                 report.error = Some(e);
                 break;

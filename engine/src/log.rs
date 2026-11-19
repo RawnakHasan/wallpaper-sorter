@@ -31,6 +31,11 @@ pub struct Entry {
     /// For an undo entry: the id of the entry it reverses.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub undoes: Option<u64>,
+    /// Fingerprint of the restored file while it is being held.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hold_size: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hold_mtime_ns: Option<u64>,
 }
 
 pub struct Log {
@@ -50,7 +55,10 @@ impl Log {
                     continue;
                 }
                 let entry: Entry = serde_json::from_str(&line).map_err(|e| {
-                    io::Error::new(io::ErrorKind::InvalidData, format!("{}: line {}: {e}", path.display(), i + 1))
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{}: line {}: {e}", path.display(), i + 1),
+                    )
                 })?;
                 entries.push(entry);
             }
@@ -82,22 +90,32 @@ impl Log {
         to: &str,
         note: &str,
         undoes: Option<u64>,
+        hold: Option<(u64, u64)>,
     ) -> io::Result<Entry> {
         let entry = Entry {
             id: self.entries.iter().map(|e| e.id).max().unwrap_or(0) + 1,
             batch,
-            time: SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0),
+            time: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
             kind,
             from: from.to_string(),
             to: to.to_string(),
             note: note.to_string(),
             undoes,
+            hold_size: hold.map(|fp| fp.0),
+            hold_mtime_ns: hold.map(|fp| fp.1),
         };
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
         }
-        let line = serde_json::to_string(&entry).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        let mut file = OpenOptions::new().create(true).append(true).open(&self.path)?;
+        let line = serde_json::to_string(&entry)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
         writeln!(file, "{line}")?;
         file.sync_data()?;
         self.entries.push(entry.clone());

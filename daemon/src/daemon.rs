@@ -4,8 +4,8 @@ use crate::debounce::Debouncer;
 use crate::watcher::{wait_readable, DirWatcher, Event};
 use serde::{Deserialize, Serialize};
 use sorter_core::{expand_home, Config};
-use sorter_engine::{file_stat, write_atomic, Entry, Outcome, Pipeline, UndoError};
-use std::collections::HashMap;
+use sorter_engine::{file_stat, write_atomic, Entry, Kind, Outcome, Pipeline, UndoError};
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
@@ -88,6 +88,27 @@ impl Shared {
             let p = PathBuf::from(&u.to);
             if let Ok(fp) = file_stat(&p) {
                 held.insert(p, fp);
+            }
+        }
+    }
+
+    fn restore_held(&self) {
+        let entries: Vec<Entry> = self.lock().log.entries().to_vec();
+        let mut held = self.held.lock().unwrap_or_else(|e| e.into_inner());
+        let mut seen = HashSet::new();
+        for u in entries.iter().rev() {
+            if u.kind != Kind::Undo {
+                continue;
+            }
+            let p = PathBuf::from(&u.to);
+            if !seen.insert(p.clone()) {
+                continue;
+            }
+            let (Some(size), Some(mtime_ns)) = (u.hold_size, u.hold_mtime_ns) else {
+                continue;
+            };
+            if file_stat(&p).ok() == Some((size, mtime_ns)) {
+                held.insert(p, (size, mtime_ns));
             }
         }
     }
@@ -276,6 +297,7 @@ impl Daemon {
             config_undo: Mutex::new(config_undo),
             config_undo_path,
         });
+        shared.restore_held();
         let mut d = Daemon {
             shared,
             wake_rx,
@@ -313,6 +335,14 @@ impl Daemon {
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
             if is_image_name(&name, &exts) {
+                let mut held = self.shared.held.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some(fp) = held.get(&f).copied() {
+                    if file_stat(&f).ok() == Some(fp) {
+                        continue;
+                    }
+                    held.remove(&f);
+                }
+                drop(held);
                 self.deb.push_stable(f);
             }
         }

@@ -1,6 +1,7 @@
 //! Undo: moves a file back where it came from. If that name is taken, the file comes back with a suffix.
 
 use crate::exec::{move_no_replace, ExecError};
+use crate::index::file_stat;
 use crate::log::{Entry, Kind, Log};
 use std::fmt;
 use std::fs;
@@ -42,7 +43,10 @@ impl std::error::Error for UndoError {}
 
 fn unique_path(original: &Path) -> PathBuf {
     let dir = original.parent().unwrap_or_else(|| Path::new(""));
-    let name = original.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let name = original
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let (stem, ext) = match name.rfind('.') {
         Some(i) if i > 0 => (name[..i].to_string(), name[i..].to_string()),
         _ => (name.clone(), String::new()),
@@ -66,8 +70,13 @@ fn undo_one(log: &mut Log, id: u64, batch: u64) -> Result<Entry, UndoError> {
     if fs::symlink_metadata(&current).is_err() {
         return Err(UndoError::FileMovedSince(entry.to.clone()));
     }
-    let target = if fs::symlink_metadata(&original).is_ok() { unique_path(&original) } else { original };
+    let target = if fs::symlink_metadata(&original).is_ok() {
+        unique_path(&original)
+    } else {
+        original
+    };
     move_no_replace(&current, &target).map_err(UndoError::Exec)?;
+    let hold = file_stat(&target).ok();
     log.append(
         Kind::Undo,
         batch,
@@ -75,6 +84,7 @@ fn undo_one(log: &mut Log, id: u64, batch: u64) -> Result<Entry, UndoError> {
         &target.to_string_lossy(),
         &format!("undo of {id}"),
         Some(id),
+        hold,
     )
     .map_err(UndoError::Log)
 }

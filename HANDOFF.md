@@ -253,7 +253,7 @@ tables are the real specification; do not regenerate them from the code.
 - A loose file in the library root is in the hash index; processing it again must not treat it as a duplicate of itself.
 - inotify does not report moves inside folders that are not watched; the library root is watched non-recursively on
   purpose, so the sorter's own moves into subfolders do not loop.
-- After an undo, the restored file is "held" (in memory) so the watcher does not sort it again until it changes.
+- After an undo, the restored file is held using a persisted size and modification-time fingerprint, so it is left alone across daemon restarts until it changes.
 
 ---
 
@@ -288,7 +288,6 @@ the original config text.
 
 ### 4.4 Smaller known limits
 
-- The "held after undo" set is in memory; after a restart an undone file that matches a tag will be sorted again.
 - A second copy of an unsorted Pixiv file that sits **outside** the library is not recognised as a duplicate until the
   first one is inside the library.
 - Adding or changing a tag makes the program look at waiting files again, so files that now match get sorted at once
