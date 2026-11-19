@@ -40,7 +40,9 @@ fn cfg() -> Config {
 
 /// A minimal PNG header with the given size, followed by `tag` so different files have different content.
 fn png(w: u32, h: u32, tag: &str) -> Vec<u8> {
-    let mut v = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, b'I', b'H', b'D', b'R'];
+    let mut v = vec![
+        0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, b'I', b'H', b'D', b'R',
+    ];
     v.extend(w.to_be_bytes());
     v.extend(h.to_be_bytes());
     v.extend([8, 2, 0, 0, 0]);
@@ -54,7 +56,10 @@ fn put(path: &Path, bytes: &[u8]) {
 }
 
 fn names(dir: &Path) -> Vec<String> {
-    let mut v: Vec<String> = fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().to_string()).collect();
+    let mut v: Vec<String> = fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+        .collect();
     v.sort();
     v
 }
@@ -79,7 +84,13 @@ fn moving_records_origin_dimensions_and_index() {
     assert_eq!(o.sources[0].url, "https://www.zerochan.net/4511113");
     assert_eq!((o.width, o.height), (1920, 1080));
     assert_eq!(o.note, "One folder; tags: chisa");
-    assert_eq!(p.index.get("Wuthering-Waves/Chisa/Chisa 1.png").unwrap().hash, hash);
+    assert_eq!(
+        p.index
+            .get("Wuthering-Waves/Chisa/Chisa 1.png")
+            .unwrap()
+            .hash,
+        hash
+    );
 }
 
 #[test]
@@ -94,7 +105,10 @@ fn a_copy_from_another_site_is_a_duplicate_and_adds_a_source() {
     p.process(&[a]).unwrap();
     let out = p.process(&[b.clone()]).unwrap();
     assert!(out.report.error.is_none());
-    assert_eq!(names(&d.lib.join("Duplicates")), ["Konachan.com - 404420 chisa wuthering_waves.png"]);
+    assert_eq!(
+        names(&d.lib.join("Duplicates")),
+        ["Konachan.com - 404420 chisa wuthering_waves.png"]
+    );
     assert_eq!(names(&d.lib.join("Wuthering-Waves/Chisa")), ["Chisa 1.png"]);
     assert_eq!(p.origins.len(), 1);
     let o = p.origins.all().next().unwrap();
@@ -128,7 +142,10 @@ fn the_hash_cache_is_reused_until_a_file_changes() {
     assert_eq!((p.last_refresh.hashed, p.last_refresh.reused), (0, 1));
     drop(p);
 
-    put(&d.lib.join("Wuthering-Waves/Chisa/Chisa 1.png"), &png(10, 10, "changed and longer"));
+    put(
+        &d.lib.join("Wuthering-Waves/Chisa/Chisa 1.png"),
+        &png(10, 10, "changed and longer"),
+    );
     let p = Pipeline::open(&d.lib, cfg()).unwrap();
     assert_eq!((p.last_refresh.hashed, p.last_refresh.reused), (1, 0));
 }
@@ -150,8 +167,17 @@ fn gap_filling_keeps_origin_paths_current() {
     put(&src, &png(10, 10, "new"));
     p.process(&[src]).unwrap();
 
-    assert_eq!(p.origins.get(&four).unwrap().path, "Wuthering-Waves/Chisa/Chisa 2.png");
-    assert_eq!(p.index.get("Wuthering-Waves/Chisa/Chisa 2.png").unwrap().hash, four);
+    assert_eq!(
+        p.origins.get(&four).unwrap().path,
+        "Wuthering-Waves/Chisa/Chisa 2.png"
+    );
+    assert_eq!(
+        p.index
+            .get("Wuthering-Waves/Chisa/Chisa 2.png")
+            .unwrap()
+            .hash,
+        four
+    );
     assert!(p.index.get("Wuthering-Waves/Chisa/Chisa 4.png").is_some());
 }
 
@@ -159,15 +185,26 @@ fn gap_filling_keeps_origin_paths_current() {
 fn existing_files_get_origin_records_when_the_library_is_opened() {
     let d = Dirs::new();
     put(&d.lib.join("wallhaven-1q2le9.jpg"), &png(10, 10, "w"));
-    put(&d.lib.join("Arknights/Skadi/Skadi 3.png"), &png(10, 10, "s"));
+    put(
+        &d.lib.join("Arknights/Skadi/Skadi 3.png"),
+        &png(10, 10, "s"),
+    );
     put(&d.lib.join("Notes/readme.txt"), b"not an image");
     let p = Pipeline::open(&d.lib, cfg()).unwrap();
     assert_eq!(p.origins.len(), 2);
-    let w = p.origins.all().find(|o| o.original_name == "wallhaven-1q2le9.jpg").unwrap();
+    let w = p
+        .origins
+        .all()
+        .find(|o| o.original_name == "wallhaven-1q2le9.jpg")
+        .unwrap();
     assert_eq!(w.sources[0].site, Site::Wallhaven);
     assert_eq!(w.sources[0].id, "1q2le9");
     assert_eq!(w.path, "wallhaven-1q2le9.jpg");
-    let s = p.origins.all().find(|o| o.original_name == "Skadi 3.png").unwrap();
+    let s = p
+        .origins
+        .all()
+        .find(|o| o.original_name == "Skadi 3.png")
+        .unwrap();
     assert_eq!(s.sources[0].site, Site::Unknown);
     assert_eq!(s.note, "existing file");
 }
@@ -185,8 +222,14 @@ fn a_pixiv_file_left_in_place_keeps_its_artist() {
     let o = p.origins.get(&hash).unwrap();
     assert_eq!(o.path, src.to_string_lossy());
     let s = &o.sources[0];
-    assert_eq!((s.site, s.id.as_str(), s.page), (Site::Pixiv, "151861634", Some(0)));
-    assert_eq!((s.artist.as_deref(), s.artist_id.as_deref()), (Some("BLACKmeow"), Some("91709880")));
+    assert_eq!(
+        (s.site, s.id.as_str(), s.page),
+        (Site::Pixiv, "151861634", Some(0))
+    );
+    assert_eq!(
+        (s.artist.as_deref(), s.artist_id.as_deref()),
+        (Some("BLACKmeow"), Some("91709880"))
+    );
     assert_eq!(o.note, "waiting in the Inbox (no match)");
 }
 
@@ -215,7 +258,11 @@ fn moving_a_file_by_hand_is_noticed_on_reopen() {
         p.process(&[src]).unwrap();
     }
     fs::create_dir_all(d.lib.join("Other")).unwrap();
-    fs::rename(d.lib.join("Wuthering-Waves/Chisa/Chisa 1.png"), d.lib.join("Other/kept.png")).unwrap();
+    fs::rename(
+        d.lib.join("Wuthering-Waves/Chisa/Chisa 1.png"),
+        d.lib.join("Other/kept.png"),
+    )
+    .unwrap();
     let p = Pipeline::open(&d.lib, cfg()).unwrap();
     assert_eq!(p.origins.get(&hash).unwrap().path, "Other/kept.png");
     assert_eq!(p.origins.len(), 1);
@@ -249,7 +296,10 @@ fn a_loose_file_already_in_the_library_is_not_its_own_duplicate() {
 #[test]
 fn a_loose_copy_of_a_sorted_file_is_still_a_duplicate() {
     let d = Dirs::new();
-    put(&d.lib.join("Wuthering-Waves/Chisa/Chisa 1.png"), &png(10, 10, "same"));
+    put(
+        &d.lib.join("Wuthering-Waves/Chisa/Chisa 1.png"),
+        &png(10, 10, "same"),
+    );
     put(&d.lib.join("Chisa copy.png"), &png(10, 10, "same"));
     let mut p = Pipeline::open(&d.lib, cfg()).unwrap();
     p.process(&[d.lib.join("Chisa copy.png")]).unwrap();
@@ -263,7 +313,8 @@ fn two_identical_loose_files_are_sorted_once_and_the_other_is_a_duplicate() {
     put(&d.lib.join("Chisa a.png"), &png(10, 10, "same"));
     put(&d.lib.join("Chisa b.png"), &png(10, 10, "same"));
     let mut p = Pipeline::open(&d.lib, cfg()).unwrap();
-    p.process(&[d.lib.join("Chisa a.png"), d.lib.join("Chisa b.png")]).unwrap();
+    p.process(&[d.lib.join("Chisa a.png"), d.lib.join("Chisa b.png")])
+        .unwrap();
     assert_eq!(names(&d.lib.join("Wuthering-Waves/Chisa")), ["Chisa 1.png"]);
     assert_eq!(names(&d.lib.join("Duplicates")), ["Chisa b.png"]);
 }
