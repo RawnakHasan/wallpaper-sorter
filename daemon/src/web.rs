@@ -7,11 +7,11 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sorter_core::matcher::{split_name, tokens};
-use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site };
+use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site};
 use sorter_engine::cfgedit::{
-    add_folder, add_intake, add_tag, delete_tag_checked, merge_folder as edit_merge_folder, remove_intake,
-    rename_folder as edit_rename_folder, set_folder_prefix, set_gap_mode, set_setup_complete,
-    update_intake, update_tag_checked, validate_tag, TagSpec,
+    add_folder, add_intake, add_tag, delete_tag_checked, merge_folder as edit_merge_folder,
+    remove_intake, rename_folder as edit_rename_folder, set_folder_prefix, set_gap_mode,
+    set_setup_complete, update_intake, update_tag_checked, validate_tag, TagSpec,
 };
 use sorter_engine::{Origin, Outcome, UndoError};
 use std::collections::HashMap;
@@ -714,7 +714,11 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                     )
                 })
                 .map_err(|e| {
-                    let status = if e.contains("tag changed since") { 409 } else { 400 };
+                    let status = if e.contains("tag changed since") {
+                        409
+                    } else {
+                        400
+                    };
                     ApiError::new(status, e)
                 })?;
             ctx.shared.request_rescan();
@@ -735,7 +739,11 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                     )
                 })
                 .map_err(|e| {
-                    let status = if e.contains("tag changed since") { 409 } else { 400 };
+                    let status = if e.contains("tag changed since") {
+                        409
+                    } else {
+                        400
+                    };
                     ApiError::new(status, e)
                 })?;
             Ok(Resp::json(200, &tags_json(ctx)))
