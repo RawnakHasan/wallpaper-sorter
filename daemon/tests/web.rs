@@ -261,6 +261,28 @@ fn status_and_the_security_checks() {
     assert_eq!(
         http(
             e.port,
+            "GET",
+            "/api/status",
+            None,
+            &[("Sec-Fetch-Site", "cross-site")]
+        )
+        .status,
+        403
+    );
+    assert_eq!(
+        http(
+            e.port,
+            "POST",
+            "/api/tags",
+            Some(&json!({ "keywords": ["x".repeat(2_000_001)], "dest": "Nature" })),
+            &[]
+        )
+        .status,
+        413
+    );
+    assert_eq!(
+        http(
+            e.port,
             "POST",
             "/api/rescan",
             Some(&json!({})),
@@ -1037,9 +1059,20 @@ fn a_source_can_be_set_by_hand_and_the_gap_mode_changed() {
             .status,
         400
     );
-    assert!(fs::read_to_string(&e.cfg_path)
-        .unwrap()
-        .contains("gap_mode = \"last\""));
+    let config = fs::read_to_string(&e.cfg_path).unwrap();
+    assert!(config.contains("gap_mode = \"last\""));
+    assert_eq!(
+        e.send(
+            "PUT",
+            "/api/settings",
+            json!({ "gap_mode": "keep", "setup_complete": true })
+        )
+        .status,
+        200
+    );
+    let config = fs::read_to_string(&e.cfg_path).unwrap();
+    assert!(config.contains("gap_mode = \"keep\""));
+    assert!(config.contains("setup_complete = true"));
 }
 
 #[test]

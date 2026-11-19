@@ -181,11 +181,19 @@ fn header(name: &str, value: &str) -> Header {
 }
 
 fn handle(ctx: &Ctx, mut req: Request) {
-    let resp = route(ctx, &mut req).unwrap_or_else(|e| {
-        let mut resp = Resp::json(e.status, &json!({ "error": e.msg }));
-        resp.retry_after = e.retry_after;
-        resp
-    });
+    let resp =
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| route(ctx, &mut req))) {
+            Ok(result) => result,
+            Err(_) => {
+                eprintln!("wallpaper-sorter: web handler panicked");
+                Err(ApiError::new(500, "internal server error"))
+            }
+        }
+        .unwrap_or_else(|e| {
+            let mut resp = Resp::json(e.status, &json!({ "error": e.msg }));
+            resp.retry_after = e.retry_after;
+            resp
+        });
     let mut r = Response::from_data(resp.body).with_status_code(resp.status);
     r.add_header(header("Content-Type", resp.content_type));
     r.add_header(header("Cache-Control", resp.cache));
@@ -217,6 +225,9 @@ fn check_request(ctx: &Ctx, req: &Request) -> Result<(), ApiError> {
         return Err(ApiError::new(403, "unexpected Host header"));
     }
     if matches!(req.method(), Method::Get | Method::Head) {
+        if header_value(req, "Sec-Fetch-Site").as_deref() == Some("cross-site") {
+            return Err(ApiError::new(403, "cross-site requests are not allowed"));
+        }
         return Ok(());
     }
     if let Some(origin) = header_value(req, "Origin") {
@@ -288,9 +299,12 @@ fn split_url(url: &str) -> (Vec<String>, HashMap<String, String>) {
 fn read_json<T: DeserializeOwned>(req: &mut Request) -> Result<T, ApiError> {
     let mut buf = Vec::new();
     req.as_reader()
-        .take(2_000_000)
+        .take(2_000_001)
         .read_to_end(&mut buf)
         .map_err(|e| ApiError::new(400, e.to_string()))?;
+    if buf.len() > 2_000_000 {
+        return Err(ApiError::new(413, "JSON body is too large"));
+    }
     serde_json::from_slice(&buf).map_err(|e| ApiError::new(400, format!("bad JSON: {e}")))
 }
 
@@ -573,12 +587,13 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                     "creating folders requires a config file",
                 ));
             }
+            let root = ctx.shared.lock().root.clone();
             ctx.shared.lock().create_folder(&b.folder)?;
             if let Err(e) = ctx
                 .shared
                 .edit_config(|text| add_folder(text, &b.folder, None))
             {
-                let _ = std::fs::remove_dir(ctx.shared.lock().root.join(&b.folder));
+                rollback_created_folder(&root, &b.folder);
                 return Err(ApiError::new(400, e));
             }
             Ok(Resp::json(200, &json!({ "folder": b.folder })))
@@ -760,14 +775,20 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
         }
         (Method::Put, ["api", "settings"]) => {
             let b: SettingsBody = read_json(req)?;
-            if let Some(mode) = b.gap_mode {
+            if b.gap_mode.is_some() || b.setup_complete.is_some() {
                 ctx.shared
-                    .edit_config(|t| set_gap_mode(t, &mode))
-                    .map_err(|e| ApiError::new(400, e))?;
-            }
-            if let Some(complete) = b.setup_complete {
-                ctx.shared
-                    .edit_config(|t| set_setup_complete(t, complete))
+                    .edit_config(|text| {
+                        let text = if let Some(mode) = b.gap_mode.as_deref() {
+                            set_gap_mode(text, mode)?
+                        } else {
+                            text.to_string()
+                        };
+                        if let Some(complete) = b.setup_complete {
+                            set_setup_complete(&text, complete)
+                        } else {
+                            Ok(text)
+                        }
+                    })
                     .map_err(|e| ApiError::new(400, e))?;
             }
             Ok(Resp::json(200, &ctx.shared.lock().cfg.settings))
@@ -848,6 +869,21 @@ fn resolve_all(p: &sorter_engine::Pipeline, paths: &[String]) -> Result<Vec<Path
     Ok(out)
 }
 
+fn rollback_created_folder(root: &std::path::Path, folder: &str) {
+    let leaf = root.join(folder);
+    let _ = std::fs::remove_dir(&leaf);
+    let mut parent = leaf.parent();
+    while let Some(path) = parent {
+        if path == root {
+            break;
+        }
+        if std::fs::remove_dir(path).is_err() {
+            break;
+        }
+        parent = path.parent();
+    }
+}
+
 fn finish_folder_change(
     ctx: &Ctx,
     out: &Outcome,
@@ -859,11 +895,11 @@ fn finish_folder_change(
     change: impl FnOnce(&str) -> Result<String, String>,
 ) -> Result<(), ApiError> {
     let has_file_changes = !out.report.done.is_empty();
-    if out.report.error.is_some() {
+    if let Some(error) = out.report.error.as_ref() {
         if has_file_changes {
             ctx.shared.undo_batch(out.report.batch)?;
         }
-        return Ok(());
+        return Err(ApiError::new(500, error.to_string()));
     }
     if let Err(e) = ctx.shared.edit_config(change) {
         if has_file_changes {
