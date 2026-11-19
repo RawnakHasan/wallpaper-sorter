@@ -592,3 +592,32 @@ fn re_sort_does_not_treat_a_nested_tail_as_in_place() {
             && to == "Wuthering-Waves/Chisa/Chisa 1.png"
     )));
 }
+
+#[test]
+fn a_duplicate_can_be_restored_as_a_new_image_and_undone() {
+    let d = Dirs::new();
+    put(&d.lib.join("Nature/Nature 1.png"), "same");
+    put(&d.dl.join("Chisa copy.png"), "same");
+    let mut p = Pipeline::open(&d.lib, d.cfg()).unwrap();
+
+    let copy = d.dl.join("Chisa copy.png");
+    p.assign(&[copy.clone()], "Nature").unwrap();
+    let duplicate = d.lib.join("Duplicates/Chisa copy.png");
+    assert!(
+        duplicate.exists(),
+        "assigning identical content should first create a duplicate"
+    );
+
+    let out = p
+        .restore_duplicate(&duplicate, "Wuthering-Waves/Chisa")
+        .unwrap();
+    assert!(out.report.error.is_none());
+    assert!(
+        d.lib.join("Wuthering-Waves/Chisa/Chisa 1.png").exists()
+            || d.lib.join("Wuthering-Waves/Chisa/Chisa 2.png").exists()
+    );
+    assert!(!duplicate.exists());
+
+    p.undo_batch(out.report.batch).unwrap();
+    assert!(duplicate.exists());
+}

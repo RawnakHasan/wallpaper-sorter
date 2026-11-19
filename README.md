@@ -108,6 +108,7 @@ folder is not a logged file action.
 | `GET/PUT /api/settings` | settings (`gap_mode` can be changed) |
 | `POST /api/rescan` | look at the library folder and intake folders again (also done after a tag is added or changed) |
 | `GET /api/thumb/<hash>`, `GET /api/image/<hash>` | thumbnail and full image, addressed by content hash |
+| `POST /api/duplicates/restore` | restore duplicate copies into a destination folder as new numbered images, undoable |
 
 ## Run the tests
 
@@ -134,5 +135,4 @@ To change a matching rule: edit `spec/ref_matcher.py`, run `cd spec && python3 g
 - `Cargo.lock` pins `indexmap`, `hashbrown`, `blake3` and `image` to older releases so the project also builds with Rust 1.75.
   BLAKE3 is built with its `pure` feature, so no C compiler is needed.
   On a current toolchain you can run `cargo update` to take the newest versions.
-- Not built yet: the first-run welcome flow, "restore a duplicate as a new image", a size cap for the thumbnail
-  cache, a size cap for the log.
+- Not built yet: the first-run welcome flow, a size cap for the thumbnail cache, and a size cap for the log.

@@ -56,6 +56,7 @@ fn plan_cases_toml() {
             .collect();
         let opts = PlanOptions {
             forced_dest: c.assign_to.clone(),
+            skip_duplicate_check: false,
         };
         let got = build_plan_with(&cfg, &library, &incoming, &opts).describe();
         if got != c.expect {

@@ -1070,3 +1070,37 @@ fn re_sort_stays_report_zero_changes() {
         .iter()
         .any(|item| item["kind"] == "stay"));
 }
+
+#[test]
+fn a_duplicate_can_be_restored_as_a_new_image_and_undone() {
+    let mut e = setup(|lib, _| {
+        put(&lib.join("Nature/Nature 1.png"), "same");
+        put(&lib.join("Chisa copy.png"), "same");
+    });
+    let lib = e.lib.clone();
+    assert!(e.pump(Duration::from_secs(6), || lib
+        .join("Duplicates/Chisa copy.png")
+        .exists()));
+
+    let restored = e.send(
+        "POST",
+        "/api/duplicates/restore",
+        json!({ "paths": ["Duplicates/Chisa copy.png"], "folder": "Wuthering-Waves/Chisa" }),
+    );
+    assert_eq!(
+        restored.status,
+        200,
+        "{}",
+        String::from_utf8_lossy(&restored.body)
+    );
+    assert_eq!(restored.json()["done"].as_array().unwrap().len(), 1);
+    assert!(!e.lib.join("Duplicates/Chisa copy.png").exists());
+
+    let batch = restored.json()["batch"].as_u64().unwrap();
+    assert_eq!(
+        e.send("POST", "/api/undo", json!({ "batch": batch }))
+            .status,
+        200
+    );
+    assert!(e.lib.join("Duplicates/Chisa copy.png").exists());
+}

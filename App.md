@@ -162,7 +162,7 @@ Runs at `http://127.0.0.1:8421/` (`--port N` or `[server] port` changes it, `--n
 | Assign sheet | Folder picker with type-ahead and recent folders, a live preview of the new name, and an optional "Also save a tag" with keyword suggestions from the filename. Shows an Undo toast afterwards. |
 | Library | Folder tree, breadcrumbs, facts (prefix, next number, image count, gaps, counts per source), image grid in number order. New folder, Manage folder (rename, merge, prefix, each with a preview), Close gaps. The grid shows 240 at a time with a "show more" button. |
 | Tags | Tags grouped by destination folder, add/edit/delete, and a filename tester showing the words, the rule, the folder and the new name. |
-| Duplicates | List with what each one duplicates, Delete, Empty Duplicates folder (to trash). |
+| Duplicates | List with what each one duplicates, Restore as a new numbered image, Delete, Empty Duplicates folder (to trash). |
 | Data | Origin records table with search, site filter, folder filter, "Unknown source" filter, 50 per page. Set a source by hand. |
 | Re-sort | Pick the whole library or one folder, scan and preview, then apply as one undoable batch. Changes are listed; stays and no-match images are only counted; conflicts are listed as "needs a decision". Lists are capped at 200 rows. |
 | Activity | The log grouped by day and batch, with Undo per row or per batch. |
@@ -249,6 +249,7 @@ JSON over HTTP on 127.0.0.1 only. Security: the `Host` header must match, anythi
 | `GET/PUT /api/settings` | Settings (gap mode) |
 | `POST /api/rescan` | Look at all folders again |
 | `GET /api/thumb/<hash>`, `GET /api/image/<hash>` | Thumbnail (400 px JPEG, cached by hash) and full image |
+| `POST /api/duplicates/restore` | Restore selected duplicates into a destination folder while bypassing duplicate detection once |
 
 ---
 
@@ -308,7 +309,6 @@ Test suites: table tests in core, end-to-end tests on real temporary folders in 
 ## 17. Not built yet
 
 - First-run welcome flow (pick library and intake folders, first scan).
-- Restore a duplicate as a new image.
 - Editing watched folders from the Settings page (config file only for now).
 - Size caps for the thumbnail cache and the log.
 - Videos (the `Video/` folder of mp4s). Parked by the owner.

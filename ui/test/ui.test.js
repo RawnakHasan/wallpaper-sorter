@@ -561,9 +561,11 @@ test('duplicates: a copy is listed with its original and can be cleared', () =>
       assert.match(row.textContent, /Chisa copy\.png/);
       assert.match(row.textContent, /Same as Wuthering-Waves\/Chisa\/Chisa 1\.png/);
       assert.ok(ui.q('a[href="#/library?folder=Wuthering-Waves%2FChisa"]', row));
-      ui.click(ui.byText('button', 'Empty Duplicates folder'));
-      const dialog = await waitFor(() => ui.q('.dialog'), 'the confirmation');
-      ui.click(ui.byText('button', 'Move to trash', dialog));
+      ui.click(ui.byText('button', 'Restore…', row));
+      const sheet = await waitFor(() => ui.q('.sheet'), 'the restore sheet');
+      const folder = sheet.querySelector('input[aria-label="Folder"]');
+      ui.type(folder, 'Wuthering-Waves/Chisa');
+      ui.click(ui.byText('button', 'Restore as new image', sheet));
       await waitFor(() => ui.q('.empty') && /No duplicates/.test(ui.q('.empty').textContent), 'an empty list');
     }
   ));

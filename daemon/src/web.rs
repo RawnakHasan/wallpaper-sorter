@@ -327,6 +327,11 @@ struct FolderPrefixBody {
     folder: String,
     prefix: String,
 }
+#[derive(Deserialize)]
+struct RestoreDuplicatesBody {
+    paths: Vec<String>,
+    folder: String,
+}
 
 fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
     check_request(ctx, req)?;
@@ -683,6 +688,15 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                     .map_err(|e| ApiError::new(400, e))?;
             }
             Ok(Resp::json(200, &ctx.shared.lock().cfg.settings))
+        }
+        (Method::Post, ["api", "duplicates", "restore"]) => {
+            let b: RestoreDuplicatesBody = read_json(req)?;
+            let out = {
+                let mut p = ctx.shared.lock();
+                let files = resolve_all(&p, &b.paths)?;
+                p.restore_duplicates(&files, &b.folder)?
+            };
+            Ok(Resp::json(200, &outcome_json(&out)))
         }
         _ => Err(ApiError::new(404, "not found")),
     }

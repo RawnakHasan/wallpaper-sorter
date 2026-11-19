@@ -309,6 +309,7 @@ impl Pipeline {
             files,
             &PlanOptions {
                 forced_dest: Some(folder.to_string()),
+                skip_duplicate_check: false,
             },
         )
     }
@@ -360,7 +361,11 @@ impl Pipeline {
     /// Prefix entries to add when `from` becomes `to`.  The old configuration is the source of
     /// truth: after the paths are rewritten, pin a prefix only where deriving it from the new
     /// path would change the number scheme of a folder that contains images.
-    pub fn rename_folder_prefix_pins(&self, from: &str, to: &str) -> io::Result<Vec<(String, String)>> {
+    pub fn rename_folder_prefix_pins(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> io::Result<Vec<(String, String)>> {
         self.check_folder_change(from, to)?;
         let mut renamed = self.cfg.clone();
         for tag in &mut renamed.tags {
@@ -403,6 +408,7 @@ impl Pipeline {
                 &files,
                 &PlanOptions {
                     forced_dest: Some(to.to_string()),
+                    skip_duplicate_check: false,
                 },
             )?
             .1)
@@ -414,6 +420,7 @@ impl Pipeline {
             &files,
             &PlanOptions {
                 forced_dest: Some(to.to_string()),
+                skip_duplicate_check: false,
             },
         )?;
         self.remove_empty_folders(from)?;
@@ -719,6 +726,48 @@ impl Pipeline {
         self.origins.upsert(o);
         self.origins.save()?;
         Ok(true)
+    }
+
+    /// Restore one duplicate as a new numbered image in a normal library folder.
+    pub fn restore_duplicate(&mut self, file: &Path, folder: &str) -> io::Result<Outcome> {
+        self.restore_duplicates(std::slice::from_ref(&file.to_path_buf()), folder)
+    }
+
+    /// Restore selected duplicate files as new numbered images, bypassing duplicate detection once.
+    pub fn restore_duplicates(&mut self, files: &[PathBuf], folder: &str) -> io::Result<Outcome> {
+        check_folder(folder)?;
+        if folder == self.cfg.settings.duplicates_folder
+            || folder.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/"))
+        {
+            return Err(invalid(
+                "the Duplicates folder is not a place to restore into",
+            ));
+        }
+        let dup_dir = self.root.join(&self.cfg.settings.duplicates_folder);
+        for file in files {
+            let rel = rel_inside(&self.root, file)
+                .ok_or_else(|| invalid("duplicate restore paths must be inside the library"))?;
+            if file.parent() != Some(dup_dir.as_path())
+                || !rel.starts_with(&(self.cfg.settings.duplicates_folder.clone() + "/"))
+            {
+                return Err(invalid(
+                    "only direct files in the Duplicates folder can be restored",
+                ));
+            }
+            if !file.is_file() {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("{} is not a file", file.display()),
+                ));
+            }
+        }
+        self.process_with(
+            files,
+            &PlanOptions {
+                forced_dest: Some(folder.to_string()),
+                skip_duplicate_check: true,
+            },
+        )
     }
 }
 

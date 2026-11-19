@@ -118,6 +118,8 @@ pub fn unique_name(existing: &[String], name: &str) -> String {
 pub struct PlanOptions {
     /// Put every image in this folder instead of looking at its name (the user picked the folder).
     pub forced_dest: Option<String>,
+    /// Restore explicitly selected duplicates as separate new library images.
+    pub skip_duplicate_check: bool,
 }
 
 /// Work out what to do with the files that just arrived, in the order given.
@@ -169,17 +171,19 @@ pub fn build_plan_with(
         }
 
         // Duplicates are checked before matching: a copy of anything we already hold goes to Duplicates.
-        if let Some(original) = inc.hash.as_ref().and_then(|h| hashes.get(h)).cloned() {
-            if exact_library_path != original {
-                let in_dups = folders.entry(dup_folder.clone()).or_default();
-                let unique = unique_name(in_dups, name);
-                in_dups.push(unique.clone());
-                actions.push(Action::ToDuplicates {
-                    from: inc.path.clone(),
-                    to: format!("{dup_folder}/{unique}"),
-                    duplicate_of: original,
-                });
-                continue;
+        if !opts.skip_duplicate_check {
+            if let Some(original) = inc.hash.as_ref().and_then(|h| hashes.get(h)).cloned() {
+                if exact_library_path != original {
+                    let in_dups = folders.entry(dup_folder.clone()).or_default();
+                    let unique = unique_name(in_dups, name);
+                    in_dups.push(unique.clone());
+                    actions.push(Action::ToDuplicates {
+                        from: inc.path.clone(),
+                        to: format!("{dup_folder}/{unique}"),
+                        duplicate_of: original,
+                    });
+                    continue;
+                }
             }
         }
 

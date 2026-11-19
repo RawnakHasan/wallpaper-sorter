@@ -229,7 +229,34 @@
           h('div', { class: 'm', text: d.name }),
           h('div', { class: 'muted' }, 'Same as ', rel ? h('a', { href: `#/library?folder=${enc(WS.dirname(d.duplicate_of))}`, class: 'm', text: d.duplicate_of }) : h('span', { class: 'm', text: d.duplicate_of || 'an image in the library' }), ` · ${WS.fmtBytes(d.size)}`)
         ),
-        h('button', { class: 'btn small danger', text: 'Delete', onclick: () => deleteFiles([d.path], d.name) })
+        h('div', { class: 'row actions' }, h('button', {
+          class: 'btn small',
+          text: 'Restore…',
+          onclick: async () => {
+            const folders = (await WS.get('/api/folders')).filter((f) => f.path !== dupFolder() && !f.path.startsWith(dupFolder() + '/'));
+            const picker = WS.folderPicker({ folders });
+            const go = h('button', { class: 'btn primary', text: 'Restore as new image' });
+            const problem = h('div', { class: 'error', role: 'alert' });
+            go.onclick = async () => {
+              const folder = picker.get();
+              if (!folder) {
+                problem.textContent = 'Choose a folder.';
+                return;
+              }
+              go.disabled = true;
+              try {
+                const r = await WS.post('/api/duplicates/restore', { paths: [d.path], folder });
+                WS.closeLayer();
+                WS.toast(`Restored ${WS.plural(r.done.length, 'copy', 'copies')} as new images`, { undo: () => WS.undoBatch(r.batch) });
+                WS.refresh();
+              } catch (e) {
+                problem.textContent = e.message;
+                go.disabled = false;
+              }
+            };
+            WS.openSheet('Restore duplicate', h('div', {}, h('p', { class: 'muted', text: d.name }), h('div', { class: 'field' }, h('span', { class: 'lbl', text: 'Folder' }), picker.el), problem), [h('button', { class: 'btn', text: 'Cancel', onclick: WS.closeLayer }), go]);
+          },
+        }), h('button', { class: 'btn small danger', text: 'Delete', onclick: () => deleteFiles([d.path], d.name) }))
       );
     });
     return page('Duplicates', items.length ? `${WS.plural(items.length, 'copy', 'copies')}, ${WS.fmtBytes(total)}` : '', emptyBtn, items.length ? h('div', { class: 'list' }, rows) : WS.empty('No duplicates', 'Copies of images you already have are moved here instead of being sorted twice.'));
