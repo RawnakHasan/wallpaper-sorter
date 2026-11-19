@@ -357,6 +357,9 @@ test('library: browse a folder and close the gaps', () =>
       await waitFor(() => ui.qa('.cell').length === 3, 'three images');
       assert.equal(ui.q('.more').textContent, '', 'no literal null after the final image chunk');
       assert.equal(ui.q('.cell img').alt, 'Chisa 1.png');
+      assert.ok(ui.q('.cell').classList.contains('loading'));
+      ui.q('.cell img').dispatchEvent(new ui.w.Event('load'));
+      assert.equal(ui.q('.cell').classList.contains('loading'), false);
       const details = ui.q('.cell .open');
       assert.match(details.getAttribute('aria-label'), /^Details of /);
       assert.ok(details.querySelector('svg[aria-hidden="true"]'), 'details uses an accessible icon button');
@@ -364,6 +367,9 @@ test('library: browse a folder and close the gaps', () =>
       assert.match(css, /\.cell \.open\{[^}]*top:\s*4px/);
       assert.match(css, /\.cell \.check\{[^}]*right:\s*34px/);
       assert.match(css, /\.cell img\{[^}]*object-fit:\s*contain/);
+      assert.match(css, /\.cell\.loading\{[^}]*animation:thumb-shimmer/);
+      assert.match(css, /@keyframes thumb-shimmer/);
+      assert.match(css, /prefers-reduced-motion:reduce[^}]*\.cell\.loading\{animation:none\}/);
       assert.match(ui.q('.facts').textContent, /Prefix\s*Chisa/);
       assert.match(ui.q('.facts').textContent, /Next number\s*5/);
       assert.match(ui.q('.facts').textContent, /Gaps\s*1 \(2\)/);

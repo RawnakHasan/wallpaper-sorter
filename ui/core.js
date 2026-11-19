@@ -78,11 +78,13 @@
     let objectUrl = null;
     const placeholder = () => {
       if (!img.isConnected) return;
+      img.closest('.cell')?.classList.remove('loading');
       const ext = (alt || '').includes('.') ? alt.split('.').pop().toUpperCase() : 'IMAGE';
       img.replaceWith(h('span', { class: 'thumb-placeholder', text: ext, dataset: { thumbHash: hash, thumbName: alt || '' } }));
     };
     img.addEventListener('load', () => {
       img.classList.add('loaded');
+      img.closest('.cell')?.classList.remove('loading');
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
         objectUrl = null;
@@ -144,6 +146,8 @@
     const src = `/api/thumb/${hash}?v=${Date.now()}`;
     for (const thumb of document.querySelectorAll('[data-thumb-hash]')) {
       if (thumb.dataset.thumbHash !== hash) continue;
+      const cell = thumb.closest('.cell');
+      cell?.classList.add('loading');
       if (thumb.tagName === 'IMG') thumb.src = src;
       else {
         const img = WS.thumb(hash, thumb.dataset.thumbName || '');
