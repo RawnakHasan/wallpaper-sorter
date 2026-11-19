@@ -2,6 +2,7 @@
 name = "sorter-core"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
 description = "Pure logic for Wallpaper Sorter: tags, matching, naming. No file system access."
 
 [dependencies]

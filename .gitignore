@@ -4,3 +4,5 @@
 /test-report.*.log
 /cargo.log
 /ui.log
+/chat.json
+/repomix-output.xml

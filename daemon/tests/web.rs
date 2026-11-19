@@ -293,7 +293,7 @@ fn status_and_the_security_checks() {
     );
     assert_eq!(e.get("/api/nothing").status, 404);
     assert!(String::from_utf8_lossy(&e.get("/").body).contains("Wallpaper Sorter"));
-    assert!(e.get("/design").body.len() > 100_000);
+    assert_eq!(e.get("/design").status, 404);
 }
 
 #[cfg(unix)]

@@ -20,8 +20,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tiny_http::{Header, Method, Request, Response, Server};
 
-const DESIGN_HTML: &str = include_str!("../../ui/design-mock.html");
-
 const INDEX_HTML: &str = include_str!("../../ui/index.html");
 const APP_CSS: &str = include_str!("../../ui/app.css");
 const CORE_JS: &str = include_str!("../../ui/core.js");
@@ -88,17 +86,6 @@ impl Resp {
             csp: None,
             retry_after: None,
             body: serde_json::to_vec(v).unwrap_or_default(),
-        }
-    }
-    /// The design mock-up: it has its own inline script, so it gets no page policy.
-    fn html(body: &'static str) -> Resp {
-        Resp {
-            status: 200,
-            content_type: "text/html; charset=utf-8",
-            cache: "no-store",
-            csp: None,
-            retry_after: None,
-            body: body.as_bytes().to_vec(),
         }
     }
     /// A file of the UI itself.
@@ -438,8 +425,6 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             FONT_MONO,
             "public, max-age=86400",
         )),
-        (Method::Get, ["design"]) => Ok(Resp::html(DESIGN_HTML)),
-
         (Method::Get, ["api", "status"]) => status(ctx),
         (Method::Get, ["api", "inbox"]) => Ok(Resp::json(200, &ctx.shared.lock().inbox()?)),
         (Method::Get, ["api", "folders"]) => Ok(Resp::json(200, &ctx.shared.lock().folders()?)),

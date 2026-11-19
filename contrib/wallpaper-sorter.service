@@ -9,6 +9,8 @@ Description=Wallpaper Sorter
 ExecStart=%h/.cargo/bin/wallpaper-sorter
 Restart=on-failure
 RestartSec=5
+Nice=10
+IOSchedulingClass=idle
 
 [Install]
 WantedBy=default.target
