@@ -1100,7 +1100,7 @@ fn the_page_and_its_files_are_served_with_a_strict_policy() {
         (200, "text/html; charset=utf-8")
     );
     let text = String::from_utf8_lossy(&page.body).to_string();
-    assert!(text.contains("<div id=\"app\">") && text.contains("/main.js"));
+    assert!(text.contains("<div id=\"app\">") && text.contains("/assets/app.js"));
     assert!(
         page.head
             .contains("Content-Security-Policy: default-src 'self'"),
@@ -1109,13 +1109,10 @@ fn the_page_and_its_files_are_served_with_a_strict_policy() {
     );
     assert!(page.head.contains("frame-ancestors 'none'"));
     for (path, kind) in [
-        ("/app.css", "text/css"),
-        ("/core.js", "text/javascript"),
-        ("/pages.js", "text/javascript"),
-        ("/pages2.js", "text/javascript"),
-        ("/main.js", "text/javascript"),
-        ("/fonts/hanken-grotesk.woff2", "font/woff2"),
-        ("/fonts/jetbrains-mono.woff2", "font/woff2"),
+        ("/assets/app.css", "text/css"),
+        ("/assets/app.js", "text/javascript"),
+        ("/assets/hanken-grotesk.woff2", "font/woff2"),
+        ("/assets/jetbrains-mono.woff2", "font/woff2"),
     ] {
         let r = e.get(path);
         assert_eq!(r.status, 200, "{path}");
@@ -1127,8 +1124,8 @@ fn the_page_and_its_files_are_served_with_a_strict_policy() {
         assert!(r.body.len() > 500, "{path}");
         assert!(r.head.contains("Content-Security-Policy"), "{path}");
     }
-    assert_eq!(&e.get("/fonts/hanken-grotesk.woff2").body[..4], b"wOF2");
-    assert_eq!(e.get("/fonts/other.woff2").status, 404);
+    assert_eq!(&e.get("/assets/hanken-grotesk.woff2").body[..4], b"wOF2");
+    assert_eq!(e.get("/assets/other.woff2").status, 404);
     assert_eq!(e.get("/api/status").json()["activity_last_id"], 0);
 }
 

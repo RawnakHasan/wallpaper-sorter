@@ -363,7 +363,7 @@ test('library: browse a folder and close the gaps', () =>
       const details = ui.q('.cell .open');
       assert.match(details.getAttribute('aria-label'), /^Details of /);
       assert.ok(details.querySelector('svg[aria-hidden="true"]'), 'details uses an accessible icon button');
-      const css = await fetchText(s, '/app.css');
+      const css = await fetchText(s, '/assets/app.css');
       assert.match(css, /\.cell \.open\{[^}]*top:\s*4px/);
       assert.match(css, /\.cell \.check\{[^}]*right:\s*34px/);
       assert.match(css, /\.cell img\{[^}]*object-fit:\s*contain/);
@@ -654,7 +654,7 @@ test('data: filter, find unknown sources and set one by hand', () =>
       assert.ok(pager, 'data pager has its own layout spacing');
       assert.ok(ui.q('button[aria-label="Previous page"] svg', pager));
       assert.ok(ui.q('button[aria-label="Next page"] svg', pager));
-      const css = await fetchText(s, '/app.css');
+      const css = await fetchText(s, '/assets/app.css');
       assert.match(css, /\.data-pager\{[^}]*margin-top:/);
       ui.click(ui.byText('button', 'Unknown source (2)'));
       await waitFor(() => ui.qa('.tbl tbody tr').length === 2, 'only the unknown ones');

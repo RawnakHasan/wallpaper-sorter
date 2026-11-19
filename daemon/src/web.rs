@@ -20,14 +20,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tiny_http::{Header, Method, Request, Response, Server};
 
-const INDEX_HTML: &str = include_str!("../../ui/index.html");
-const APP_CSS: &str = include_str!("../../ui/app.css");
-const CORE_JS: &str = include_str!("../../ui/core.js");
-const PAGES_JS: &str = include_str!("../../ui/pages.js");
-const PAGES2_JS: &str = include_str!("../../ui/pages2.js");
-const MAIN_JS: &str = include_str!("../../ui/main.js");
-const FONT_TEXT: &[u8] = include_bytes!("../../ui/fonts/hanken-grotesk.woff2");
-const FONT_MONO: &[u8] = include_bytes!("../../ui/fonts/jetbrains-mono.woff2");
+const INDEX_HTML: &str = include_str!("../ui-dist/index.html");
+const APP_CSS: &[u8] = include_bytes!("../ui-dist/assets/app.css");
+const APP_JS: &[u8] = include_bytes!("../ui-dist/assets/app.js");
+const FONT_TEXT: &[u8] = include_bytes!("../ui-dist/assets/hanken-grotesk.woff2");
+const FONT_MONO: &[u8] = include_bytes!("../ui-dist/assets/jetbrains-mono.woff2");
 
 /// The page may load only its own files, talk only to this server, and not be framed.
 const PAGE_CSP: &str = "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
@@ -390,37 +387,22 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             INDEX_HTML.as_bytes(),
             "no-cache",
         )),
-        (Method::Get, ["app.css"]) => Ok(Resp::asset(
+        (Method::Get, ["assets", "app.css"]) => Ok(Resp::asset(
             "text/css; charset=utf-8",
-            APP_CSS.as_bytes(),
+            APP_CSS,
             "no-cache",
         )),
-        (Method::Get, ["core.js"]) => Ok(Resp::asset(
+        (Method::Get, ["assets", "app.js"]) => Ok(Resp::asset(
             "text/javascript; charset=utf-8",
-            CORE_JS.as_bytes(),
+            APP_JS,
             "no-cache",
         )),
-        (Method::Get, ["pages.js"]) => Ok(Resp::asset(
-            "text/javascript; charset=utf-8",
-            PAGES_JS.as_bytes(),
-            "no-cache",
-        )),
-        (Method::Get, ["pages2.js"]) => Ok(Resp::asset(
-            "text/javascript; charset=utf-8",
-            PAGES2_JS.as_bytes(),
-            "no-cache",
-        )),
-        (Method::Get, ["main.js"]) => Ok(Resp::asset(
-            "text/javascript; charset=utf-8",
-            MAIN_JS.as_bytes(),
-            "no-cache",
-        )),
-        (Method::Get, ["fonts", "hanken-grotesk.woff2"]) => Ok(Resp::asset(
+        (Method::Get, ["assets", "hanken-grotesk.woff2"]) => Ok(Resp::asset(
             "font/woff2",
             FONT_TEXT,
             "public, max-age=86400",
         )),
-        (Method::Get, ["fonts", "jetbrains-mono.woff2"]) => Ok(Resp::asset(
+        (Method::Get, ["assets", "jetbrains-mono.woff2"]) => Ok(Resp::asset(
             "font/woff2",
             FONT_MONO,
             "public, max-age=86400",

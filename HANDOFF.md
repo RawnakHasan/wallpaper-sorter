@@ -44,7 +44,7 @@ passed 25 UI tests. Many Rust tests are table-driven with hundreds of rows.
 ### 2.1 What you need
 
 - Linux (the watcher uses inotify). Rust from rustup, stable, 1.75 or newer. No C compiler is needed.
-- Node.js 20 or newer and npm, **only** for the UI tests. Without them `scripts/collect-report.sh` skips them.
+- Node.js 20 or newer and npm for frontend development and UI tests. The checked-in `daemon/ui-dist/` bundle lets Cargo builds and installs work without Node.
 - A browser, for looking at the page.
 
 ### 2.2 Get a test report (one command)
@@ -183,7 +183,7 @@ daemon/   the program
   web         tiny_http server, JSON API, serves ui/ with a strict Content-Security-Policy
   thumbs      400 px JPEG thumbnails cached by content hash
   main        command line (--config --library --dry-run --once --resort-preview --folder --verbose --port --no-web)
-ui/       plain HTML/CSS/JS, no build step, embedded in the binary with include_str!
+ui/       Vite-built static assets embedded in the binary; source and the npm build are in ui/
 spec/     the tables and the reference matcher (Python)
 ```
 

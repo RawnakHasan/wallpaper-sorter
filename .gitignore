@@ -1,4 +1,5 @@
 /target/
+/ui/node_modules/
 /ui/test/node_modules/
 /test-report.md
 /test-report.*.log

@@ -2,7 +2,7 @@
 
 A small Linux background program, written in Rust, that sorts new wallpaper images into numbered folders by their filenames, with a local web page to manage everything. This file describes what the app is and how it behaves, as of the latest repository snapshot.
 
-How this was written: from reading the source files (core, engine, daemon, ui, spec, tests, HANDOFF.md, README.md). The code was built and tested for the latest robustness work. The Rust workspace passed 116 tests, and all 23 UI tests passed.
+How this was written: from reading the source files (core, engine, daemon, ui, spec, tests, HANDOFF.md, README.md). The code was built and tested for the latest robustness work. The Rust workspace passed 116 tests, and all 25 UI tests passed.
 
 ---
 
@@ -157,7 +157,7 @@ A `naive-` prefix is ignored. You can set a source by hand on the Data page.
 
 ## 10. The web page
 
-Runs at `http://127.0.0.1:8421/` (`--port N` or `[server] port` changes it, `--no-web` turns it off). Plain HTML, CSS and JavaScript with no build step, embedded in the binary. Dark first, flat and minimal, self-hosted fonts (Hanken Grotesk, JetBrains Mono). Works offline. It polls the status every 3 seconds, so the page follows the background sorter without reloading.
+Runs at `http://127.0.0.1:8421/` (`--port N` or `[server] port` changes it, `--no-web` turns it off). The Vite-built static UI is embedded in the binary; no frontend server or network access is needed at runtime. Dark first, flat and minimal, self-hosted fonts (Hanken Grotesk, JetBrains Mono). It polls the status every 3 seconds, so the page follows the background sorter without reloading.
 
 | Page | What it does |
 |---|---|
@@ -285,7 +285,7 @@ engine/   touches the disk
   scan, exec, log, undo, index, origins, pipeline, ops, cfgedit
 daemon/   the program
   watcher (inotify), debounce, daemon (run loop), web (tiny_http), thumbs, main
-ui/       plain HTML/CSS/JS embedded with include_str!
+ui/       Vite source and checked-in production bundle, embedded in the binary
 spec/     the rules as data, plus a Python reference matcher
 scripts/  collect-report.sh
 ```

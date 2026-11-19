@@ -1,5 +1,5 @@
-@font-face{font-family:'Hanken Grotesk';font-style:normal;font-weight:100 900;font-display:swap;src:url('/fonts/hanken-grotesk.woff2') format('woff2')}
-@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:100 800;font-display:swap;src:url('/fonts/jetbrains-mono.woff2') format('woff2')}
+@font-face{font-family:'Hanken Grotesk';font-style:normal;font-weight:100 900;font-display:swap;src:url('./fonts/hanken-grotesk.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:100 800;font-display:swap;src:url('./fonts/jetbrains-mono.woff2') format('woff2')}
 
 :root{--bg:#121314;--sf:#18191b;--rs:#1e2023;--hv:#26282c;--bd:#2c2e33;--tx:#e8e9ea;--t2:#a8acb1;--t3:#8a8f95;--ac:#6aa6ff;--oa:#0b1220;--sel:rgba(106,166,255,.16);--wn:#e0a458;--er:#ef7d75;--ok:#7fc99a;--sk:#26282c;--sk2:#30333a;--shade:rgba(0,0,0,.55);--dur:150ms;--ease:cubic-bezier(.2,0,0,1);color-scheme:dark}
 @media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#fafafa;--sf:#f3f4f5;--rs:#ffffff;--hv:#ebedef;--bd:#dfe1e4;--tx:#17181a;--t2:#4b5057;--t3:#626870;--ac:#1d5fd1;--oa:#ffffff;--sel:rgba(29,95,209,.10);--wn:#9a5b00;--er:#b3261e;--ok:#1d7a43;--sk:#eceef0;--sk2:#dcdfe3;--shade:rgba(0,0,0,.6);color-scheme:light}}

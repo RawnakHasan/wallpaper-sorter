@@ -31,7 +31,7 @@ Rust core for the wallpaper sorter (design notes and the web UI mock-up live els
   - `web`       the small web server (127.0.0.1 only) with the JSON API below
   - `thumbs`    thumbnails (400 px JPEG), drawn on first request, cached by content hash in `~/.cache/wallpaper-sorter/thumbs`
   - `contrib/wallpaper-sorter.service`  a systemd user unit
-- `ui/`      the web page: `index.html`, `app.css`, `core.js` (helpers), `pages.js` and `pages2.js` (the pages), `main.js` (shell, routing, polling), `fonts/`; `design-mock.html` is the original design with sample data (served at `/design`); `test/` drives the real program in a simulated browser (jsdom)
+- `ui/`      web page source and Vite config; `test/` drives the real program in a simulated browser (jsdom)
 - `scripts/` `collect-report.sh` runs every test suite and writes one report file; `try-on-copy.sh` launches a temporary library copy
 - `spec/`    the specs the code must follow
   - `tags.starter.toml`   starter tags drafted from the folder tree
@@ -61,7 +61,9 @@ For normal use:
   move or rename images. Like other runs, opening the library may initialize or refresh its `.sorter` metadata.
 
 While it runs, the web page and API are at http://127.0.0.1:8421/ (`--port N` or `[server] port` in the config
-to change it, `--no-web` to turn it off). The page there is the real UI (plain HTML, CSS and JavaScript in `ui/`, no build step); `/design` shows the original design mock-up with sample data.
+to change it, `--no-web` to turn it off). The page there is the real UI (Vite-built static assets embedded in the binary); no frontend server or network access is needed at runtime.
+
+For frontend development, install the UI build dependencies with `npm --prefix ui ci`, then run `npm --prefix ui run dev` while the sorter is running on port 8421. Vite proxies API requests to the local sorter. A normal Cargo build automatically rebuilds the UI when those npm dependencies are installed; otherwise it uses the checked-in `daemon/ui-dist/` bundle.
 
 What it does: it watches the library folder (top level only) and every folder listed under `[[intake]]` in the
 config (subfolders included, also ones created later). Files already waiting are sorted at start. Images in the
