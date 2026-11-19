@@ -1,83 +1,10 @@
 'use strict';
-// The other pages: Activity, Tags, Duplicates, Data, Settings.
+// The remaining pages: Tags, Duplicates, Data, Settings.
 (function () {
   const WS = window.WS;
   const h = WS.h;
   const { page, openAssign, deleteFiles, dupFolder, enc } = WS.ui;
   const SITES = ['Wallhaven', 'Zerochan', 'Konachan', 'yande.re', 'Danbooru', 'Safebooru', 'Pixiv', 'Unknown'];
-
-  // ---------- Activity
-  function kindLabel(e) {
-    if (e.kind === 'undo') return 'Undone';
-    if (e.kind === 'rename') return 'Renamed';
-    if (e.kind === 'duplicate') return 'Sent to Duplicates';
-    if ((e.note || '').startsWith('Deleted')) return 'Deleted';
-    if ((e.note || '').startsWith('Assigned')) return 'Assigned';
-    return 'Sorted';
-  }
-  const shortPath = (p, root) => (p.startsWith(root + '/') ? p.slice(root.length + 1) : WS.basename(p));
-
-  async function undoOne(id) {
-    try {
-      await WS.post('/api/undo', { id });
-      WS.toast('Undone');
-      WS.refresh();
-    } catch (e) {
-      WS.toast(e.message, { error: true });
-    }
-  }
-  async function undoBatch(batch) {
-    try {
-      await WS.undoBatch(batch);
-      WS.toast('Undone');
-      WS.refresh();
-    } catch (e) {
-      WS.toast(e.message, { error: true });
-    }
-  }
-
-  function actRow(e, root) {
-    return h(
-      'div',
-      { class: 'act' },
-      h('span', { class: 't m', text: WS.fmtTime(e.time) }),
-      h('span', { class: 'k', text: kindLabel(e) }),
-      h('span', { class: 'm grow', title: `${e.from} → ${e.to}`, text: `${shortPath(e.from, root)} → ${shortPath(e.to, root)}` }),
-      e.undone ? WS.badge('undone') : e.undoable ? h('button', { class: 'btn small', text: 'Undo', onclick: () => undoOne(e.id) }) : null
-    );
-  }
-
-  WS.activityRows = function activityRows(items, root, compact) {
-    if (compact) return h('div', { class: 'batch' }, ...items.map((e) => actRow(e, root)));
-    const out = [];
-    let day = '';
-    let i = 0;
-    while (i < items.length) {
-      const d = WS.fmtDay(items[i].time);
-      if (d !== day) {
-        day = d;
-        out.push(h('div', { class: 'day', text: d }));
-      }
-      let j = i;
-      while (j < items.length && items[j].batch === items[i].batch && WS.fmtDay(items[j].time) === d) j++;
-      const group = items.slice(i, j);
-      const head = group.length > 1 || group.some((g) => g.undoable) ? h('div', { class: 'batch-head' }, h('span', { text: WS.plural(group.length, 'action') }), h('span', { class: 'spacer' }), group.some((g) => g.undoable) && group.length > 1 ? h('button', { class: 'btn small', text: 'Undo all', onclick: () => undoBatch(items[i].batch) }) : null) : null;
-      out.push(h('div', { class: 'batch' }, head, ...group.map((e) => actRow(e, root))));
-      i = j;
-    }
-    return h('div', {}, out);
-  };
-
-  WS.pages.activity = async function () {
-    const [items, st] = await Promise.all([WS.get('/api/activity?limit=300'), WS.get('/api/status')]);
-    return page(
-      'Activity',
-      items.length ? 'Everything the sorter did, newest first' : '',
-      null,
-      items.length ? WS.activityRows(items, st.library, false) : WS.empty('Nothing yet', 'Every move and rename is listed here and can be undone.'),
-      items.length ? h('p', { class: 'faint', text: 'The log keeps recent entries. Where each image came from is kept for good, on the Data page.' }) : null
-    );
-  };
 
   // ---------- Tags
   function optionBadges(t) {

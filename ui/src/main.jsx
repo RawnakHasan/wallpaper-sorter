@@ -278,6 +278,50 @@ function AppShell() {
   );
 }
 
+function activityLabel(event) {
+  if (event.kind === 'undo') return 'Undone';
+  if (event.kind === 'rename') return 'Renamed';
+  if (event.kind === 'duplicate') return 'Sent to Duplicates';
+  if ((event.note || '').startsWith('Deleted')) return 'Deleted';
+  if ((event.note || '').startsWith('Assigned')) return 'Assigned';
+  return 'Sorted';
+}
+
+function activityPath(path, root) {
+  return path.startsWith(root + '/') ? path.slice(root.length + 1) : WS.basename(path);
+}
+
+async function undoActivity(id, refresh) {
+  try {
+    await WS.post('/api/undo', { id });
+    WS.toast('Undone');
+    refresh();
+  } catch (error) {
+    WS.toast(error.message, { error: true });
+  }
+}
+
+async function undoActivityBatch(batch, refresh) {
+  try {
+    await WS.undoBatch(batch);
+    WS.toast('Undone');
+    refresh();
+  } catch (error) {
+    WS.toast(error.message, { error: true });
+  }
+}
+
+function ActivityRow({ event, root, refresh }) {
+  return (
+    <div className="act" key={event.id}>
+      <span className="t m">{WS.fmtTime(event.time)}</span>
+      <span className="k">{activityLabel(event)}</span>
+      <span className="m grow" title={`${event.from} → ${event.to}`}>{activityPath(event.from, root)} → {activityPath(event.to, root)}</span>
+      {event.undone ? <span className="badge">undone</span> : event.undoable ? <button className="btn small" onClick={() => undoActivity(event.id, refresh)}>Undo</button> : null}
+    </div>
+  );
+}
+
 function OverviewPage() {
   const { revision, refresh } = useContext(RefreshContext);
   const [data, setData] = useState(null);
@@ -304,24 +348,6 @@ function OverviewPage() {
   if (!data) return <div className="page"><p className="muted">Loading…</p></div>;
 
   const { status, activity } = data;
-  const compactPath = (path) => path.startsWith(status.library + '/') ? path.slice(status.library.length + 1) : WS.basename(path);
-  const eventLabel = (event) => {
-    if (event.kind === 'undo') return 'Undone';
-    if (event.kind === 'rename') return 'Renamed';
-    if (event.kind === 'duplicate') return 'Sent to Duplicates';
-    if ((event.note || '').startsWith('Deleted')) return 'Deleted';
-    if ((event.note || '').startsWith('Assigned')) return 'Assigned';
-    return 'Sorted';
-  };
-  const undo = async (id) => {
-    try {
-      await WS.post('/api/undo', { id });
-      WS.toast('Undone');
-      refresh();
-    } catch (cause) {
-      WS.toast(cause.message, { error: true });
-    }
-  };
   const watchedEntry = (path, badges, message) => (
     <div className="watched-entry" key={path}>
       <span className="m watched-path">{path}</span>
@@ -349,14 +375,7 @@ function OverviewPage() {
       <h3>Recent activity</h3>
       {activity.length ? (
         <div className="batch">
-          {activity.map((event) => (
-            <div className="act" key={event.id}>
-              <span className="t m">{WS.fmtTime(event.time)}</span>
-              <span className="k">{eventLabel(event)}</span>
-              <span className="m grow" title={`${event.from} → ${event.to}`}>{compactPath(event.from)} → {compactPath(event.to)}</span>
-              {event.undone ? <span className="badge">undone</span> : event.undoable ? <button className="btn small" onClick={() => undo(event.id)}>Undo</button> : null}
-            </div>
-          ))}
+          {activity.map((event) => <ActivityRow event={event} root={status.library} refresh={refresh} key={event.id} />)}
         </div>
       ) : <div className="empty"><b>Nothing yet</b>Sorted images show up here, with an Undo button.</div>}
       <h3>Watched folders</h3>
@@ -393,13 +412,83 @@ function OverviewPage() {
   );
 }
 
+function ActivityPage() {
+  const { revision, refresh } = useContext(RefreshContext);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let disposed = false;
+    Promise.all([WS.get('/api/activity?limit=300'), WS.get('/api/status')])
+      .then(([items, status]) => {
+        if (!disposed) {
+          setData({ items, status });
+          setError(null);
+        }
+      })
+      .catch((cause) => {
+        if (!disposed) setError(cause);
+      });
+    return () => { disposed = true; };
+  }, [revision]);
+
+  if (error) return <div className="page"><p className="error" role="alert">{error.message}</p><button className="btn" onClick={refresh}>Try again</button></div>;
+  if (!data) return <div className="page"><p className="muted">Loading…</p></div>;
+
+  const days = [];
+  for (let i = 0; i < data.items.length;) {
+    const date = WS.fmtDay(data.items[i].time);
+    const day = days[days.length - 1];
+    if (!day || day.date !== date) days.push({ date, batches: [] });
+    let end = i + 1;
+    while (end < data.items.length && data.items[end].batch === data.items[i].batch && WS.fmtDay(data.items[end].time) === date) end++;
+    days[days.length - 1].batches.push(data.items.slice(i, end));
+    i = end;
+  }
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <h1>Activity</h1>
+        {data.items.length ? <span className="sub">Everything the sorter did, newest first</span> : null}
+      </div>
+      {data.items.length ? (
+        <>
+          {days.map((day) => (
+            <React.Fragment key={day.date}>
+              <div className="day">{day.date}</div>
+              {day.batches.map((batch) => {
+                const undoable = batch.some((event) => event.undoable);
+                const batchKey = batch[0].batch || batch[0].id;
+                return (
+                  <div className="batch" key={batchKey}>
+                    {batch.length > 1 || undoable ? (
+                      <div className="batch-head">
+                        <span>{WS.plural(batch.length, 'action')}</span>
+                        <span className="spacer" />
+                        {undoable && batch.length > 1 ? <button className="btn small" onClick={() => undoActivityBatch(batch[0].batch, refresh)}>Undo all</button> : null}
+                      </div>
+                    ) : null}
+                    {batch.map((event) => <ActivityRow event={event} root={data.status.library} refresh={refresh} key={event.id} />)}
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+          <p className="faint">The log keeps recent entries. Where each image came from is kept for good, on the Data page.</p>
+        </>
+      ) : <div className="empty"><b>Nothing yet</b>Every move and rename is listed here and can be undone.</div>}
+    </div>
+  );
+}
+
 const rootRoute = createRootRoute({ component: AppShell });
 const routes = NAV.map(([path, , name]) =>
   createRoute({
     getParentRoute: () => rootRoute,
     path,
     validateSearch: (search) => search,
-    component: () => name === 'overview' ? <OverviewPage /> : <LegacyPage name={name} />,
+    component: () => name === 'overview' ? <OverviewPage /> : name === 'activity' ? <ActivityPage /> : <LegacyPage name={name} />,
   })
 );
 const router = createRouter({
