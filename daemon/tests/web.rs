@@ -1153,6 +1153,27 @@ fn first_run_setup_can_be_completed() {
 }
 
 #[test]
+fn hand_edited_config_can_be_reloaded() {
+    let e = setup(|_, _| {});
+    let mut text = fs::read_to_string(&e.cfg_path).unwrap();
+    text = text.replace("gap_mode = \"keep\"", "gap_mode = \"lowest\"");
+    fs::write(&e.cfg_path, &text).unwrap();
+
+    assert_eq!(e.daemon.handle().reload_config().unwrap(), true);
+    assert_eq!(
+        e.daemon.handle().lock().cfg.settings.gap_mode,
+        sorter_core::GapMode::LowestFree
+    );
+
+    fs::write(&e.cfg_path, "this is = [not valid").unwrap();
+    assert!(e.daemon.handle().reload_config().is_err());
+    assert_eq!(
+        e.daemon.handle().lock().cfg.settings.gap_mode,
+        sorter_core::GapMode::LowestFree
+    );
+}
+
+#[test]
 fn watched_intake_folders_can_be_edited_and_rescanned() {
     let e = setup(|_, _| {});
     let added = e.send(

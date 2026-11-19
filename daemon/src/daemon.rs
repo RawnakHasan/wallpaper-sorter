@@ -69,6 +69,7 @@ pub struct Shared {
     config_undo: Mutex<HashMap<u64, ConfigUndo>>,
     config_undo_path: PathBuf,
     intake_watch: Mutex<Vec<IntakeWatchStatus>>,
+    config_mtime: Mutex<std::time::SystemTime>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -103,6 +104,40 @@ impl Shared {
     /// Wakes the watcher loop so it looks at what changed.
     pub fn wake(&self) {
         let _ = (&self.wake).write(&[1]);
+    }
+
+    /// Reload the config file after a hand edit or explicit reload request.
+    pub fn reload_config(&self) -> Result<bool, String> {
+        let Some(path) = self.config_path.as_deref() else {
+            return Ok(false);
+        };
+        let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let cfg = Config::from_toml(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+
+        let _guard = self.config_edit.lock().unwrap_or_else(|e| e.into_inner());
+        self.lock().set_config(cfg);
+        let mtime = fs::metadata(path)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        *self.config_mtime.lock().unwrap_or_else(|e| e.into_inner()) = mtime;
+        self.request_rescan();
+        Ok(true)
+    }
+
+    pub fn reload_config_if_changed(&self) -> Result<bool, String> {
+        let Some(path) = self.config_path.as_deref() else {
+            return Ok(false);
+        };
+        let current = fs::metadata(path)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        let previous = *self.config_mtime.lock().unwrap_or_else(|e| e.into_inner());
+        if current == previous {
+            return Ok(false);
+        }
+        self.reload_config()
     }
 
     pub fn intake_watch_status(&self) -> Vec<IntakeWatchStatus> {
@@ -408,11 +443,18 @@ impl Daemon {
             held: Mutex::new(HashMap::new()),
             rescan: AtomicBool::new(false),
             wake: wake_tx,
-            config_path,
+            config_path: config_path.clone(),
             config_edit: Mutex::new(()),
             config_undo: Mutex::new(config_undo),
             config_undo_path,
             intake_watch: Mutex::new(Vec::new()),
+            config_mtime: Mutex::new(
+                config_path
+                    .as_deref()
+                    .and_then(|p| fs::metadata(p).ok())
+                    .and_then(|m| m.modified().ok())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+            ),
         });
         shared.restore_held();
         let mut d = Daemon {
@@ -634,6 +676,11 @@ impl Daemon {
             }
         }
         if Instant::now() >= self.next_tick {
+            match self.shared.reload_config_if_changed() {
+                Ok(false) => {}
+                Ok(true) => println!("wallpaper-sorter: reloaded config"),
+                Err(error) => eprintln!("wallpaper-sorter: config not reloaded: {error}"),
+            }
             self.activate_intake();
             for i in &self.intake {
                 if i.remove_empty && i.recursive && i.path.is_dir() {
@@ -646,8 +693,20 @@ impl Daemon {
     }
 
     /// Runs until `stop` is set.
-    pub fn run(&mut self, stop: &AtomicBool, on_notice: &mut dyn FnMut(Notice)) -> io::Result<()> {
+    pub fn run(
+        &mut self,
+        stop: &AtomicBool,
+        reload: &AtomicBool,
+        on_notice: &mut dyn FnMut(Notice),
+    ) -> io::Result<()> {
         while !stop.load(Ordering::SeqCst) {
+            if reload.swap(false, Ordering::SeqCst) {
+                match self.shared.reload_config() {
+                    Ok(true) => println!("wallpaper-sorter: reloaded config"),
+                    Ok(false) => {}
+                    Err(error) => eprintln!("wallpaper-sorter: config not reloaded: {error}"),
+                }
+            }
             for n in self.step(Duration::from_secs(5))? {
                 on_notice(n);
             }

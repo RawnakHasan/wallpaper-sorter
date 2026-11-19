@@ -383,7 +383,7 @@ The owner wants to **discuss before big steps**. Ask first about:
 - [x] T7 Settings: edit watched folders
 - [x] T8 starter config embedded and structurally generated
 - [x] T9 symlinked config preserved by atomic writes
-- [ ] T10 config reload
+- [x] T10 config reload by mtime and SIGHUP
 - [ ] T11 assign + tag order
 - [ ] T12 tag edit by content check
 - [ ] T13 AVIF/GIF/BMP thumbnails

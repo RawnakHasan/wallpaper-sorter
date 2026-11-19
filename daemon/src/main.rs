@@ -5,9 +5,14 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static STOP: AtomicBool = AtomicBool::new(false);
+static RELOAD: AtomicBool = AtomicBool::new(false);
 
-extern "C" fn on_signal(_sig: libc::c_int) {
-    STOP.store(true, Ordering::SeqCst);
+extern "C" fn on_signal(sig: libc::c_int) {
+    if sig == libc::SIGHUP {
+        RELOAD.store(true, Ordering::SeqCst);
+    } else {
+        STOP.store(true, Ordering::SeqCst);
+    }
 }
 
 const HELP: &str = "\
@@ -246,10 +251,11 @@ fn run() -> Result<(), String> {
         let handler: extern "C" fn(libc::c_int) = on_signal;
         libc::signal(libc::SIGINT, handler as libc::sighandler_t);
         libc::signal(libc::SIGTERM, handler as libc::sighandler_t);
+        libc::signal(libc::SIGHUP, handler as libc::sighandler_t);
     }
     let verbose = args.verbose;
     daemon
-        .run(&STOP, &mut |notice| match notice {
+        .run(&STOP, &RELOAD, &mut |notice| match notice {
             Notice::Processed(outcome) => {
                 for line in describe(&outcome, verbose) {
                     println!("{line}");

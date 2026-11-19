@@ -180,7 +180,7 @@ fn symlinked_config_is_preserved_after_edit() {
     let base = std::env::temp_dir().join(format!(
         "sorter-symlink-config-{}-{nonce}",
         std::process::id()
-   ));
+    ));
     fs::create_dir_all(&base).unwrap();
     let target = base.join("real-config.toml");
     let link = base.join("config.toml");
