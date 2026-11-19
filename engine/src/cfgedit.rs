@@ -23,13 +23,6 @@ pub struct TagSpec {
     pub expected_dest: Option<String>,
 }
 
-fn validate(spec: &TagSpec) -> Result<(), String> {
-    if spec.keywords.iter().all(|k| k.trim().is_empty()) {
-        return Err("a tag needs at least one keyword".to_string());
-    }
-    crate::ops::check_folder(&spec.dest).map_err(|e| e.to_string())
-}
-
 fn str_array(items: &[String]) -> Array {
     items
         .iter()
@@ -698,14 +691,6 @@ fn validate_intake_path(doc: &DocumentMut, raw: &str) -> Result<String, String> 
 
 /// Expose tag validation so assignment can validate before moving files.
 pub fn validate_tag(spec: &TagSpec) -> Result<(), String> {
-    if spec.keywords.iter().all(|k| k.trim().is_empty()) {
-        return Err("a tag needs at least one keyword".to_string());
-    }
-    crate::ops::check_folder(&spec.dest).map_err(|e| e.to_string())
-}
-
-/// Expose tag validation so assignment can validate before moving files.
-pub fn validate_tag_duplicate(spec: &TagSpec) -> Result<(), String> {
     if spec.keywords.iter().all(|k| k.trim().is_empty()) {
         return Err("a tag needs at least one keyword".to_string());
     }
