@@ -75,6 +75,7 @@ struct Resp {
     content_type: &'static str,
     cache: &'static str,
     csp: Option<&'static str>,
+    retry_after: Option<u32>,
     body: Vec<u8>,
 }
 
@@ -85,6 +86,7 @@ impl Resp {
             content_type: "application/json",
             cache: "no-store",
             csp: None,
+            retry_after: None,
             body: serde_json::to_vec(v).unwrap_or_default(),
         }
     }
@@ -95,6 +97,7 @@ impl Resp {
             content_type: "text/html; charset=utf-8",
             cache: "no-store",
             csp: None,
+            retry_after: None,
             body: body.as_bytes().to_vec(),
         }
     }
@@ -105,6 +108,7 @@ impl Resp {
             content_type,
             cache,
             csp: Some(PAGE_CSP),
+            retry_after: None,
             body: body.to_vec(),
         }
     }
@@ -114,6 +118,7 @@ impl Resp {
             content_type,
             cache: "public, max-age=31536000, immutable",
             csp: None,
+            retry_after: None,
             body,
         }
     }
@@ -122,6 +127,7 @@ impl Resp {
 struct ApiError {
     status: u16,
     msg: String,
+    retry_after: Option<u32>,
 }
 
 impl ApiError {
@@ -129,6 +135,7 @@ impl ApiError {
         ApiError {
             status,
             msg: msg.into(),
+            retry_after: None,
         }
     }
 }
@@ -139,9 +146,18 @@ impl From<io::Error> for ApiError {
             io::ErrorKind::InvalidInput | io::ErrorKind::InvalidData => 400,
             io::ErrorKind::NotFound => 404,
             io::ErrorKind::AlreadyExists => 409,
+            io::ErrorKind::WouldBlock => 503,
             _ => 500,
         };
-        ApiError::new(status, e.to_string())
+        if status == 503 {
+            ApiError {
+                status,
+                msg: e.to_string(),
+                retry_after: Some(1),
+            }
+        } else {
+            ApiError::new(status, e.to_string())
+        }
     }
 }
 
@@ -164,14 +180,20 @@ fn header(name: &str, value: &str) -> Header {
 }
 
 fn handle(ctx: &Ctx, mut req: Request) {
-    let resp =
-        route(ctx, &mut req).unwrap_or_else(|e| Resp::json(e.status, &json!({ "error": e.msg })));
+    let resp = route(ctx, &mut req).unwrap_or_else(|e| {
+        let mut resp = Resp::json(e.status, &json!({ "error": e.msg }));
+        resp.retry_after = e.retry_after;
+        resp
+    });
     let mut r = Response::from_data(resp.body).with_status_code(resp.status);
     r.add_header(header("Content-Type", resp.content_type));
     r.add_header(header("Cache-Control", resp.cache));
     r.add_header(header("X-Content-Type-Options", "nosniff"));
     if let Some(csp) = resp.csp {
         r.add_header(header("Content-Security-Policy", csp));
+    }
+    if let Some(retry_after) = resp.retry_after {
+        r.add_header(header("Retry-After", &retry_after.to_string()));
     }
     let _ = req.respond(r);
 }

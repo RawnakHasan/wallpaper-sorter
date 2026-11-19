@@ -379,7 +379,7 @@ The owner wants to **discuss before big steps**. Ask first about:
 - [x] T3 scan survives bad files
 - [x] T4 intake errors visible, lost watches re-added
 - [x] T5 safe cleanup default and intake path validation
-- [ ] T6 responsiveness measured and improved
+- [x] T6 responsiveness improved with non-blocking cold thumbnail generation
 - [x] T7 Settings: edit watched folders
 - [ ] T8 starter config embedded
 - [ ] T9 symlinked config preserved
