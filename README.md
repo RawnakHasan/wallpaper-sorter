@@ -72,7 +72,7 @@ Try it on a copy of your library first: `--library /some/copy`.
 
 Behaviour worth knowing: partial downloads (`.crdownload`, `.part`) are ignored until they are renamed to an image
 name; files that an undo put back are left alone until they change, including across daemon restarts; an intake folder that does not exist yet is
-picked up when it appears; an empty subfolder of an intake folder is removed after ten minutes without a file.
+picked up when it appears; empty subfolders are removed only when `remove_empty_folders` is enabled for that intake, and hidden folders are never removed.
 On startup, a malformed final action-log record is discarded, a corrupt hash cache is rebuilt, and corrupt origin data is preserved in a `.corrupt` backup before rebuilding.
 Unreadable or vanished individual files do not abort the library scan; old hash entries are retained on access errors and removed when a path is confirmed missing.
 
@@ -110,6 +110,7 @@ folder is not a logged file action.
 | `PUT /api/origins` `{hash, site, id}` | set an image's source by hand |
 | `GET/PUT /api/settings` | settings (`gap_mode` can be changed) |
 | `POST /api/rescan` | look at the library folder and intake folders again (also done after a tag is added or changed) |
+| `POST /api/intake` `{path, recursive, remove_empty_folders}` / `PUT /api/intake/N` / `DELETE /api/intake/N` | add, edit or remove an intake folder; watch state and errors are returned in `/api/status` |
 | `GET /api/thumb/<hash>`, `GET /api/image/<hash>` | thumbnail and full image, addressed by content hash |
 | `POST /api/duplicates/restore` | restore duplicate copies into a destination folder as new numbered images, undoable |
 

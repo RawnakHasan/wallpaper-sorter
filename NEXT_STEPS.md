@@ -377,10 +377,10 @@ The owner wants to **discuss before big steps**. Ask first about:
 - [x] T1 no-replace moves
 - [x] T2 torn log line / corrupt index
 - [x] T3 scan survives bad files
-- [ ] T4 intake errors visible, lost watches re-added
-- [ ] T5 safe cleanup default and intake path validation
+- [x] T4 intake errors visible, lost watches re-added
+- [x] T5 safe cleanup default and intake path validation
 - [ ] T6 responsiveness measured and improved
-- [ ] T7 Settings: edit watched folders
+- [x] T7 Settings: edit watched folders
 - [ ] T8 starter config embedded
 - [ ] T9 symlinked config preserved
 - [ ] T10 config reload

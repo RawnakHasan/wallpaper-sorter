@@ -31,7 +31,7 @@ about each image's origin, the activity log with undo, and settings.
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. 16 HTTP tests passed; smoke-tested with curl. |
 | Web UI (`ui/`) | Written and served. The 22 jsdom UI tests cover the pages, Re-sort, folder management, and Library source counts; use the browser checklist below for visual checks. |
-| Not built | Editing watched folders from the page; size caps for the log and the thumbnail cache; videos. |
+| Not built | Size caps for the log and the thumbnail cache; videos. |
 
 Final verification for this handoff: `cargo build --all-targets` completed with 0 warnings; `cargo test --workspace`
 passed 86 Rust tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap`
