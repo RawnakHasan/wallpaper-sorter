@@ -230,7 +230,7 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
   .resort-row{align-items:flex-start;flex-wrap:wrap}
 }
 
-.watched-actions{margin-left:0}
+.watched-actions{display:flex;align-items:center;gap:8px;margin-left:0}
 .watched-footer{display:flex;justify-content:flex-end;margin-top:12px}
 .watched-error{flex-basis:100%;margin:0}
 .thumb-placeholder{display:grid;place-items:center;aspect-ratio:16/10;width:100%;background:var(--sf);color:var(--t2);font:600 12px 'JetBrains Mono',monospace}
