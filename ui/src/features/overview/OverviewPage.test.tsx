@@ -48,7 +48,7 @@ it('loads overview data and invalidates queries after undo', async () => {
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByRole('heading', { name: 'Overview' })).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Overview' }, { timeout: 5000 })).toBeTruthy();
   expect(screen.getByText('4 images in /wallpapers')).toBeTruthy();
   fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
 

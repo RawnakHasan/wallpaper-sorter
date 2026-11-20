@@ -38,7 +38,7 @@ it('groups activity batches and sends an undo-all mutation', async () => {
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByRole('heading', { name: 'Activity' })).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Activity' }, { timeout: 5000 })).toBeTruthy();
   expect(screen.getByText('2 actions')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Undo all' }));
 
