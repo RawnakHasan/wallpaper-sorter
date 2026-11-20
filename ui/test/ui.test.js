@@ -533,6 +533,7 @@ test('library: create folders and manage prefix, rename, and merge', () =>
       dialog = await waitFor(() => ui.q('.dialog'), 'prefix confirmation again');
       ui.click(ui.byText('button', 'Save prefix', dialog));
       await waitFor(() => fs.existsSync(path.join(s.lib, 'Nature/Scenery 1.png')), 'prefix reapply');
+      await waitFor(() => /Prefix changed/.test(ui.toast()), 'prefix update completion');
 
       ui.click(ui.byText('button', 'Manage folder'));
       sheet = await waitFor(() => ui.q('.sheet'), 'the folder management sheet');

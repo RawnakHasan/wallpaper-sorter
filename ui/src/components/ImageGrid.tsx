@@ -92,13 +92,13 @@ export function ImageGrid({ items, onSelectionChange }: ImageGridProps) {
           );
         })}
       </div>
-      {remaining > 0 ? (
-        <div className="more">
+      <div className="more">
+        {remaining > 0 ? (
           <button className="btn" onClick={() => setShown((count) => Math.min(items.length, count + CHUNK_SIZE))}>
             Show {Math.min(CHUNK_SIZE, remaining)} more ({remaining} not shown)
           </button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }

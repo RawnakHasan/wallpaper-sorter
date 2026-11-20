@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Link,
@@ -8,7 +8,6 @@ import {
   useSearch,
 } from '@tanstack/react-router';
 import { Icon } from './src/components/Icon';
-import { Thumb } from './src/components/Thumb';
 import { closeLayer, confirmDialog, hasLayer, openSheet } from './src/components/dialogs';
 import { getStatus, statusQueryKey } from './src/features/status/api';
 import { Toast } from './src/components/Toast';
@@ -63,7 +62,6 @@ Object.defineProperty(WS, 'keys', {
   get: () => useHotkeysStore.getState().actions,
   set: (actions) => useHotkeysStore.getState().setActions(actions),
 });
-const RefreshContext = createContext({ revision: 0, ready: false, focusRef: null, scrollRef: null, refresh: () => {} });
 
 const NAV = [
   ['/', 'Overview', 'overview'],
@@ -79,50 +77,6 @@ const NAV = [
 
 function NavIcon({ name }) {
   return <Icon name={name} className="nv-icon" />;
-}
-export function LegacyPage({ name }) {
-  const ref = useRef(null);
-  const search = useSearch({ strict: false });
-  const query = JSON.stringify(search);
-  const { revision, ready, focusRef, scrollRef, refresh } = useContext(RefreshContext);
-
-  useEffect(() => {
-    let disposed = false;
-    WS.keys = {};
-    if (!ready) return undefined;
-    const render = async () => {
-      try {
-        const node = await WS.pages[name](new URLSearchParams(JSON.parse(query)));
-        if (!disposed && ref.current) ref.current.replaceChildren(node);
-      } catch (error) {
-        if (!disposed && ref.current) ref.current.replaceChildren(WS.errorBox(error, refresh));
-      }
-      if (!disposed && scrollRef.current) {
-        const grid = ref.current?.querySelector('.grid-scroll');
-        const tree = ref.current?.querySelector('.tree');
-        if (grid) grid.scrollTop = scrollRef.current.gridTop;
-        if (tree) tree.scrollTop = scrollRef.current.treeTop;
-        scrollRef.current = null;
-      }
-      if (!disposed && focusRef.current) {
-        const focus = focusRef.current;
-        focusRef.current = null;
-        const element = document.getElementById(focus.id);
-        if (element) {
-          element.focus();
-          try {
-            if (focus.start !== null && focus.start !== undefined) element.setSelectionRange(focus.start, focus.end);
-          } catch {
-            // The focused control is not a text field.
-          }
-        }
-      }
-    };
-    render();
-    return () => { disposed = true; };
-  }, [name, query, ready, revision, focusRef, scrollRef, refresh]);
-
-  return <div className="page-host" ref={ref}>{ready ? null : <p className="muted">Loading…</p>}</div>;
 }
 
 export function AppShell() {
@@ -140,55 +94,14 @@ export function AppShell() {
   const online = statusQuery.isPending ? null : !statusQuery.isError;
   const inboxCount = status?.counts.inbox ?? 0;
   const [search, setSearch] = useState('');
-  const [ready, setReady] = useState(false);
-  const [revision, setRevision] = useState(0);
-  const focusRef = useRef(null);
-  const scrollRef = useRef(null);
-  const signature = useRef('');
-
-  const refresh = useCallback(() => setRevision((value) => value + 1), []);
-  const context = useMemo(() => ({ revision, ready, focusRef, scrollRef, refresh }), [revision, ready, refresh]);
 
   useLayoutEffect(() => {
     WS.closeLayer();
     WS.clearSelection();
     WS.keys = {};
-    scrollRef.current = null;
     const main = document.getElementById('main');
     if (main) main.scrollTop = 0;
   }, [pathname, routeKey]);
-
-  useEffect(() => {
-    WS.refresh = () => {
-      const main = document.getElementById('main');
-      const element = document.activeElement;
-      const grid = main?.querySelector('.grid-scroll');
-      const tree = main?.querySelector('.tree');
-      scrollRef.current = grid || tree ? { gridTop: grid?.scrollTop || 0, treeTop: tree?.scrollTop || 0 } : null;
-      if (main && element?.id && main.contains(element)) {
-        focusRef.current = { id: element.id, start: element.selectionStart, end: element.selectionEnd };
-      }
-      refresh();
-    };
-    WS.keys = {};
-    return () => {
-      WS.refresh = () => {};
-    };
-  }, [focusRef, refresh, scrollRef]);
-
-  useEffect(() => {
-    if (statusQuery.isFetched) setReady(true);
-  }, [statusQuery.isFetched]);
-
-  useEffect(() => {
-    if (!status) return;
-    WS.status = status;
-    const nextSignature = JSON.stringify([status.counts, status.activity_last_id]);
-    const element = document.activeElement;
-    const typing = element && ['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName);
-    if (signature.current && nextSignature !== signature.current && !WS.hasLayer() && !typing) WS.refresh();
-    signature.current = nextSignature;
-  }, [status]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -223,7 +136,7 @@ export function AppShell() {
   }, []);
 
   return (
-    <RefreshContext.Provider value={context}>
+    <>
       <header className="topbar">
         <span className="brand">Wallpaper Sorter</span>
         <span className="spacer" />
@@ -277,10 +190,6 @@ export function AppShell() {
         </main>
       </div>
       <Toast />
-    </RefreshContext.Provider>
+    </>
   );
-}
-
-function LegacyThumb({ hash }) {
-  return <span className="list-thumb"><Thumb hash={hash} /></span>;
 }

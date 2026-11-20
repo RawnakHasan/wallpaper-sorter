@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
-import { LegacyPage } from '../../legacy-app';
+import { LibraryPage } from '../features/library/LibraryPage';
 
 const searchSchema = z.object({
   folder: z.string().optional(),
@@ -8,5 +8,5 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/library')({
   validateSearch: (search) => searchSchema.parse(search),
-  component: () => <LegacyPage name="library" />,
+  component: LibraryPage,
 });

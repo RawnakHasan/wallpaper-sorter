@@ -13,16 +13,16 @@ import { undoActivity } from '../activity/api';
 import { useHotkeysStore } from '../../stores/hotkeys';
 import { useSelectionStore } from '../../stores/selection';
 import { useToastStore } from '../../stores/toast';
+import { assignFiles as assignFilePaths, deleteFiles as deleteFilePaths } from '../files/api';
+import type { AssignFilesRequest } from '../files/schemas';
+import { refreshThumbnail } from '../thumbnails/api';
 import {
   assignFoldersQueryKey,
-  assignInboxItems,
-  deleteInboxItems,
   getAssignFolders,
   getInbox,
   inboxQueryKey,
-  refreshThumbnail,
 } from './api';
-import type { AssignFolder, AssignRequest, InboxItem } from './schemas';
+import type { AssignFolder, InboxItem } from './schemas';
 import type { Tag } from '../tags/schemas';
 
 type InboxFilters = {
@@ -172,7 +172,7 @@ interface AssignSheetProps {
   pending: boolean;
   error: string | null;
   onClose: () => void;
-  onSubmit: (request: AssignRequest) => void;
+  onSubmit: (request: AssignFilesRequest) => void;
 }
 
 function AssignSheet({
@@ -361,7 +361,7 @@ export function InboxPage() {
   };
 
   const assignMutation = useMutation({
-    mutationFn: assignInboxItems,
+    mutationFn: assignFilePaths,
     onSuccess: async (result, request) => {
       setAssignFiles(null);
       setAssignError(null);
@@ -380,7 +380,7 @@ export function InboxPage() {
     onError: (error) => setAssignError(messageOf(error)),
   });
   const deleteMutation = useMutation({
-    mutationFn: deleteInboxItems,
+    mutationFn: deleteFilePaths,
     onSuccess: async (result) => {
       useSelectionStore.getState().clear();
       showToast(`Deleted ${plural(result.done.length, 'image')}`, { undo: undoBatch(result.batch) });
