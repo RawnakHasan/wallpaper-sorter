@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type DragEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { useSelectionStore } from '../stores/selection';
 import { Icon } from './Icon';
@@ -19,11 +19,13 @@ export interface GridItem {
 interface ImageGridProps {
   items: GridItem[];
   onSelectionChange?: () => void;
+  onDragStart?: (event: DragEvent<HTMLDivElement>, item: GridItem) => void;
+  onDragEnd?: () => void;
 }
 
 const CHUNK_SIZE = 240;
 
-export function ImageGrid({ items, onSelectionChange }: ImageGridProps) {
+export function ImageGrid({ items, onSelectionChange, onDragStart, onDragEnd }: ImageGridProps) {
   const keys = useSelectionStore((state) => state.keys);
   const [shown, setShown] = useState(Math.min(CHUNK_SIZE, items.length));
 
@@ -61,6 +63,9 @@ export function ImageGrid({ items, onSelectionChange }: ImageGridProps) {
               tabIndex={0}
               aria-pressed={selected}
               aria-label={item.name}
+              draggable={!!onDragStart}
+              onDragStart={onDragStart ? (event) => onDragStart(event, item) : undefined}
+              onDragEnd={onDragEnd}
               onClick={(event) => toggle(item, event.shiftKey)}
               onKeyDown={(event) => {
                 if (event.key === ' ' || event.key === 'Enter') {

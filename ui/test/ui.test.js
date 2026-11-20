@@ -158,6 +158,40 @@ async function openPage(sorter, route) {
       assert.ok(el, 'element to click exists');
       el.dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true, ...(init || {}) }));
     },
+    dragStart(el) {
+      const values = new Map();
+      const dataTransfer = {
+        types: [],
+        effectAllowed: 'all',
+        dropEffect: 'none',
+        setData(type, value) {
+          values.set(type, value);
+          this.types = [...values.keys()];
+        },
+        getData(type) {
+          return values.get(type) || '';
+        },
+      };
+      const event = new w.Event('dragstart', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+      el.dispatchEvent(event);
+      return dataTransfer;
+    },
+    dragOver(el, dataTransfer) {
+      const event = new w.Event('dragover', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+      el.dispatchEvent(event);
+      return event;
+    },
+    drop(el, dataTransfer) {
+      const event = new w.Event('drop', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+      el.dispatchEvent(event);
+      return event;
+    },
+    dragEnd(el) {
+      el.dispatchEvent(new w.Event('dragend', { bubbles: true, cancelable: true }));
+    },
     type(el, value) {
       el.value = value;
       el.dispatchEvent(new w.Event('input', { bubbles: true }));
@@ -452,6 +486,54 @@ test('library: keeps the current folder visible while the next folder loads', ()
       assert.equal(ui.qa('.cell').length, 1);
       assert.equal(ui.w.location.pathname, '/library');
       assert.equal(new URLSearchParams(ui.w.location.search).get('folder'), 'Nature');
+    }
+  ));
+
+test('library: drag images to a folder, confirm, and apply configured numbering', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Source/Source 1.png'), 11);
+      put(path.join(lib, 'Source/Source 2.png'), 14);
+      put(path.join(lib, 'Nature/Nature 1.png'), 12);
+      put(path.join(lib, 'Nature/Nature 3.png'), 13);
+    },
+    '/library?folder=Source',
+    async (ui, s) => {
+      await waitFor(() => ui.qa('.cell').length === 2, 'the source images');
+      await api(s, 'PUT', '/api/settings', { gap_mode: 'lowest' });
+      const sourceImages = ui.qa('.cell');
+      ui.click(sourceImages[0]);
+      ui.click(sourceImages[1]);
+      const destination = ui.byText('.tree button', 'Nature');
+      const dataTransfer = ui.dragStart(sourceImages[0]);
+      const dragOver = ui.dragOver(destination, dataTransfer);
+      assert.equal(dragOver.defaultPrevented, true);
+      ui.drop(destination, dataTransfer);
+      ui.dragEnd(sourceImages[0]);
+
+      const confirmation = await waitFor(() => ui.q('.dialog'), 'the move confirmation');
+      assert.match(confirmation.textContent, /Move 2 images to Nature/);
+      assert.match(confirmation.textContent, /current numbering setting/);
+      assert.ok(fs.existsSync(path.join(s.lib, 'Source/Source 1.png')), 'dropping alone does not move the image');
+      ui.click(ui.byText('.dialog button', 'Cancel'));
+      await waitFor(() => !ui.q('.dialog'), 'the confirmation to close');
+      assert.ok(fs.existsSync(path.join(s.lib, 'Source/Source 2.png')), 'cancel leaves every image in place');
+
+      const retry = ui.dragStart(sourceImages[0]);
+      ui.drop(destination, retry);
+      ui.dragEnd(sourceImages[0]);
+      const retryConfirmation = await waitFor(() => ui.q('.dialog'), 'the second move confirmation');
+      ui.click(ui.byText('.dialog button', 'Move & rename'));
+
+      await waitFor(() => /Moved 2 images to Nature/.test(ui.toast()), 'the move notification');
+      await waitFor(() => fs.existsSync(path.join(s.lib, 'Nature/Nature 2.png')), 'the image numbered into the lowest gap');
+      assert.equal(fs.existsSync(path.join(s.lib, 'Source/Source 1.png')), false);
+      assert.equal(fs.existsSync(path.join(s.lib, 'Source/Source 2.png')), false);
+      assert.deepEqual(
+        (await api(s, 'GET', '/api/images?folder=Nature')).map((image) => image.name).sort(),
+        ['Nature 1.png', 'Nature 2.png', 'Nature 3.png', 'Nature 4.png'],
+      );
+      assert.ok(retryConfirmation.textContent.includes('Move 2 images'));
     }
   ));
 

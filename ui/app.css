@@ -105,6 +105,8 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 /* image grid */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px}
 .cell{position:relative;background:var(--sk);aspect-ratio:16/10;overflow:hidden;cursor:pointer;content-visibility:auto;contain-intrinsic-size:190px 118px}
+.cell[draggable=true]{cursor:grab}
+.cell[draggable=true]:active{cursor:grabbing}
 .cell.loading{background:linear-gradient(100deg,var(--sk) 25%,var(--sk2) 50%,var(--sk) 75%);background-size:200% 100%;animation:thumb-shimmer 1.4s ease-in-out infinite}
 .cell img{width:100%;height:100%;object-fit:contain;display:block;opacity:0;transition:opacity var(--dur) var(--ease)}
 .cell img.loaded{opacity:1}
@@ -127,6 +129,7 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .tree{width:240px;flex:none;border-right:1px solid var(--bd);padding-right:8px;max-height:calc(100vh - 140px);overflow:auto}
 .tree button{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;height:28px;border:0;background:transparent;border-radius:6px;cursor:pointer;text-align:left;color:var(--t2);padding-right:8px}
 .tree button:hover{background:var(--hv)}
+.tree button.drop-target{background:var(--sel);color:var(--ac);outline:1px dashed var(--ac);outline-offset:-1px}
 .tree button.on{background:var(--sel);color:var(--ac)}
 .tree button span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lib-main{flex:1;min-width:0}

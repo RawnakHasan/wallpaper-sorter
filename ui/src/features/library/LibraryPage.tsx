@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
@@ -39,6 +39,8 @@ interface LibraryFile {
   path: string;
   name: string;
 }
+
+const LIBRARY_IMAGE_DRAG_TYPE = 'application/x-wallpaper-sorter-image';
 
 interface FolderCreated {
   folder: string;
@@ -648,10 +650,12 @@ export function LibraryPage() {
   const [managementFolder, setManagementFolder] = useState<LibraryFolder | null>(null);
   const [managementKey, setManagementKey] = useState(0);
   const [gapFolder, setGapFolder] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [managementError, setManagementError] = useState<string | null>(null);
   const [gapError, setGapError] = useState<string | null>(null);
   const [thumbVersions, setThumbVersions] = useState<Record<string, number>>({});
+  const draggedFiles = useRef<LibraryFile[]>([]);
   const foldersQuery = useQuery({
     queryKey: libraryFoldersQueryKey,
     queryFn: getLibraryFolders,
@@ -736,7 +740,11 @@ export function LibraryPage() {
       else showToast(message, { undo: undoBatch(result.batch) });
       await refreshAfterAction();
     },
-    onError: (error) => setMoveError(messageOf(error)),
+    onError: (error) => {
+      const message = messageOf(error);
+      if (moveFiles) setMoveError(message);
+      else showToast(message, { error: true });
+    },
   });
   const deleteMutation = useMutation({
     mutationFn: deleteFiles,
@@ -814,6 +822,30 @@ export function LibraryPage() {
   const openMoveImage = (image: LibraryImage) => {
     setSelectedImage(null);
     void openMove([{ path: image.path, name: image.name }]);
+  };
+  const startImageDrag = (event: DragEvent<HTMLDivElement>, item: GridItem) => {
+    const selection = useSelectionStore.getState().keys;
+    const files = selection.has(item.key)
+      ? images.filter((image) => selection.has(image.path))
+      : images.filter((image) => image.path === item.key);
+    draggedFiles.current = files.map(({ path, name }) => ({ path, name }));
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData(LIBRARY_IMAGE_DRAG_TYPE, 'images');
+  };
+  const dropImagesOnFolder = async (event: DragEvent<HTMLButtonElement>, folder: string) => {
+    event.preventDefault();
+    setDropTarget(null);
+    const files = draggedFiles.current;
+    draggedFiles.current = [];
+    const filesToMove = files.filter((file) => file.path.slice(0, file.path.lastIndexOf('/')) !== folder);
+    if (!filesToMove.length) return;
+
+    const names = filesToMove.length === 1 ? filesToMove[0].name : plural(filesToMove.length, 'image');
+    const confirmed = await confirmDialog(
+      `Move ${names} to ${folder}? ${filesToMove.length === 1 ? 'It will' : 'They will'} be renamed using the destination folder’s prefix and your current numbering setting. Exact duplicates may be sent to Duplicates. You can undo the move.`,
+      'Move & rename',
+    );
+    if (confirmed) moveMutation.mutate({ paths: filesToMove.map((file) => file.path), folder });
   };
 
   const allKeys = images.map((image) => image.path);
@@ -945,9 +977,22 @@ export function LibraryPage() {
             return (
               <button
                 key={folder.path}
-                className={folder.path === currentFolder ? 'on' : ''}
+                className={`${folder.path === currentFolder ? 'on' : ''}${dropTarget === folder.path ? ' drop-target' : ''}`}
                 aria-current={folder.path === currentFolder ? 'true' : undefined}
                 style={{ paddingLeft: 8 + depth * 14 }}
+                onDragEnter={(event) => {
+                  if (draggedFiles.current.length) setDropTarget(folder.path);
+                }}
+                onDragOver={(event) => {
+                  if (!draggedFiles.current.length) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  setDropTarget(folder.path);
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(null);
+                }}
+                onDrop={(event) => { void dropImagesOnFolder(event, folder.path); }}
                 onPointerEnter={() => prefetchFolder(folder.path)}
                 onFocus={() => prefetchFolder(folder.path)}
                 onClick={() => { void navigateToFolder(folder.path); }}
@@ -1016,7 +1061,17 @@ export function LibraryPage() {
               { label: 'Delete', className: 'danger', onClick: () => { void deleteSelected(selectedFiles()); } },
             ]}
           />
-          {images.length ? <ImageGrid key={currentFolder} items={gridItems} /> : null}
+          {images.length ? (
+            <ImageGrid
+              key={currentFolder}
+              items={gridItems}
+              onDragStart={startImageDrag}
+              onDragEnd={() => {
+                draggedFiles.current = [];
+                setDropTarget(null);
+              }}
+            />
+          ) : null}
         </div>
       </div>
       {selectedImage ? (
