@@ -2,7 +2,7 @@
 
 A small Linux background program, written in Rust, that sorts new wallpaper images into numbered folders by their filenames, with a local web page to manage everything. This file describes what the app is and how it behaves, as of the latest repository snapshot.
 
-How this was written: from reading the source files (core, engine, daemon, ui, spec, tests, HANDOFF.md, README.md). The code was built and tested for the latest robustness work. The Rust workspace passed 116 tests, and all 25 UI tests passed.
+How this was written: from reading the source files (core, engine, daemon, ui, spec, tests, HANDOFF.md, README.md). The latest verification on 2026-11-20 passed 116 Rust tests, 18 Vitest tests, and 25 real-binary UI integration tests, along with UI typecheck and `cargo build`.
 
 ---
 
@@ -157,7 +157,7 @@ A `naive-` prefix is ignored. You can set a source by hand on the Data page.
 
 ## 10. The web page
 
-Runs at `http://127.0.0.1:8421/` (`--port N` or `[server] port` changes it, `--no-web` turns it off). The Vite-built static UI is embedded in the binary; no frontend server or network access is needed at runtime. Dark first, flat and minimal, self-hosted fonts (Hanken Grotesk, JetBrains Mono). It polls the status every 3 seconds, so the page follows the background sorter without reloading.
+Runs at `http://127.0.0.1:8421/` (`--port N` or `[server] port` changes it, `--no-web` turns it off). The Vite-built React/TypeScript UI is embedded in the binary; no frontend server or network access is needed at runtime. Routes use TanStack Router, server state uses TanStack Query with Zod-validated API clients, and small Zustand stores hold client state. Dark first, flat and minimal, self-hosted fonts (Hanken Grotesk, JetBrains Mono). It polls the status every 3 seconds, so the page follows the background sorter without reloading.
 
 | Page | What it does |
 |---|---|
@@ -307,7 +307,7 @@ The spec tables are the real specification. Change the table first, then the cod
 | `spec/plan_cases.toml` | 31 | Batches, duplicates, assign, gap modes, re-sort stays (hand-written) |
 | `spec/origins.csv` | 26 | Site and id parsing, manual sources (hand-written) |
 
-Test suites: table tests in core, end-to-end tests on real temporary folders in engine, real inotify tests and real HTTP tests in daemon, and jsdom UI tests that drive the compiled binary. Run `scripts/collect-report.sh` to get one `test-report.md`.
+Test suites: table tests in core, end-to-end tests on real temporary folders in engine, real inotify tests and real HTTP tests in daemon, 18 Vitest component/store tests, and 25 jsdom UI integrations that drive the compiled binary. Run `scripts/collect-report.sh` to get one `test-report.md`.
 
 ---
 

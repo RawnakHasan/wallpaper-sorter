@@ -63,7 +63,7 @@ For normal use:
 While it runs, the web page and API are at http://127.0.0.1:8421/ (`--port N` or `[server] port` in the config
 to change it, `--no-web` to turn it off). The page there is the real UI (Vite-built static assets embedded in the binary); no frontend server or network access is needed at runtime.
 
-For frontend development, install the UI build dependencies with `npm --prefix ui ci`, then run `npm --prefix ui run dev` while the sorter is running on port 8421. The UI shell uses React and TanStack Router with hash URLs; existing page views are being migrated incrementally. Vite proxies API requests to the local sorter. A normal Cargo build automatically rebuilds the UI when those npm dependencies are installed; otherwise it uses the checked-in `daemon/ui-dist/` bundle.
+For frontend development, install the UI build dependencies with `npm --prefix ui ci`, then run `npm --prefix ui run dev` while the sorter is running on port 8421. The full UI now uses React and TypeScript with TanStack Router (hash URLs), TanStack Query, Zod-validated API clients, and Zustand stores. Vite proxies API requests to the local sorter. A normal Cargo build automatically rebuilds the UI when those npm dependencies are installed; otherwise it uses the checked-in `daemon/ui-dist/` bundle.
 
 What it does: it watches the library folder (top level only) and every folder listed under `[[intake]]` in the
 config (subfolders included, also ones created later). Files already waiting are sorted at start. Images in the
@@ -118,7 +118,12 @@ folder is not a logged file action.
 
 ## Run the tests
 
+    cargo build
     cargo test
+    npm --prefix ui ci
+    npm --prefix ui run typecheck
+    npm --prefix ui test
+    SORTER_BIN=./target/debug/wallpaper-sorter node --test ui/test/ui.test.js
 
 - `core/tests/spec_cases.rs`       every row of `cases.csv` through the Rust matcher
 - `core/tests/numbering_cases.rs`  every row of `numbering.csv`
@@ -129,7 +134,8 @@ folder is not a logged file action.
 - `daemon/tests/watch.rs`          real inotify on temporary folders: downloads, slow writers, new intake folders, undo
 - `daemon/tests/resort_preview_cli.rs`  CLI Re-sort preview counts, folder scope, and no image mutation
 - `daemon/tests/web.rs`            the API over real HTTP: views, assign, tags, undo, thumbnails, security checks
-- `ui/test/ui.test.js`             jsdom UI flows, including Library source counts grouped by each image's first known source
+- `ui/src/`                        Vitest component and store tests
+- `ui/test/ui.test.js`             jsdom UI flows against the real binary, including Library source counts
 - `engine/tests/ops.rs`, `engine/tests/cfgedit.rs`  the UI's operations and the config editing; `ops.rs` also builds
   the real `tree_images.txt` library, compares a whole-library Re-sort with `cases.csv`, and checks its second preview
   is idempotent

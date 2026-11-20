@@ -30,12 +30,12 @@ about each image's origin, the activity log with undo, and settings.
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. HTTP and thumbnail tests pass. |
-| Web UI (`ui/`) | Written and served. The jsdom UI tests cover the pages, Re-sort, folder management, watched folders, Library source counts, and manual thumbnail rebuilds; use the browser checklist below for visual checks. |
+| Web UI (`ui/`) | All nine routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
-Final verification for this handoff: `cargo build --all-targets` completed with 0 warnings; `cargo test --workspace`
-passed 116 Rust tests; and `cd ui/test && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap`
-passed 25 UI tests. Many Rust tests are table-driven with hundreds of rows.
+Latest verification (2026-11-20): `npm --prefix ui run typecheck`, `npm --prefix ui test` (18 tests),
+`cargo build`, `cargo test` (116 Rust tests), and `SORTER_BIN=./target/debug/wallpaper-sorter node --test ui/test/ui.test.js`
+(25 real-binary UI tests) all passed. The real-browser checklist below has not yet been completed.
 
 ---
 
@@ -54,18 +54,21 @@ cd wallpaper-sorter
 scripts/collect-report.sh
 ```
 
-It builds everything, runs the Rust tests and the UI tests, and writes **`test-report.md`** (plus the full logs next to
-it: `test-report.build.log`, `.cargo.log`, `.ui.log`). The first build takes several minutes on a small machine.
+It builds everything, runs the Rust tests and all UI checks, and writes **`test-report.md`** (plus full build, Rust,
+npm, typecheck, Vitest, and integration logs next to it). The first build takes several minutes on a small machine.
 Send me `test-report.md`. If the script itself fails, send what it printed, and run the pieces by hand:
 
 ```
 cargo build --all-targets
 cargo test --workspace --no-fail-fast 2>&1 | tee cargo.log
-cd ui/test && npm install && SORTER_BIN=../../target/debug/wallpaper-sorter node --test --test-reporter=tap 2>&1 | tee ../../ui.log
+npm --prefix ui ci
+npm --prefix ui run typecheck
+npm --prefix ui test
+SORTER_BIN=./target/debug/wallpaper-sorter node --test --test-reporter=tap ui/test/ui.test.js 2>&1 | tee ui.log
 ```
 
-The report has: environment, a summary table (build, Rust tests, UI tests), the per-binary Rust results, the failing
-tests with their output, the UI test list with failures in detail, and a "Notes" section for you to fill in.
+The report has: environment, a summary table (build, Rust tests, UI typecheck, Vitest, and browser integrations), the
+per-binary Rust results, failing tests with their output, and a "Notes" section for you to fill in.
 
 **Expected now:** the Rust and UI tests should pass. The report is still useful for spotting environment or browser-specific failures.
 
@@ -223,25 +226,26 @@ tables are the real specification; do not regenerate them from the code.
   intake folder, no `..`).
 - The web server listens on 127.0.0.1 only, rejects other `Host` headers, requires JSON for changing requests and
   checks `Origin`. The page is served with a CSP that forbids inline scripts and styles.
-- Filenames are untrusted: the UI builds elements with `textContent` only (`WS.h`), never `innerHTML`.
+- Filenames are untrusted: React renders them as text; do not use `dangerouslySetInnerHTML` or `innerHTML`.
 
 ### 3.6 UI notes
 
-- `src/main.jsx` is the React shell and TanStack hash router; Overview, Activity, Duplicates, and Settings are
-  React-rendered routes.
-  `src/legacy.js` imports the remaining page modules into a compatibility bridge. `core.js` (helpers, API client,
-  toast, sheets,   pickers), `pages.js` (grid, assign and detail sheets, Inbox, Library, Re-sort), and `pages2.js`
-  (Tags and Data) still expose `window.WS`. This keeps behavior stable while views migrate one at a
-  time.
-- The shell owns the 3-second status polling, keyboard shortcuts, navigation, and theme. `WS.refresh()` re-renders the
-  active legacy page.
+- `ui/src/main.tsx` provides TanStack Query and the TanStack hash router. `ui/src/components/AppShell.tsx` is the
+  typed React shell; all nine routes render React/TypeScript feature pages. Server data uses TanStack Query and
+  Zod-validated API clients; Zustand stores hold selection, keyboard actions, theme, recent folders, and toasts.
+- The legacy `core.js`, `pages.js`, `pages2.js`, `legacy-app.jsx`, `legacy.ts`, `window.WS`, and `LegacyPage`
+  bridge have been removed. `components/dialogs.ts` remains a small native-`<dialog>` helper for promise-based
+  confirmations and simple sheets.
+- The shell owns 3-second status polling, keyboard shortcuts, navigation, and the Inbox count. Feature mutations
+  invalidate their TanStack Query data after success or Undo.
 - Styling uses CSS variables copied from the design mock-up (`ui/design-mock.html`); four font sizes, no shadows or
   gradients, dark first. Fonts are self-hosted from `ui/fonts/`.
 - The Library folder header shows source counts; each image counts under its first known source, or Unknown if none.
 - Because of the CSP, never set `style="..."` attributes or use inline handlers. Setting `el.style.x = ...` from
   script is fine.
-- The tests in `ui/test/ui.test.js` start the compiled binary on a temporary library, load the page in jsdom and
-  click through it. jsdom has no layout, no images and no `fetch`; the tests give it Node's `fetch`.
+- `npm --prefix ui test` runs the Vitest component/store tests. `ui/test/ui.test.js` starts the compiled binary on
+  a temporary library and drives it in jsdom. jsdom has no layout or real image rendering, so use the browser
+  checklist in section 2.5 for visual verification.
 
 ### 3.7 Working in a sandbox
 
@@ -270,9 +274,8 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 4.1 UI automated tests
 
-The previous UI failures are fixed. The 22 jsdom tests load the page scripts through Node's `fetch` (rather than
-jsdom's intermittent HTTP loader), then exercise the real binary and API. They include the Re-sort preview, apply and
-batch undo flow. This does not validate visual layout or real image loading.
+The 25 jsdom integration tests load the built app against the real binary and API. The 18 Vitest tests cover shared
+components, feature components, and stores. Neither suite validates visual layout or real image loading.
 
 ### 4.2 Check the UI in a real browser
 

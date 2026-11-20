@@ -3,9 +3,9 @@
 #
 #   scripts/collect-report.sh [report-file]        (default: test-report.md in the project folder)
 #
-# Needs cargo. Node and npm are optional (without them the UI tests are skipped).
+# Needs cargo. Node and npm are optional (without them the UI checks are skipped).
 # The first run builds everything, which takes a few minutes on a small machine.
-# Full logs are saved next to the report (test-report.build.log, .cargo.log, .ui.log).
+# Full logs are saved next to the report (build, Rust, npm, typecheck, Vitest, and integration logs).
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 1
@@ -15,7 +15,17 @@ have() { command -v "$1" >/dev/null 2>&1; }
 say() { printf '%s\n' "$*" >&2; }
 fence() { printf '\n```\n'; cat; printf '```\n'; }
 
-say "1/3 building (the first build takes a few minutes)..."
+UI_DEPS_RC=0
+if have node && have npm; then
+  say "1/6 checking the UI dependencies..."
+  (
+    cd ui || exit 1
+    { [ -x node_modules/.bin/vite ] && [ -x node_modules/.bin/tsc ] && [ -x node_modules/.bin/vitest ] || npm ci --silent; }
+  ) >"$TMP/npm.log" 2>&1
+  UI_DEPS_RC=$?
+fi
+
+say "2/6 building (the first build takes a few minutes)..."
 cargo build --all-targets >"$TMP/build.log" 2>&1
 BUILD_RC=$?
 WARNINGS=$(grep -c '^warning' "$TMP/build.log" || true)
@@ -25,25 +35,57 @@ RUST_PASS=0
 RUST_FAIL=0
 RUST_IGN=0
 if [ "$BUILD_RC" -eq 0 ]; then
-  say "2/3 running the Rust tests..."
+  say "3/6 running the Rust tests..."
   cargo test --workspace --no-fail-fast >"$TMP/cargo.log" 2>&1
   CARGO_RC=$?
   read -r RUST_PASS RUST_FAIL RUST_IGN < <(awk '/^test result:/{p+=$4; f+=$6; i+=$8} END{print p+0, f+0, i+0}' "$TMP/cargo.log")
 fi
 
+TYPECHECK_STATE="not run"
+TYPECHECK_RC=-1
+VITEST_PASS=0
+VITEST_FAIL=0
+VITEST_STATE="not run"
+VITEST_RC=-1
 UI_PASS=0
 UI_FAIL=0
 if [ "$BUILD_RC" -ne 0 ]; then
+  TYPECHECK_STATE="skipped (the build failed)"
+  VITEST_STATE="skipped (the build failed)"
   UI_STATE="skipped (the build failed)"
+elif [ "$UI_DEPS_RC" -ne 0 ]; then
+  TYPECHECK_STATE="skipped (npm dependency install failed)"
+  VITEST_STATE="skipped (npm dependency install failed)"
+  UI_STATE="skipped (npm dependency install failed)"
 elif have node && have npm; then
-  say "3/3 running the UI tests (a simulated browser against the real program)..."
-  ( cd ui/test && { [ -d node_modules ] || npm install --silent; } ) >"$TMP/npm.log" 2>&1
+  say "4/6 running the TypeScript check..."
+  ( cd ui && npm run typecheck ) >"$TMP/typecheck.log" 2>&1
+  TYPECHECK_RC=$?
+  TYPECHECK_STATE="$([ "$TYPECHECK_RC" -eq 0 ] && echo passed || echo "FAILED, exit code $TYPECHECK_RC")"
+
+  say "5/6 running Vitest..."
+  ( cd ui && npm test ) >"$TMP/vitest.log" 2>&1
+  VITEST_RC=$?
+  read -r VITEST_PASS VITEST_FAIL < <(awk '
+    /^[[:space:]]*Tests / {
+      for (i = 1; i <= NF; i++) {
+        if ($i == "passed") p = $(i - 1)
+        if ($i == "failed") f = $(i - 1)
+      }
+    }
+    END { print p + 0, f + 0 }
+  ' "$TMP/vitest.log")
+  VITEST_STATE="$([ "$VITEST_RC" -eq 0 ] && echo passed || echo "FAILED, exit code $VITEST_RC")"
+
+  say "6/6 running the real-binary UI integrations..."
   ( cd ui/test && SORTER_BIN="$ROOT/target/debug/wallpaper-sorter" node --test --test-reporter=tap ) >"$TMP/ui.log" 2>&1
   UI_RC=$?
   UI_PASS=$(grep -c '^ok ' "$TMP/ui.log" || true)
   UI_FAIL=$(grep -c '^not ok ' "$TMP/ui.log" || true)
   UI_STATE="ran, exit code $UI_RC"
 else
+  TYPECHECK_STATE="skipped (node or npm is not installed)"
+  VITEST_STATE="skipped (node or npm is not installed)"
   UI_STATE="skipped (node or npm is not installed)"
 fi
 
@@ -67,7 +109,9 @@ fi
   echo "|---|---|"
   echo "| Build | $([ "$BUILD_RC" -eq 0 ] && echo ok || echo FAILED), $WARNINGS warnings |"
   echo "| Rust tests | $RUST_PASS passed, $RUST_FAIL failed, $RUST_IGN ignored |"
-  echo "| UI tests | $UI_PASS passed, $UI_FAIL failed ($UI_STATE) |"
+  echo "| UI typecheck | $TYPECHECK_STATE |"
+  echo "| Vitest | $VITEST_PASS passed, $VITEST_FAIL failed ($VITEST_STATE) |"
+  echo "| UI integrations | $UI_PASS passed, $UI_FAIL failed ($UI_STATE) |"
 
   if [ "$BUILD_RC" -ne 0 ]; then
     echo
@@ -99,6 +143,23 @@ fi
     fi
   fi
 
+  if [ -f "$TMP/typecheck.log" ] && [ "$TYPECHECK_RC" -ne 0 ]; then
+    echo
+    echo "## UI typecheck errors"
+    tail -n 120 "$TMP/typecheck.log" | fence
+  fi
+
+  if [ -f "$TMP/vitest.log" ]; then
+    echo
+    echo "## Vitest"
+    grep -E '^[[:space:]]*Test Files|^[[:space:]]*Tests |^[[:space:]]*Duration ' "$TMP/vitest.log" | fence
+    if [ "$VITEST_FAIL" -gt 0 ] || { [ "$VITEST_RC" -gt 0 ] && [ "$VITEST_PASS" -eq 0 ]; }; then
+      echo
+      echo "### Vitest failure details"
+      tail -n 160 "$TMP/vitest.log" | fence
+    fi
+  fi
+
   if [ -f "$TMP/ui.log" ]; then
     echo
     echo "## UI tests"
@@ -126,6 +187,9 @@ fi
 BASE="${OUT%.md}"
 cp "$TMP/build.log" "$BASE.build.log" 2>/dev/null
 [ -f "$TMP/cargo.log" ] && cp "$TMP/cargo.log" "$BASE.cargo.log"
+[ -f "$TMP/npm.log" ] && cp "$TMP/npm.log" "$BASE.npm.log"
+[ -f "$TMP/typecheck.log" ] && cp "$TMP/typecheck.log" "$BASE.typecheck.log"
+[ -f "$TMP/vitest.log" ] && cp "$TMP/vitest.log" "$BASE.vitest.log"
 [ -f "$TMP/ui.log" ] && cp "$TMP/ui.log" "$BASE.ui.log"
 rm -rf "$TMP"
 say "Report written to $OUT"
