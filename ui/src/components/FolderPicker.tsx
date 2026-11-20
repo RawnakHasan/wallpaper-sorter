@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Ref } from 'react';
 import { useRecentFoldersStore } from '../stores/recent-folders';
 
 interface Folder {
@@ -11,9 +11,10 @@ interface FolderPickerProps {
   hide?: string;
   placeholder?: string;
   onChange?: (path: string) => void;
+  inputRef?: Ref<HTMLInputElement>;
 }
 
-export function FolderPicker({ folders, value = '', hide, placeholder, onChange }: FolderPickerProps) {
+export function FolderPicker({ folders, value = '', hide, placeholder, onChange, inputRef }: FolderPickerProps) {
   const recent = useRecentFoldersStore((state) => state.folders);
   const [input, setInput] = useState(value);
   const [open, setOpen] = useState(false);
@@ -34,6 +35,7 @@ export function FolderPicker({ folders, value = '', hide, placeholder, onChange 
   return (
     <div className="picker">
       <input
+        ref={inputRef}
         className="input wide"
         value={input}
         placeholder={placeholder || 'Folder, for example Wuthering-Waves/Chisa'}

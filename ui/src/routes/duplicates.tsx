@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { DuplicatesPage } from '../../legacy-app';
+import { DuplicatesPage } from '../features/duplicates/DuplicatesPage';
 
 export const Route = createFileRoute('/duplicates')({
   component: DuplicatesPage,
