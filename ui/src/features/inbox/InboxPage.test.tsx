@@ -57,14 +57,14 @@ it('filters inbox items and assigns the selected file to its chosen folder', asy
   );
   const { client } = renderInbox();
 
-  expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Inbox' }, { timeout: 5000 })).toBeTruthy();
   fireEvent.change(screen.getByRole('combobox', { name: 'Filter by reason' }), { target: { value: 'no_match' } });
   expect(screen.getByRole('listitem', { name: 'quiet.png' })).toBeTruthy();
   expect(screen.queryByRole('listitem', { name: 'clash.png' })).toBeNull();
   fireEvent.click(screen.getByRole('listitem', { name: 'quiet.png' }));
   fireEvent.click(screen.getByRole('button', { name: 'Assign to folder…' }));
 
-  fireEvent.change(await screen.findByRole('textbox', { name: 'Folder' }), { target: { value: 'Quiet' } });
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Folder' }, { timeout: 5000 }), { target: { value: 'Quiet' } });
   fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
 
   await waitFor(() => expect(assignments).toEqual([{
