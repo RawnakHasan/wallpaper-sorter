@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChipInput } from '../../../components/ChipInput';
 import { FolderPicker } from '../../../components/FolderPicker';
 import { Icon } from '../../../components/Icon';
+import { useNativeDialog } from '../../../components/useNativeDialog';
 import type { Tag, TagRequest } from '../schemas';
 
 interface Folder {
@@ -36,17 +37,7 @@ export function TagEditor({
   const matchRef = useRef<HTMLSelectElement>(null);
   const genericRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (typeof dialog.showModal === 'function') dialog.showModal();
-    else dialog.setAttribute('open', '');
-    return () => {
-      if (!dialog.open) return;
-      if (typeof dialog.close === 'function') dialog.close();
-      else dialog.removeAttribute('open');
-    };
-  }, []);
+  useNativeDialog(dialogRef);
 
   const save = () => {
     onSave({
