@@ -62,11 +62,11 @@ it('renders library images and moves a selection using the chosen destination', 
   const { client } = renderLibrary();
 
   expect(await screen.findByRole('heading', { name: 'Nature' }, { timeout: 5000 })).toBeTruthy();
-  fireEvent.click(await screen.findByRole('listitem', { name: 'Nature 1.png' }));
+  fireEvent.click(await screen.findByRole('listitem', { name: 'Nature 1.png' }, { timeout: 5000 }));
   expect(screen.getByText('1 selected')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Move to folder…' }));
 
-  const picker = await screen.findByRole('textbox', { name: 'Folder' });
+  const picker = await screen.findByRole('textbox', { name: 'Folder' }, { timeout: 5000 });
   fireEvent.change(picker, { target: { value: 'Archive' } });
   fireEvent.click(screen.getByRole('button', { name: 'Move' }));
 

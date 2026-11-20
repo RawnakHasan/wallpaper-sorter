@@ -52,6 +52,7 @@ export function AppShell() {
   const showToast = useToastStore((state) => state.show);
   const [search, setSearch] = useState('');
 
+  // Route transitions must reset scroll, selection, and page hotkeys before paint.
   useLayoutEffect(() => {
     closeLayer();
     useSelectionStore.getState().clear();
@@ -60,6 +61,7 @@ export function AppShell() {
     if (main) main.scrollTop = 0;
   }, [pathname, routeKey]);
 
+  // Global Escape and shortcut handling belongs outside page components so dialogs and selection share one layer.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;

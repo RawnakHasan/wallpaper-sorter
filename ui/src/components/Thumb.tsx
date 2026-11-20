@@ -30,6 +30,7 @@ export function Thumb({ hash, alt = '', refreshKey = 0 }: ThumbProps) {
   const objectUrl = useRef<string | null>(null);
   const img = useRef<HTMLImageElement>(null);
 
+  // Fetch/abort thumbnail object URLs and reset loading state when the source or refresh key changes.
   useEffect(() => {
     let disposed = false;
     const controller = new AbortController();

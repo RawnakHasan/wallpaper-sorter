@@ -15,9 +15,10 @@ the path-safety part of `engine/src/ops.rs`, `.gitignore`, workspace `Cargo.toml
 **Not read (do not assume they are fine or broken):** `core/src/{matcher,plan,numbering,origin,paths}.rs`,
 `engine/src/origins.rs`, most of `ui/*.js` and `ui/app.css`, and the bodies of the test files.
 
-**Not run:** the audit sandbox had no Rust toolchain, so nothing was built and no test was executed. The counts
-"86 Rust tests" and "22 UI tests" come from `HANDOFF.md`. Treat every finding below as "verified by reading the
-code", not "reproduced". Items marked **(likely)** are inferences that still need a measurement.
+**Not run in the original audit:** no Rust toolchain was available, so the original reading could not execute the
+suite. The rebuild work now runs the Rust build and UI suites locally; the audit's stale `"22 UI tests"` description
+is superseded by the React/Vitest and jsdom counts recorded in `HANDOFF.md`. Treat the Rust findings below as
+verified by reading the code rather than reproduced. Items marked **(likely)** are inferences that still need a measurement.
 
 ---
 
@@ -27,12 +28,13 @@ Per its own handoff, the program is feature-complete for its v1 scope:
 
 - Pure logic in `core/` (matching, numbering, plan, origin parsing), driven by hand-checked tables in `spec/`.
 - Disk engine in `engine/` (apply, log, undo, BLAKE3 index, origin records, library operations, config editing).
-- inotify daemon, debounce, tiny_http web server with JSON API, jsdom-tested plain-JS web UI in `ui/`.
+- inotify daemon, debounce, tiny_http web server with JSON API, and a React/TypeScript web UI rebuilt under `ui/`
+  with a fixed single-bundle Vite build and an MSW-backed Vitest suite.
 
 What is **not** done:
 
-1. The UI has never been checked in a real browser (HANDOFF section 2.5 checklist is still open). jsdom has no
-   layout and no real image loading, so passing UI tests say nothing about how it looks.
+1. The UI has not been checked end-to-end in a real browser (HANDOFF section 2.5 checklist is still open). jsdom
+   has no layout and no real image loading, so passing Vitest and jsdom tests do not establish visual correctness.
 2. A handful of robustness bugs in the engine and watcher (section 4).
 3. Documentation drift (section 6).
 4. Parked by the owner: videos, fetching from site APIs, size caps for log and thumbnail cache.
@@ -47,7 +49,7 @@ What is **not** done:
 - Config editing with `toml_edit` keeps comments; config writes are atomic (temp file + rename + `sync_data`).
 - Web hardening: 127.0.0.1 only, `Host` and `Origin` checks, JSON content type required for changes, strict CSP,
   `X-Content-Type-Options: nosniff`, hash validated as 64 hex digits before touching the disk.
-- UI builds DOM with `textContent` only (`WS.h`), never `innerHTML`.
+- The React UI renders user-controlled filenames as text, never as `innerHTML`.
 - Thumbnails are drawn one at a time behind a mutex and the grid uses `loading="lazy"`.
 - Lock ordering looks consistent (config edit lock, then pipeline lock). No deadlock was found.
 
@@ -65,8 +67,9 @@ Copied from `HANDOFF.md` section 3.5 so they are in front of whoever works on th
 - Origin records are permanent, keyed by content hash.
 - Library-relative paths use `/`. Anything from the UI goes through `Pipeline::resolve`.
 - The server listens on 127.0.0.1 only, checks `Host` and `Origin`, requires JSON for changing requests, serves a CSP
-  that forbids inline scripts and styles. No `style="..."` attributes and no inline handlers in the UI.
-- Filenames are untrusted: never `innerHTML`.
+  that forbids inline scripts and styles. The React rebuild keeps a fixed single bundle and CSP-compatible CSS classes;
+  the remaining Library tree indentation is set through CSSOM and still needs real-browser confirmation.
+- Filenames are untrusted: never `innerHTML` or React HTML injection.
 - The library root is watched non-recursively on purpose, so the sorter's own moves never loop.
 - Must still build on Rust 1.75 (`Cargo.lock` pins `indexmap`, `hashbrown`, `blake3`, `image`). BLAKE3 stays on the
   `pure` feature (no C compiler). Do not add heavy dependencies; the owner's laptop is 2 cores, no GPU.

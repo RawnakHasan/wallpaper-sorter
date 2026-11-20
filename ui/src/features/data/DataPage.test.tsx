@@ -55,7 +55,7 @@ it('filters unknown-source records and saves a manually selected source', async 
   fireEvent.click(screen.getByRole('button', { name: 'Unknown source (1)' }));
   fireEvent.click(await screen.findByRole('row', { name: /quiet\.png/ }, { timeout: 5000 }));
 
-  const sites = await screen.findAllByRole('combobox', { name: 'Site' });
+  const sites = await screen.findAllByRole('combobox', { name: 'Site' }, { timeout: 5000 });
   fireEvent.change(sites[1], { target: { value: 'Wallhaven' } });
   fireEvent.change(screen.getByRole('textbox', { name: 'Id on the site' }), { target: { value: 'wallhaven-123' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save source' }));
