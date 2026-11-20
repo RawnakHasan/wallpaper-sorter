@@ -114,9 +114,9 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .cell .cap{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;background:var(--shade);color:#fff;display:none;flex-direction:column;overflow:hidden}
 .cell .cap span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cell:hover .cap,.cell:focus-visible .cap,.cell.sel .cap{display:flex}
-.cell .label{position:absolute;left:4px;top:4px;height:18px;padding:0 6px;border-radius:4px;background:var(--shade);color:#fff;font-size:11px;line-height:18px}
+.cell .label{position:absolute;left:28px;top:4px;height:18px;padding:0 6px;border-radius:4px;background:var(--shade);color:#fff;font-size:11px;line-height:18px}
 .cell .label.conflict{background:var(--er)}
-.cell .check{position:absolute;right:34px;top:4px;width:20px;height:20px;border-radius:50%;background:var(--ac);color:var(--oa);display:none;align-items:center;justify-content:center;font-size:12px}
+.cell .check{position:absolute;left:4px;right:34px;top:4px;width:20px;height:20px;border-radius:50%;background:var(--ac);color:var(--oa);display:none;align-items:center;justify-content:center;font-size:12px}
 .cell.sel{outline:2px solid var(--ac);outline-offset:-2px}
 .cell.sel .check{display:flex}
 .cell .open{position:absolute;right:4px;top:4px;display:none;width:26px;height:26px;padding:0;border-radius:4px;border:0;background:var(--shade);color:#fff;cursor:pointer;align-items:center;justify-content:center}
@@ -165,6 +165,10 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .tbl tr.click{cursor:pointer}
 .tbl tr.click:hover{background:var(--hv)}
 .tbl img{width:64px;height:40px;object-fit:cover;display:block;background:var(--sk)}
+.tbl td:first-child{display:flex;align-items:center;gap:8px}
+.data-selection{min-height:32px;margin:8px 0}
+.batch-source-list{display:flex;flex-direction:column;gap:8px}
+.batch-source-row{display:grid;grid-template-columns:minmax(120px,1fr) minmax(140px,220px);align-items:center;gap:12px}
 .list>div{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--bd)}
 .list img{width:72px;height:45px;object-fit:cover;background:var(--sk)}
 .list .list-thumb{display:block;flex:none;width:72px;height:45px;overflow:hidden;background:var(--sk)}

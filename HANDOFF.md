@@ -33,7 +33,7 @@ about each image's origin, the activity log with undo, and settings.
 | Web UI (`ui/`) | All nine routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
-Latest verification (2026-11-20): `npm --prefix ui run typecheck`, `npm --prefix ui test` (32 Vitest tests),
+Latest verification (2026-11-21): `npm --prefix ui run typecheck`, `npm --prefix ui test` (33 Vitest tests),
 `cargo build`, `cargo test` (116 Rust tests), and `SORTER_BIN=./target/debug/wallpaper-sorter node --test ui/test/ui.test.js`
 (27 real-binary UI tests) all passed. The real-browser checklist below has not yet been completed.
 
@@ -112,7 +112,8 @@ Do these in a real browser, at a wide window and at a phone-width window (about 
 4. **Library**: pick a folder in the tree; images show in number order; "Close gaps" shows a preview of renames.
 5. **Tags**: the filename tester updates as you type (try `Chisa waterfall.png` and `Chisa Skadi.png`); add, edit and
    delete a tag.
-6. **Duplicates**, **Data** (search, site filter, "Unknown source", set a source by hand), **Activity** (Undo per row),
+6. **Duplicates**, **Data** (search, site filter, "Unknown source", select rows manually or all unknown, set a common
+   source and optional per-image IDs), **Activity** (Undo per row),
    **Settings** (gap mode, theme, empty trash).
 7. Save an image into the library folder from your browser and watch it appear or get sorted within a few seconds
    without reloading.
@@ -276,7 +277,7 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 4.1 UI automated tests
 
-The 27 jsdom integration tests load the built app against the real binary and API. The 32 Vitest tests cover shared
+The 27 jsdom integration tests load the built app against the real binary and API. The 33 Vitest tests cover shared
 components, feature components, and stores. Neither suite validates visual layout or real image loading.
 
 ### 4.2 Check the UI in a real browser

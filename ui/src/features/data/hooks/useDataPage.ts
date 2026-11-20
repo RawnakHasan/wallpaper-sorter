@@ -34,6 +34,8 @@ export function useDataPage() {
     : { ...retainedFilters, q: routeSearch.q, searchText: routeSearch.q, offset: 0 });
   const filtersRef = useRef(filters);
   const [selectedRecord, setSelectedRecord] = useState<Origin | null>(null);
+  const [selectedRecords, setSelectedRecords] = useState<Origin[]>([]);
+  const [batchSheetOpen, setBatchSheetOpen] = useState(false);
 
   const updateFilters = (patch: Partial<PageFilters>) => {
     const next = { ...filtersRef.current, ...patch };
@@ -91,6 +93,66 @@ export function useDataPage() {
     },
     onError: (error) => showToast(messageOf(error), { error: true }),
   });
+  const batchSaveMutation = useMutation({
+    mutationFn: async ({ records, site, ids }: {
+      records: Origin[];
+      site: Origin['sources'][number]['site'];
+      ids: Record<string, string>;
+    }) => {
+      await Promise.all(records.map((record) => saveOrigin({
+        hash: record.hash,
+        site,
+        id: ids[record.hash]?.trim() ?? '',
+      })));
+    },
+    onSuccess: async (_, { records }) => {
+      setBatchSheetOpen(false);
+      setSelectedRecords([]);
+      showToast(`Sources saved for ${records.length} ${records.length === 1 ? 'record' : 'records'}`);
+      await queryClient.invalidateQueries({ queryKey: ['data'] });
+    },
+    onError: (error) => showToast(messageOf(error), { error: true }),
+  });
+
+  const toggleSelectedRecord = (record: Origin) => {
+    setSelectedRecords((current) => {
+      const present = current.some((entry) => entry.hash === record.hash);
+      return present
+        ? current.filter((entry) => entry.hash !== record.hash)
+        : [...current, record];
+    });
+  };
+  const toggleSelectedPage = (records: Origin[], checked: boolean) => {
+    setSelectedRecords((current) => {
+      if (!checked) {
+        const pageHashes = new Set(records.map((record) => record.hash));
+        return current.filter((record) => !pageHashes.has(record.hash));
+      }
+      const byHash = new Map(current.map((record) => [record.hash, record]));
+      records.forEach((record) => byHash.set(record.hash, record));
+      return [...byHash.values()];
+    });
+  };
+  const selectAllUnknown = async () => {
+    const total = unknownCountQuery.data?.total ?? 0;
+    if (!total) {
+      setSelectedRecords([]);
+      return;
+    }
+    try {
+      const result = await getData({
+        q: '',
+        site: '',
+        folder: '',
+        unknown: true,
+        offset: 0,
+      }, total);
+      setSelectedRecords(result.items);
+    } catch (error) {
+      showToast(messageOf(error), { error: true });
+    }
+  };
+  const clearSelectedRecords = () => setSelectedRecords([]);
 
   return {
     filters,
@@ -102,5 +164,13 @@ export function useDataPage() {
     setSelectedRecord,
     pageSize: PAGE_SIZE,
     siteSchema,
+    selectedRecords,
+    toggleSelectedRecord,
+    toggleSelectedPage,
+    selectAllUnknown,
+    clearSelectedRecords,
+    batchSheetOpen,
+    setBatchSheetOpen,
+    batchSaveMutation,
   };
 }

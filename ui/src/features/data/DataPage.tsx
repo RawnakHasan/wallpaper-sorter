@@ -2,6 +2,7 @@ import { Icon } from '../../components/Icon';
 import { Thumb } from '../../components/Thumb';
 import { OriginDetails } from './components/OriginDetails';
 import { SourceBadges } from './components/SourceBadges';
+import { BatchSourceSheet } from './components/BatchSourceSheet';
 import { useDataPage } from './hooks/useDataPage';
 import { formatDateTime, messageOf } from './utils';
 
@@ -16,6 +17,14 @@ export function DataPage() {
     setSelectedRecord,
     pageSize,
     siteSchema,
+    selectedRecords,
+    toggleSelectedRecord,
+    toggleSelectedPage,
+    selectAllUnknown,
+    clearSelectedRecords,
+    batchSheetOpen,
+    setBatchSheetOpen,
+    batchSaveMutation,
   } = useDataPage();
   const error = dataQuery.error ?? unknownCountQuery.error;
   if (error) {
@@ -32,6 +41,10 @@ export function DataPage() {
   const items = result.items;
   const first = result.total ? result.offset + 1 : 0;
   const last = result.offset + items.length;
+  const selectedHashes = new Set(selectedRecords.map((record) => record.hash));
+  const allPageSelected = items.length > 0 && items.every((record) => selectedHashes.has(record.hash));
+  const allUnknownSelected = unknownCountQuery.data.total > 0
+    && selectedRecords.length === unknownCountQuery.data.total;
 
   return (
     <div className="page">
@@ -85,13 +98,43 @@ export function DataPage() {
           Unknown source ({unknownCountQuery.data.total})
         </button>
       </div>
+      <div className="row data-selection">
+        <label className="check-row">
+          <input
+            type="checkbox"
+            aria-label="Select all unknown records"
+            checked={allUnknownSelected}
+            onChange={(event) => {
+              if (event.currentTarget.checked) void selectAllUnknown();
+              else clearSelectedRecords();
+            }}
+          />
+          Select all unknown
+        </label>
+        {selectedRecords.length ? (
+          <>
+            <span className="muted">{selectedRecords.length} selected</span>
+            <button className="btn small primary" onClick={() => setBatchSheetOpen(true)}>
+              Set sources ({selectedRecords.length})
+            </button>
+            <button className="btn small" onClick={clearSelectedRecords}>Clear</button>
+          </>
+        ) : null}
+      </div>
       <div className="spacer" />
       {result.total ? (
         <div>
           <table className="tbl">
             <thead>
               <tr>
-                <th />
+                <th>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all records on this page"
+                    checked={allPageSelected}
+                    onChange={(event) => toggleSelectedPage(items, event.currentTarget.checked)}
+                  />
+                </th>
                 <th>Name</th>
                 <th className="hide-s">Folder</th>
                 <th>Source</th>
@@ -106,12 +149,24 @@ export function DataPage() {
                   key={record.path}
                   className="click"
                   tabIndex={0}
-                  onClick={() => setSelectedRecord(record)}
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest('input')) return;
+                    setSelectedRecord(record);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') setSelectedRecord(record);
                   }}
                 >
-                  <td><Thumb hash={record.hash} alt={record.name} /></td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${record.name}`}
+                      checked={selectedHashes.has(record.hash)}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={() => toggleSelectedRecord(record)}
+                    />
+                    <Thumb hash={record.hash} alt={record.name} />
+                  </td>
                   <td className="m" title={record.path}>{record.name}</td>
                   <td className="m hide-s">{record.folder}</td>
                   <td><SourceBadges sources={record.sources} /></td>
@@ -161,6 +216,16 @@ export function DataPage() {
             if (!saveMutation.isPending) setSelectedRecord(null);
           }}
           onSave={(request) => saveMutation.mutate(request)}
+        />
+      ) : null}
+      {batchSheetOpen && selectedRecords.length ? (
+        <BatchSourceSheet
+          records={selectedRecords}
+          pending={batchSaveMutation.isPending}
+          onClose={() => {
+            if (!batchSaveMutation.isPending) setBatchSheetOpen(false);
+          }}
+          onSave={(site, ids) => batchSaveMutation.mutate({ records: selectedRecords, site, ids })}
         />
       ) : null}
     </div>
