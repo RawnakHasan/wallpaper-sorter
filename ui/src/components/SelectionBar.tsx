@@ -1,4 +1,5 @@
 import { useSelectionStore } from '../stores/selection';
+import { flushSync } from 'react-dom';
 
 export interface SelectionAction {
   label: string;
@@ -27,7 +28,7 @@ export function SelectionBar({ allKeys, actions, onSelectionChange }: SelectionB
       <button
         className="btn"
         onClick={() => {
-          useSelectionStore.getState().addMany(allKeys);
+          flushSync(() => useSelectionStore.getState().addMany(allKeys));
           onSelectionChange?.();
         }}
       >
@@ -36,7 +37,7 @@ export function SelectionBar({ allKeys, actions, onSelectionChange }: SelectionB
       <button
         className="btn"
         onClick={() => {
-          useSelectionStore.getState().clear();
+          flushSync(() => useSelectionStore.getState().clear());
           onSelectionChange?.();
         }}
       >

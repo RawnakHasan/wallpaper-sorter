@@ -1,4 +1,5 @@
 import { useEffect, useState, type Ref } from 'react';
+import { flushSync } from 'react-dom';
 import { useRecentFoldersStore } from '../stores/recent-folders';
 
 interface Folder {
@@ -28,8 +29,10 @@ export function FolderPicker({ folders, value = '', hide, placeholder, onChange,
   const typed = input.trim();
 
   const update = (next: string) => {
-    setInput(next);
-    onChange?.(next.trim());
+    flushSync(() => {
+      setInput(next);
+      onChange?.(next.trim());
+    });
   };
 
   return (
@@ -43,6 +46,7 @@ export function FolderPicker({ folders, value = '', hide, placeholder, onChange,
         aria-label="Folder"
         aria-expanded={open && (suggestions.length > 0 || (typed !== '' && !known.includes(typed)))}
         onChange={(event) => update(event.currentTarget.value)}
+        onInput={(event) => update(event.currentTarget.value)}
         onFocus={() => setOpen(true)}
         onBlur={() => window.setTimeout(() => setOpen(false), 120)}
       />

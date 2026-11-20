@@ -3,6 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 interface ThumbProps {
   hash: string;
   alt?: string;
+  refreshKey?: number;
+}
+
+function thumbnailUrl(hash: string, refreshKey: number) {
+  return `/api/thumb/${hash}${refreshKey ? `?v=${refreshKey}` : ''}`;
 }
 
 function retryDelay(value: string | null) {
@@ -17,10 +22,10 @@ function failedLabel(name: string) {
   return name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toUpperCase() : 'IMAGE';
 }
 
-export function Thumb({ hash, alt = '' }: ThumbProps) {
+export function Thumb({ hash, alt = '', refreshKey = 0 }: ThumbProps) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [src, setSrc] = useState(`/api/thumb/${hash}`);
+  const [src, setSrc] = useState(thumbnailUrl(hash, refreshKey));
   const retrying = useRef(false);
   const objectUrl = useRef<string | null>(null);
   const img = useRef<HTMLImageElement>(null);
@@ -31,7 +36,9 @@ export function Thumb({ hash, alt = '' }: ThumbProps) {
     retrying.current = false;
     setFailed(false);
     setLoaded(false);
-    setSrc(`/api/thumb/${hash}`);
+    const url = thumbnailUrl(hash, refreshKey);
+    setSrc(url);
+    if (refreshKey) img.current?.closest('.cell')?.classList.add('loading');
     const placeholder = () => {
       if (disposed) return;
       img.current?.closest('.cell')?.classList.remove('loading');
@@ -46,7 +53,7 @@ export function Thumb({ hash, alt = '' }: ThumbProps) {
       while (!disposed) {
         let response: Response;
         try {
-          response = await fetch(new URL(`/api/thumb/${hash}`, window.location.origin), { signal: controller.signal });
+          response = await fetch(new URL(url, window.location.origin), { signal: controller.signal });
         } catch {
           placeholder();
           return;
@@ -96,7 +103,7 @@ export function Thumb({ hash, alt = '' }: ThumbProps) {
         objectUrl.current = null;
       }
     };
-  }, [hash]);
+  }, [hash, refreshKey]);
 
   if (!hash) return <span />;
   if (failed) {

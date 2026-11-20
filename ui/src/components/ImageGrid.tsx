@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useSelectionStore } from '../stores/selection';
 import { Icon } from './Icon';
 import { Thumb } from './Thumb';
@@ -6,6 +7,7 @@ import { Thumb } from './Thumb';
 export interface GridItem {
   key: string;
   hash: string | null;
+  thumbVersion?: number;
   name: string;
   sub?: string;
   label?: string;
@@ -39,7 +41,7 @@ export function ImageGrid({ items, onSelectionChange }: ImageGridProps) {
     } else {
       next.add(item.key);
     }
-    useSelectionStore.setState({ keys: next, last: item.key });
+    flushSync(() => useSelectionStore.setState({ keys: next, last: item.key }));
     onSelectionChange?.();
   };
 
@@ -67,7 +69,7 @@ export function ImageGrid({ items, onSelectionChange }: ImageGridProps) {
                 }
               }}
             >
-              <Thumb hash={item.hash ?? ''} alt={item.name} />
+              <Thumb hash={item.hash ?? ''} alt={item.name} refreshKey={item.thumbVersion ?? 0} />
               {item.label ? <span className={`label ${item.labelClass ?? ''}`} title={item.title}>{item.label}</span> : null}
               <span className="check">✓</span>
               <button

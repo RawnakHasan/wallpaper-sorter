@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { LegacyPage } from '../../legacy-app';
+import { InboxPage } from '../features/inbox/InboxPage';
 
 export const Route = createFileRoute('/inbox')({
-  component: () => <LegacyPage name="inbox" />,
+  component: InboxPage,
 });

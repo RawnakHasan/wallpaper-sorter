@@ -261,54 +261,6 @@
   }
   WS.openDetail = openDetail;
 
-  // ---------- Inbox
-  const inboxFilter = { reason: '', intake: '' };
-  WS.pages.inbox = async function () {
-    const all = await WS.get('/api/inbox');
-    const intakes = [...new Set(all.map((i) => i.intake))];
-    const items = all.filter((i) => (!inboxFilter.reason || i.reason === inboxFilter.reason) && (!inboxFilter.intake || i.intake === inboxFilter.intake));
-    pruneSelection(items.map((i) => i.path));
-    const reasonText = { no_match: 'No match', conflict: 'Conflict', ready: 'Ready' };
-
-    const cells = items.map((it) => ({
-      key: it.path,
-      hash: it.origin && it.origin.hash,
-      name: it.name,
-      sub: it.origin ? it.origin.sources.filter((s) => s.site !== 'Unknown').map((s) => s.site).join(', ') : '',
-      label: reasonText[it.reason] || it.reason,
-      labelClass: it.reason,
-      title: it.reason === 'conflict' ? `These tags clash: ${it.matched.join(', ')}` : it.reason === 'ready' ? 'A tag matches now; the next scan sorts it' : 'No tag matches this name',
-      onOpen: () => openDetail({ name: it.name, hash: it.origin && it.origin.hash, origin: it.origin, rows: [['Waiting because', reasonText[it.reason]], ['Folder', it.intake === 'library' ? 'the library folder' : it.intake]], onAssign: () => openAssign({ files: [{ path: it.path, name: it.name }], withTag: true }), onDelete: () => deleteFiles([it.path], it.name) }),
-    }));
-    const selected = () => items.filter((i) => WS.selection.keys.has(i.path));
-    const bar = selectionBar(
-      [
-        { text: 'Assign to folder…', cls: 'primary', run: () => openAssign({ files: selected().map((i) => ({ path: i.path, name: i.name })), withTag: true }) },
-        { text: 'Rebuild thumbnails', run: () => rebuildThumbnails(selected().map((i) => i.origin && i.origin.hash)) },
-        { text: 'Delete', cls: 'danger', run: () => deleteFiles(selected().map((i) => i.path), WS.plural(selected().length, 'image')) },
-      ],
-      () => items.map((i) => i.path)
-    );
-    const grid = imageGrid(cells, bar);
-    bar.onChange = grid.sync;
-    WS.keys = { assign: () => selected().length && bar.el.querySelector('.primary').click(), remove: () => selected().length && bar.el.querySelector('.danger').click(), all: () => { items.forEach((i) => WS.selection.keys.add(i.path)); grid.sync(); } };
-
-    const reasonSel = h('select', { class: 'select', 'aria-label': 'Filter by reason', onchange: (e) => { inboxFilter.reason = e.target.value; WS.refresh(); } }, h('option', { value: '', text: 'Any reason' }), h('option', { value: 'no_match', text: 'No match' }), h('option', { value: 'conflict', text: 'Conflict' }), h('option', { value: 'ready', text: 'Ready' }));
-    reasonSel.value = inboxFilter.reason;
-    const intakeSel = h('select', { class: 'select', 'aria-label': 'Filter by folder', onchange: (e) => { inboxFilter.intake = e.target.value; WS.refresh(); } }, h('option', { value: '', text: 'All folders' }), ...intakes.map((i) => h('option', { value: i, text: i === 'library' ? 'Library folder' : WS.basename(i) })));
-    intakeSel.value = inboxFilter.intake;
-
-    return page(
-      'Inbox',
-      all.length ? `${all.length} waiting` : '',
-      h('div', { class: 'row' }, reasonSel, intakes.length > 1 ? intakeSel : null),
-      all.length === 0 ? WS.empty('Inbox clear', 'Images that cannot be sorted by their name wait here.') : null,
-      items.length === 0 && all.length ? WS.empty('Nothing matches these filters') : null,
-      bar.el,
-      items.length ? grid.el : null
-    );
-  };
-
   // ---------- Library
   WS.pages.library = async function (params) {
     const dup = dupFolder();
