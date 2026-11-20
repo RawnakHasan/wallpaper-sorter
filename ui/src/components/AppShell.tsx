@@ -7,61 +7,13 @@ import {
   useRouterState,
   useSearch,
 } from '@tanstack/react-router';
-import { Icon } from './src/components/Icon';
-import { closeLayer, confirmDialog, hasLayer, openSheet } from './src/components/dialogs';
-import { getStatus, statusQueryKey } from './src/features/status/api';
-import { Toast } from './src/components/Toast';
-import { useHotkeysStore } from './src/stores/hotkeys';
-import { useRecentFoldersStore } from './src/stores/recent-folders';
-import { useSelectionStore } from './src/stores/selection';
-import { useToastStore } from './src/stores/toast';
-import { setTheme as setStoredTheme } from './src/stores/theme';
-import './src/legacy';
-
-const WS = window.WS;
-WS.closeLayer = closeLayer;
-WS.hasLayer = hasLayer;
-WS.openSheet = (title, content, footer, onClose) => openSheet(title, content, footer, WS.icon('close'), onClose);
-WS.confirmBox = confirmDialog;
-WS.toast = (message, options) => useToastStore.getState().show(message, options);
-WS.setTheme = setStoredTheme;
-WS.recentFolders = () => useRecentFoldersStore.getState().folders;
-WS.rememberFolder = (folder) => useRecentFoldersStore.getState().remember(folder);
-WS.clearSelection = () => useSelectionStore.getState().clear();
-const selectionKeys = new Proxy(new Set(), {
-  get(_target, property) {
-    const state = useSelectionStore.getState();
-    if (property === 'add') return (key) => { state.add(key); return selectionKeys; };
-    if (property === 'delete') return (key) => {
-      const existed = state.keys.has(key);
-      state.remove(key);
-      return existed;
-    };
-    if (property === 'clear') return () => state.clear();
-    const value = Reflect.get(state.keys, property, state.keys);
-    return typeof value === 'function' ? value.bind(state.keys) : value;
-  },
-});
-Object.defineProperty(WS, 'selection', {
-  configurable: true,
-  get() {
-    const state = useSelectionStore.getState();
-    return {
-      keys: selectionKeys,
-      get last() {
-        return useSelectionStore.getState().last;
-      },
-      set last(value) {
-        useSelectionStore.getState().setLast(value);
-      },
-    };
-  },
-});
-Object.defineProperty(WS, 'keys', {
-  configurable: true,
-  get: () => useHotkeysStore.getState().actions,
-  set: (actions) => useHotkeysStore.getState().setActions(actions),
-});
+import { Icon, type IconName } from './Icon';
+import { closeLayer, hasLayer } from './dialogs';
+import { getStatus, requestRescan, statusQueryKey } from '../features/status/api';
+import { Toast } from './Toast';
+import { useHotkeysStore } from '../stores/hotkeys';
+import { useSelectionStore } from '../stores/selection';
+import { useToastStore } from '../stores/toast';
 
 const NAV = [
   ['/', 'Overview', 'overview'],
@@ -73,10 +25,14 @@ const NAV = [
   ['/resort', 'Re-sort', 'resort'],
   ['/activity', 'Activity', 'activity'],
   ['/settings', 'Settings', 'settings'],
-];
+] as const;
 
-function NavIcon({ name }) {
+function NavIcon({ name }: { name: IconName }) {
   return <Icon name={name} className="nv-icon" />;
+}
+
+function messageOf(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function AppShell() {
@@ -93,42 +49,44 @@ export function AppShell() {
   const status = statusQuery.data;
   const online = statusQuery.isPending ? null : !statusQuery.isError;
   const inboxCount = status?.counts.inbox ?? 0;
+  const showToast = useToastStore((state) => state.show);
   const [search, setSearch] = useState('');
 
   useLayoutEffect(() => {
-    WS.closeLayer();
-    WS.clearSelection();
-    WS.keys = {};
+    closeLayer();
+    useSelectionStore.getState().clear();
+    useHotkeysStore.getState().setActions({});
     const main = document.getElementById('main');
     if (main) main.scrollTop = 0;
   }, [pathname, routeKey]);
 
   useEffect(() => {
-    const onKeyDown = (event) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
-      const typing = target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName);
+      const typing = target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName);
       if (event.key === 'Escape') {
-        if (WS.hasLayer()) WS.closeLayer();
-        else if (WS.selection.keys.size) {
-          WS.clearSelection();
-          WS.refresh();
+        if (hasLayer()) closeLayer();
+        else if (useSelectionStore.getState().keys.size) {
+          useSelectionStore.getState().clear();
         }
         return;
       }
       if (typing || event.metaKey || event.altKey) return;
       if (event.ctrlKey) {
-        if (event.key.toLowerCase() === 'a' && WS.keys.all) {
+        const actions = useHotkeysStore.getState().actions;
+        if (event.key.toLowerCase() === 'a' && actions.all) {
           event.preventDefault();
-          WS.keys.all();
+          actions.all();
         }
         return;
       }
-      if (event.key === 'a' && WS.keys.assign) {
+      const actions = useHotkeysStore.getState().actions;
+      if (event.key === 'a' && actions.assign) {
         event.preventDefault();
-        WS.keys.assign();
-      } else if (event.key === 'Delete' && WS.keys.remove) {
+        actions.assign();
+      } else if (event.key === 'Delete' && actions.remove) {
         event.preventDefault();
-        WS.keys.remove();
+        actions.remove();
       }
     };
     document.addEventListener('keydown', onKeyDown);
@@ -160,10 +118,10 @@ export function AppShell() {
           className="btn"
           onClick={async () => {
             try {
-              await WS.post('/api/rescan');
-              WS.toast('Looking at the folders again');
+              await requestRescan();
+              showToast('Looking at the folders again');
             } catch (error) {
-              WS.toast(error.message, { error: true });
+              showToast(messageOf(error), { error: true });
             }
           }}
         >
@@ -185,7 +143,7 @@ export function AppShell() {
             </Link>
           ))}
         </nav>
-        <main className={`main${pathname === '/library' ? ' library-scroll-shell' : ''}`} id="main" tabIndex="-1">
+        <main className={`main${pathname === '/library' ? ' library-scroll-shell' : ''}`} id="main" tabIndex={-1}>
           <Outlet />
         </main>
       </div>

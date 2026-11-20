@@ -13,7 +13,6 @@ export function Toast() {
     try {
       await toast.undo();
       show('Undone');
-      window.WS.refresh();
     } catch (error) {
       show(messageOf(error), { error: true });
     }

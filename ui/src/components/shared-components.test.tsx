@@ -16,7 +16,6 @@ afterEach(() => {
   useRecentFoldersStore.setState({ folders: [] });
   useSelectionStore.getState().clear();
   useToastStore.getState().dismiss();
-  window.WS = { refresh: () => {} };
 });
 
 describe('shared components', () => {
@@ -79,9 +78,7 @@ describe('shared components', () => {
     expect(onChange).toHaveBeenLastCalledWith(['new']);
   });
 
-  it('renders undoable toasts and refreshes after a successful undo', async () => {
-    const refresh = vi.fn();
-    window.WS = { refresh };
+  it('runs undo and reports success in an undoable toast', async () => {
     const undo = vi.fn();
     useToastStore.getState().show('Moved image', { undo });
     render(<Toast />);
@@ -89,7 +86,6 @@ describe('shared components', () => {
 
     await waitFor(() => expect(screen.getByText('Undone')).toBeTruthy());
     expect(undo).toHaveBeenCalledOnce();
-    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it('uses native dialogs for sheets and promise-based confirmation', async () => {

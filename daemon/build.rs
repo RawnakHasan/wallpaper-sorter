@@ -7,14 +7,10 @@ fn main() {
     for path in [
         "index.html",
         "app.css",
-        "core.js",
-        "pages.js",
-        "pages2.js",
         "vite.config.js",
         "package.json",
         "package-lock.json",
         "tsconfig.json",
-        "legacy-app.jsx",
         "src",
         "fonts",
     ] {

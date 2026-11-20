@@ -9,8 +9,15 @@ export const settingsUpdateSchema = z.object({
   setup_complete: z.boolean().optional(),
 }).strict();
 
+const rescanRequestSchema = z.object({}).strict();
+const rescanResponseSchema = z.object({ ok: z.boolean() }).passthrough();
+
 export function getStatus() {
   return getJson('/api/status', statusSchema);
+}
+
+export function requestRescan() {
+  return sendJson('POST', '/api/rescan', {}, rescanRequestSchema, rescanResponseSchema);
 }
 
 export function updateSettings(body: z.infer<typeof settingsUpdateSchema>) {

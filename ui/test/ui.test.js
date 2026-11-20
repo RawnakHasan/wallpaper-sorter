@@ -203,6 +203,8 @@ test('the overview shows counts, the menu and the connection', () =>
       assert.match(stats[1], /2.*images in the library/);
       await waitFor(() => ui.q('.status').textContent.includes('Watching'), 'the connection chip');
       await waitFor(() => ui.q('#inbox-count').textContent === '1', 'the inbox badge');
+      ui.click(ui.byText('button', 'Scan now'));
+      await waitFor(() => /Looking at the folders again/.test(ui.toast()), 'the manual rescan');
     }
   ));
 
@@ -429,40 +431,6 @@ test('thumbnails can be rebuilt from details or the selection toolbar', () =>
       await waitFor(() => ui.toast().includes('Rebuilt 1 thumbnail'), 'details thumbnail rebuild');
       assert.deepEqual(fs.readFileSync(cache).subarray(0, 2), Buffer.from([0xff, 0xd8]));
       assert.match(ui.q('.cell img').getAttribute('src'), /\?v=/);
-    }
-  ));
-
-test('thumbnail loading retries busy responses and labels unsupported formats', () =>
-  withSorter(
-    () => {},
-    '',
-    async (ui) => {
-      let requests = 0;
-      let unsupported = false;
-      const revoked = [];
-      ui.w.URL.createObjectURL = () => 'blob:thumbnail';
-      ui.w.URL.revokeObjectURL = (url) => revoked.push(url);
-      ui.w.fetch = async () => {
-        requests++;
-        if (unsupported) return new Response('', { status: 415 });
-        if (requests === 1) return new Response('', { status: 503, headers: { 'Retry-After': '0' } });
-        return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { 'Content-Type': 'image/jpeg' } });
-      };
-
-      const retrying = ui.w.WS.thumb('a'.repeat(64), 'Chisa 6.jpg');
-      ui.d.body.append(retrying);
-      retrying.dispatchEvent(new ui.w.Event('error'));
-      await waitFor(() => retrying.src === 'blob:thumbnail', 'thumbnail retry after a busy response');
-      assert.equal(requests, 2);
-      retrying.dispatchEvent(new ui.w.Event('load'));
-      assert.deepEqual(revoked, ['blob:thumbnail']);
-
-      unsupported = true;
-      const failed = ui.w.WS.thumb('b'.repeat(64), 'wallpaper.avif');
-      ui.d.body.append(failed);
-      failed.dispatchEvent(new ui.w.Event('error'));
-      await waitFor(() => ui.q('.thumb-placeholder'), 'unsupported format placeholder');
-      assert.equal(ui.q('.thumb-placeholder').textContent, 'AVIF');
     }
   ));
 
