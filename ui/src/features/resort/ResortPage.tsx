@@ -1,20 +1,6 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { confirmDialog } from '../../components/dialogs';
-import { Icon } from '../../components/Icon';
-import { getStatus, statusQueryKey } from '../status/api';
-import { undoActivity } from '../activity/api';
-import { useToastStore } from '../../stores/toast';
-import {
-  applyResort,
-  getResortFolders,
-  getResortPreview,
-  resortFoldersQueryKey,
-  resortPreviewQueryKey,
-} from './api';
+import { ResortList } from './components/ResortList';
+import { useResortPage } from './hooks/useResortPage';
 import type { ResortItem } from './schemas';
-
-let retainedFolder = '';
 
 function messageOf(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -28,111 +14,18 @@ function isChange(item: ResortItem) {
   return item.kind === 'move' || item.kind === 'rename' || item.kind === 'duplicate';
 }
 
-function itemPath(item: ResortItem) {
-  return item.kind === 'move' || item.kind === 'rename' || item.kind === 'duplicate'
-    ? item.from
-    : item.path;
-}
-
-function itemDestination(item: ResortItem) {
-  return item.kind === 'move' || item.kind === 'rename' || item.kind === 'duplicate' ? item.to : '';
-}
-
-function itemReason(item: ResortItem) {
-  if (item.kind === 'leave') return item.reason;
-  if (item.kind === 'duplicate') return item.duplicate_of;
-  if (item.kind === 'move') return item.rule;
-  return '';
-}
-
-function relativePath(path: string, library: string) {
-  return library && path.startsWith(`${library}/`) ? path.slice(library.length + 1) : path;
-}
-
-const kindLabels: Record<ResortItem['kind'], string> = {
-  move: 'Move and rename',
-  rename: 'Rename',
-  duplicate: 'Duplicate',
-  leave: 'Leave here',
-  stay: 'Stays',
-};
-
-function ResortList({ items, library }: { items: ResortItem[]; library: string }) {
-  const shown = items.slice(0, 200);
-  return (
-    <div className="resort-list">
-      {shown.map((item, index) => {
-        const from = relativePath(itemPath(item), library);
-        const to = itemDestination(item);
-        const detail = to ? `${from} → ${to}` : from;
-        const reason = itemReason(item);
-        const tone = item.kind === 'leave' ? 'warn' : item.kind === 'duplicate' ? 'bad' : 'good';
-        return (
-          <div className="resort-row" key={`${item.kind}-${itemPath(item)}-${index}`}>
-            <span className={`badge ${tone}`}>{kindLabels[item.kind]}</span>
-            <span className="m grow">{detail}</span>
-            {reason ? <span className="muted">{reason}</span> : null}
-          </div>
-        );
-      })}
-      {items.length > shown.length ? <p className="muted">and {items.length - shown.length} more</p> : null}
-    </div>
-  );
-}
-
 export function ResortPage() {
-  const queryClient = useQueryClient();
-  const showToast = useToastStore((state) => state.show);
-  const [folder, setFolder] = useState(retainedFolder);
-  const [outputRevision, setOutputRevision] = useState(0);
-  const foldersQuery = useQuery({ queryKey: resortFoldersQueryKey, queryFn: getResortFolders });
-  const statusQuery = useQuery({ queryKey: statusQueryKey, queryFn: getStatus });
-  const previewQuery = useQuery({
-    queryKey: resortPreviewQueryKey(folder),
-    queryFn: () => getResortPreview(folder),
-    enabled: false,
-    gcTime: Infinity,
-  });
-
-  const refreshAfterAction = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: statusQueryKey }),
-      queryClient.invalidateQueries({ queryKey: ['activity'] }),
-      queryClient.invalidateQueries({ queryKey: ['data'] }),
-    ]);
-  };
-  const undoBatch = (batch: number | null) => batch === null ? undefined : async () => {
-    await undoActivity({ batch });
-    await refreshAfterAction();
-    setOutputRevision((revision) => revision + 1);
-  };
-  const applyMutation = useMutation({
-    mutationFn: applyResort,
-    onSuccess: async (result, request) => {
-      queryClient.removeQueries({ queryKey: resortPreviewQueryKey(request.folder ?? '') });
-      showToast(`Re-sorted ${plural(result.done.length, 'file')}`, { undo: undoBatch(result.batch) });
-      await refreshAfterAction();
-    },
-    onError: (error) => showToast(messageOf(error), { error: true }),
-  });
-
-  const duplicateFolder = statusQuery.data?.settings.duplicates_folder ?? '';
-  const folders = (foldersQuery.data ?? []).filter((entry) =>
-    entry.path !== duplicateFolder && !entry.path.startsWith(`${duplicateFolder}/`)
-  );
-  useEffect(() => {
-    if (!folder || !foldersQuery.data || !statusQuery.data) return;
-    const isValid = foldersQuery.data.some((entry) =>
-      entry.path === folder
-      && entry.path !== statusQuery.data.settings.duplicates_folder
-      && !entry.path.startsWith(`${statusQuery.data.settings.duplicates_folder}/`)
-    );
-    if (!isValid) {
-      retainedFolder = '';
-      setFolder('');
-      queryClient.removeQueries({ queryKey: ['resort-preview'] });
-    }
-  }, [folder, foldersQuery.data, queryClient, statusQuery.data]);
+  const {
+    folder,
+    outputRevision,
+    foldersQuery,
+    statusQuery,
+    previewQuery,
+    applyMutation,
+    changeFolder,
+    scan,
+    apply,
+  } = useResortPage();
 
   const error = foldersQuery.error ?? statusQuery.error;
   if (error) {
@@ -145,6 +38,10 @@ export function ResortPage() {
   }
   if (!foldersQuery.data || !statusQuery.data) return <div className="page"><p className="muted">Loading…</p></div>;
 
+  const duplicateFolder = statusQuery.data.settings.duplicates_folder;
+  const folders = foldersQuery.data.filter((entry) =>
+    entry.path !== duplicateFolder && !entry.path.startsWith(`${duplicateFolder}/`)
+  );
   const preview = previewQuery.data;
   const items = preview?.items ?? [];
   const changes = items.filter(isChange);
@@ -158,28 +55,6 @@ export function ResortPage() {
     stays ? `${stays} ${stays === 1 ? 'stay' : 'stays'}` : '',
     noMatch ? `${noMatch} no match${noMatch === 1 ? '' : 'es'}` : '',
   ].filter(Boolean).join(', ') || 'Every matching image has a destination.';
-
-  const changeFolder = (next: string) => {
-    retainedFolder = next;
-    queryClient.removeQueries({ queryKey: ['resort-preview'] });
-    setFolder(next);
-  };
-  const scan = async () => {
-    try {
-      await previewQuery.refetch({ throwOnError: true });
-    } catch (error) {
-      showToast(messageOf(error), { error: true });
-    }
-  };
-  const apply = async () => {
-    const confirmed = await confirmDialog(
-      `Apply ${plural(changes.length, 'change')}? The result is saved as one activity batch and can be undone.`,
-      'Apply re-sort',
-      true,
-    );
-    if (!confirmed) return;
-    applyMutation.mutate(folder ? { folder } : {});
-  };
 
   return (
     <div className="page">
@@ -217,7 +92,7 @@ export function ResortPage() {
               <button
                 className="btn primary"
                 disabled={!changes.length || applyMutation.isPending}
-                onClick={() => { void apply(); }}
+                onClick={() => { void apply(changes.length); }}
               >
                 Apply {plural(changes.length, 'change')}
               </button>
