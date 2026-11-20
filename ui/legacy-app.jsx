@@ -1,19 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
 import {
-  createHashHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
   Link,
   Outlet,
-  RouterProvider,
   useNavigate,
   useRouterState,
   useSearch,
 } from '@tanstack/react-router';
-import './legacy.js';
-import '../app.css';
+import './src/legacy';
 
 const WS = window.WS;
 const RefreshContext = createContext({ revision: 0, ready: false, focusRef: null, scrollRef: null, refresh: () => {} });
@@ -71,8 +64,7 @@ function NavIcon({ name }) {
     </svg>
   );
 }
-
-function LegacyPage({ name }) {
+export function LegacyPage({ name }) {
   const ref = useRef(null);
   const search = useSearch({ strict: false });
   const query = JSON.stringify(search);
@@ -117,7 +109,7 @@ function LegacyPage({ name }) {
   return <div className="page-host" ref={ref}>{ready ? null : <p className="muted">Loading…</p>}</div>;
 }
 
-function AppShell() {
+export function AppShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const routeSearch = useSearch({ strict: false });
   const routeKey = JSON.stringify(routeSearch);
@@ -322,7 +314,7 @@ function ActivityRow({ event, root, refresh }) {
   );
 }
 
-function OverviewPage() {
+export function OverviewPage() {
   const { revision, refresh } = useContext(RefreshContext);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -412,7 +404,7 @@ function OverviewPage() {
   );
 }
 
-function ActivityPage() {
+export function ActivityPage() {
   const { revision, refresh } = useContext(RefreshContext);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -491,7 +483,7 @@ function LegacyThumb({ hash }) {
   return <span className="list-thumb" ref={ref} />;
 }
 
-function DuplicatesPage() {
+export function DuplicatesPage() {
   const { revision, refresh } = useContext(RefreshContext);
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
@@ -617,7 +609,7 @@ function currentTheme() {
   }
 }
 
-function SettingsPage() {
+export function SettingsPage() {
   const { revision, refresh } = useContext(RefreshContext);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -783,34 +775,3 @@ function SettingsPage() {
     </div>
   );
 }
-
-const REACT_PAGES = {
-  overview: OverviewPage,
-  activity: ActivityPage,
-  duplicates: DuplicatesPage,
-  settings: SettingsPage,
-};
-
-const rootRoute = createRootRoute({ component: AppShell });
-const routes = NAV.map(([path, , name]) =>
-  createRoute({
-    getParentRoute: () => rootRoute,
-    path,
-    validateSearch: (search) => search,
-    component: () => {
-      const Page = REACT_PAGES[name];
-      return Page ? <Page /> : <LegacyPage name={name} />;
-    },
-  })
-);
-const router = createRouter({
-  routeTree: rootRoute.addChildren(routes),
-  history: createHashHistory(),
-  scrollRestoration: false,
-});
-
-const appRoot = createRoot(document.getElementById('app'));
-appRoot.render(<RouterProvider router={router} />);
-window.addEventListener('pagehide', (event) => {
-  if (!event.persisted) appRoot.unmount();
-}, { once: true });

@@ -1,12 +1,21 @@
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { tanstackRouter } from '@tanstack/router-plugin/vite';
+import { defineConfig } from 'vitest/config';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
   root,
-  plugins: [react()],
+  plugins: [
+    tanstackRouter({
+      target: 'react',
+      routesDirectory: './src/routes',
+      generatedRouteTree: './src/routeTree.gen.ts',
+      autoCodeSplitting: false,
+    }),
+    react(),
+  ],
   publicDir: false,
   server: {
     host: '127.0.0.1',
@@ -25,7 +34,14 @@ export default defineConfig({
         entryFileNames: 'assets/app.js',
         chunkFileNames: 'assets/chunk-[name].js',
         assetFileNames: (asset) => asset.name?.endsWith('.css') ? 'assets/app.css' : 'assets/[name][extname]',
+        inlineDynamicImports: true,
       },
     },
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
+    restoreMocks: true,
   },
 });
