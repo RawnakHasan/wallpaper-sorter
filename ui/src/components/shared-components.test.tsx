@@ -78,13 +78,13 @@ describe('shared components', () => {
     expect(onChange).toHaveBeenLastCalledWith(['new']);
   });
 
-  it('runs undo and reports success in an undoable toast', async () => {
+  it('runs undo and reports success through Sonner', async () => {
     const undo = vi.fn();
     useToastStore.getState().show('Moved image', { undo });
     render(<Toast />);
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
 
-    await waitFor(() => expect(screen.getByText('Undone')).toBeTruthy());
+    await screen.findByText('Undone');
     expect(undo).toHaveBeenCalledOnce();
   });
 

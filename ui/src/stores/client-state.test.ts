@@ -1,3 +1,4 @@
+import { toast as sonnerToast } from 'sonner';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useHotkeysStore } from './hotkeys';
 import { useRecentFoldersStore } from './recent-folders';
@@ -61,15 +62,14 @@ describe('client state stores', () => {
     expect(useHotkeysStore.getState().actions).toEqual({});
   });
 
-  it('keeps undoable toasts visible longer and expires them on schedule', () => {
-    vi.useFakeTimers();
+  it('sends undoable errors to Sonner with an extended duration', () => {
+    const errorToast = vi.spyOn(sonnerToast, 'error');
     useToastStore.getState().show('Moved', { undo: () => {}, error: true });
 
-    expect(useToastStore.getState().current).toMatchObject({ message: 'Moved', error: true });
-    vi.advanceTimersByTime(11999);
-    expect(useToastStore.getState().current?.message).toBe('Moved');
-    vi.advanceTimersByTime(1);
-    expect(useToastStore.getState().current).toBeNull();
-    vi.useRealTimers();
+    expect(errorToast).toHaveBeenCalledWith('Moved', expect.objectContaining({
+      duration: 12000,
+      action: expect.objectContaining({ label: 'Undo', onClick: expect.any(Function) }),
+    }));
+    errorToast.mockRestore();
   });
 });

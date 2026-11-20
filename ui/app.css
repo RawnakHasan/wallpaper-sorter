@@ -39,7 +39,7 @@ a{color:var(--ac)}
 .library-scroll-shell .tree{height:auto;max-height:none;min-height:0}
 .library-scroll-shell .lib-main{display:flex;min-height:0;flex-direction:column;overflow:hidden}
 .library-scroll-shell .grid-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
-.page{padding:20px 24px 80px;max-width:1500px}
+.page{padding:20px 24px 24px;max-width:1500px}
 .page-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
 .page-head .sub{color:var(--t2)}
 
@@ -207,12 +207,9 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .suggest button:hover{background:var(--hv)}
 .suggest .new{color:var(--t2);cursor:default}
 .preview-line{margin-top:6px;color:var(--t2)}
-.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;min-height:40px;padding:6px 16px;border-radius:6px;border:1px solid var(--bd);background:var(--rs);z-index:60;max-width:92%;animation:up var(--dur) var(--ease)}
-.toast.err{border-color:var(--er)}
 @keyframes slide{from{transform:translateX(12px)}to{transform:translateX(0)}}
-@keyframes up{from{opacity:0;transform:translate(-50%,8px)}}
 @keyframes thumb-shimmer{to{background-position:-100% 0}}
-@media (prefers-reduced-motion:reduce){.sheet,.toast,.cell.loading{animation:none}.btn,.cell img{transition:none}}
+@media (prefers-reduced-motion:reduce){.sheet,.cell.loading{animation:none}.btn,.cell img{transition:none}}
 
 /* small screens: the rail becomes a bar at the bottom */
 @media (max-width:860px){
@@ -227,7 +224,6 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
   .library-scroll-shell .tree{height:auto;max-height:200px;flex:none}
   .library-scroll-shell .lib-main{flex:1}
   .topbar .status span.t{display:none}
-  .toast{bottom:76px}
   .tbl .hide-s{display:none}
   .watched-entry{align-items:flex-start;flex-direction:column;gap:4px}
   .resort-summary .btn{margin-left:0}

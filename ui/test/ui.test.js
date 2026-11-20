@@ -127,6 +127,16 @@ async function openPage(sorter, route) {
     beforeParse(w) {
       w.fetch = (u, init) => fetch(new URL(u, w.location.href).href, init);
       w.scrollTo = () => {};
+      w.matchMedia = (media) => ({
+        matches: false,
+        media,
+        onchange: null,
+        addListener() {},
+        removeListener() {},
+        addEventListener() {},
+        removeEventListener() {},
+        dispatchEvent() { return false; },
+      });
     },
   });
   const w = dom.window;
@@ -155,7 +165,7 @@ async function openPage(sorter, route) {
     key(el, key, init) {
       el.dispatchEvent(new w.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...(init || {}) }));
     },
-    toast: () => (ui.q('#toast') && !ui.q('#toast').hidden ? ui.q('#toast').textContent : ''),
+    toast: () => ui.qa('[data-sonner-toast]').map((item) => item.textContent).join(' '),
     go(path) {
       w.history.pushState(null, '', path);
       w.dispatchEvent(new w.PopStateEvent('popstate'));
@@ -231,7 +241,7 @@ test('inbox: select an image, assign it to a folder, undo', () =>
       assert.equal((await api(s, 'GET', '/api/images?folder=Nature')).length, 1);
       await waitFor(() => ui.qa('.cell').length === 1, 'one image left in the inbox');
 
-      ui.click(ui.byText('#toast button', 'Undo'));
+      ui.click(ui.byText('[data-sonner-toast] button', 'Undo'));
       await waitFor(() => ui.qa('.cell').length === 2, 'both back in the inbox');
       assert.equal((await api(s, 'GET', '/api/images?folder=Nature')).length, 0);
     }
@@ -529,7 +539,7 @@ test('library: create folders and manage prefix, rename, and merge', () =>
       ui.click(ui.byText('button', 'Save prefix', dialog));
       await waitFor(() => /Prefix changed/.test(ui.toast()), 'prefix update');
       assert.ok(fs.existsSync(path.join(s.lib, 'Nature/Scenery 1.png')));
-      ui.click(ui.byText('#toast button', 'Undo'));
+      ui.click(ui.byText('[data-sonner-toast] button', 'Undo'));
       await waitFor(() => fs.existsSync(path.join(s.lib, 'Nature/Nature 1.png')), 'prefix undo');
 
       ui.click(ui.byText('button', 'Manage folder'));
@@ -588,7 +598,7 @@ test('library: delete asks first, goes to the trash, and can be undone', () =>
       ui.click(ui.byText('.dialog button', 'Delete'));
       await waitFor(() => /Deleted 1 image/.test(ui.toast()), 'the confirmation');
       await waitFor(() => ui.qa('.cell').length === 1, 'one image left');
-      ui.click(ui.byText('#toast button', 'Undo'));
+      ui.click(ui.byText('[data-sonner-toast] button', 'Undo'));
       await waitFor(() => ui.qa('.cell').length === 2, 'both back');
       assert.equal((await api(s, 'GET', '/api/images?folder=Nature')).length, 2);
     }
@@ -622,7 +632,7 @@ test('re-sort: previews a folder, applies it, and offers batch undo', () =>
       await waitFor(() => /Re-sorted 1 file/.test(ui.toast()), 'the confirmation toast');
       assert.ok(fs.existsSync(path.join(s.lib, 'Wuthering-Waves/Chisa/Chisa 2.png')));
       const beforeUndoRefresh = ui.q('.resort-output');
-      ui.click(ui.byText('#toast button', 'Undo'));
+      ui.click(ui.byText('[data-sonner-toast] button', 'Undo'));
       await waitFor(() => fs.existsSync(path.join(s.lib, 'Archive/Chisa original.png')), 'the batch undo');
       await waitFor(() => ui.q('.resort-output') !== beforeUndoRefresh, 'the restored Re-sort page');
     }
@@ -682,7 +692,7 @@ test('duplicates: deleting one or emptying the folder can be undone', () =>
       let dialog = await waitFor(() => ui.q('.dialog'), 'delete confirmation');
       ui.click(ui.byText('button', 'Delete', dialog));
       await waitFor(() => ui.q('.empty') && /No duplicates/.test(ui.q('.empty').textContent), 'the empty duplicate view');
-      ui.click(ui.byText('#toast button', 'Undo'));
+      ui.click(ui.byText('[data-sonner-toast] button', 'Undo'));
       row = await waitFor(() => ui.q('.list > div'), 'the restored duplicate');
 
       ui.click(ui.byText('button', 'Empty Duplicates folder'));
@@ -690,7 +700,7 @@ test('duplicates: deleting one or emptying the folder can be undone', () =>
       ui.click(ui.byText('button', 'Move to trash', dialog));
       await waitFor(() => /Moved 1 copy to the trash/.test(ui.toast()), 'the empty-folder result');
       await waitFor(() => ui.q('.empty') && /No duplicates/.test(ui.q('.empty').textContent), 'the cleared duplicate view');
-      ui.click(ui.byText('#toast button', 'Undo'));
+      ui.click(ui.byText('[data-sonner-toast] button', 'Undo'));
       await waitFor(() => ui.qa('.list > div').length === 1, 'the duplicate restored from trash');
     }
   ));

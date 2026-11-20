@@ -1,46 +1,41 @@
 import { create } from 'zustand';
+import { toast as sonnerToast } from 'sonner';
 
 export interface ToastOptions {
   error?: boolean;
+  success?: boolean;
   undo?: () => unknown | Promise<unknown>;
 }
 
-export interface ToastMessage {
-  id: number;
-  message: string;
-  error: boolean;
-  undo?: ToastOptions['undo'];
-}
-
 interface ToastState {
-  current: ToastMessage | null;
   show: (message: string, options?: ToastOptions) => void;
   dismiss: () => void;
 }
 
-let timer: ReturnType<typeof setTimeout> | undefined;
-let nextId = 0;
+function messageOf(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 
-export const useToastStore = create<ToastState>((set) => ({
-  current: null,
+async function runUndo(undo: NonNullable<ToastOptions['undo']>) {
+  try {
+    await undo();
+    sonnerToast.success('Undone');
+  } catch (error) {
+    sonnerToast.error(messageOf(error));
+  }
+}
+
+export const useToastStore = create<ToastState>(() => ({
   show: (message, options = {}) => {
-    if (timer) clearTimeout(timer);
-    set({
-      current: {
-        id: ++nextId,
-        message,
-        error: options.error ?? false,
-        undo: options.undo,
-      },
-    });
-    timer = setTimeout(() => {
-      set({ current: null });
-      timer = undefined;
-    }, options.undo ? 12000 : 4500);
+    const undo = options.undo;
+    const action = undo
+      ? { label: 'Undo', onClick: () => { void runUndo(undo); } }
+      : undefined;
+    const toastOptions = { duration: undo ? 12000 : 4500, action };
+
+    if (options.error) sonnerToast.error(message, toastOptions);
+    else if (options.success) sonnerToast.success(message, toastOptions);
+    else sonnerToast(message, toastOptions);
   },
-  dismiss: () => {
-    if (timer) clearTimeout(timer);
-    timer = undefined;
-    set({ current: null });
-  },
+  dismiss: () => { sonnerToast.dismiss(); },
 }));
