@@ -7,6 +7,7 @@ usage() {
   printf 'Usage: %s [wallpaper-sorter options]\n' "$0"
   printf 'Builds and starts the sorter, waits for its local web UI, then opens the browser.\n'
   printf 'Use --port N or WALLPAPER_SORTER_PORT=N for a non-default configured port.\n'
+  printf 'If no config exists, it initializes one with the starter tags and chosen library path.\n'
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -24,21 +25,54 @@ done
 PORT="${WALLPAPER_SORTER_PORT:-8421}"
 ARGS=("$@")
 HAS_PORT_ARGUMENT=0
-for ((index = 0; index < ${#ARGS[@]}; index++)); do
+HAS_LIBRARY_ARGUMENT=0
+if [[ ${XDG_CONFIG_HOME+x} ]]; then
+  CONFIG_PATH="${XDG_CONFIG_HOME}/wallpaper-sorter/config.toml"
+else
+  CONFIG_PATH="$HOME/.config/wallpaper-sorter/config.toml"
+fi
+
+expand_home() {
+  case "$1" in
+    '~') printf '%s' "$HOME" ;;
+    '~/'*) printf '%s%s' "$HOME" "${1:1}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+for ((index = 0; index < ${#ARGS[@]};)); do
   case "${ARGS[index]}" in
     --no-web|--dry-run|--once|--resort-preview)
       printf 'This launcher requires the sorter web UI and its continuous run mode.\n' >&2
       exit 2
       ;;
+    --config|--library|--port|--folder)
+      if ((index + 1 >= ${#ARGS[@]})); then
+        printf '%s needs a value\n' "${ARGS[index]}" >&2
+        exit 2
+      fi
+      value="${ARGS[index + 1]}"
+      case "${ARGS[index]}" in
+        --config)
+          CONFIG_PATH="$(expand_home "$value")"
+          ARGS[index + 1]="$CONFIG_PATH"
+          ;;
+        --library)
+          LIBRARY_PATH="$(expand_home "$value")"
+          ARGS[index + 1]="$LIBRARY_PATH"
+          HAS_LIBRARY_ARGUMENT=1
+          ;;
+        --port)
+          PORT="$value"
+          HAS_PORT_ARGUMENT=1
+          ;;
+      esac
+      index=$((index + 2))
+      ;;
+    *)
+      index=$((index + 1))
+      ;;
   esac
-  if [[ "${ARGS[index]}" == "--port" ]]; then
-    if ((index + 1 >= ${#ARGS[@]})); then
-      printf '%s\n' '--port needs a number' >&2
-      exit 2
-    fi
-    PORT="${ARGS[index + 1]}"
-    HAS_PORT_ARGUMENT=1
-  fi
 done
 
 if [[ ! "$PORT" =~ ^[0-9]{1,5}$ ]]; then
@@ -53,6 +87,7 @@ fi
 if [[ -n "${WALLPAPER_SORTER_PORT:-}" && "$HAS_PORT_ARGUMENT" -eq 0 ]]; then
   ARGS+=(--port "$PORT_NUMBER")
 fi
+
 URL="http://127.0.0.1:${PORT_NUMBER}/"
 
 if curl --fail --silent --show-error --max-time 1 --output /dev/null "$URL" 2>/dev/null; then
@@ -61,8 +96,23 @@ if curl --fail --silent --show-error --max-time 1 --output /dev/null "$URL" 2>/d
   exit 0
 fi
 
-cd "$ROOT"
-cargo build --release
+if [[ ! -f "$CONFIG_PATH" ]]; then
+  if [[ "$HAS_LIBRARY_ARGUMENT" -eq 0 ]]; then
+    LIBRARY_PATH="$HOME/Pictures/Wallpapers"
+    if [[ ! -d "$LIBRARY_PATH" ]]; then
+      printf 'No config exists at %s and the default library %s is missing.\n' "$CONFIG_PATH" "$LIBRARY_PATH" >&2
+      printf 'Create the library folder or pass --library DIR.\n' >&2
+      exit 1
+    fi
+    ARGS+=(--library "$LIBRARY_PATH")
+  elif [[ ! -d "$LIBRARY_PATH" ]]; then
+    printf 'No config exists at %s and the library folder %s is missing.\n' "$CONFIG_PATH" "$LIBRARY_PATH" >&2
+    exit 1
+  fi
+  printf 'No config found; the sorter will create a starter config at %s.\n' "$CONFIG_PATH"
+fi
+
+cargo build --release --manifest-path "$ROOT/Cargo.toml"
 
 SORTER_PID=
 stop_sorter() {
@@ -75,11 +125,11 @@ trap stop_sorter EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-printf 'Starting sorter; waiting for %s\n' "$URL"
+printf 'Starting sorter; waiting up to 150 seconds for %s\n' "$URL"
 "$ROOT/target/release/wallpaper-sorter" "${ARGS[@]}" &
 SORTER_PID=$!
 
-for ((attempt = 0; attempt < 120; attempt++)); do
+for ((attempt = 0; attempt < 300; attempt++)); do
   if ! kill -0 "$SORTER_PID" 2>/dev/null; then
     if wait "$SORTER_PID"; then
       printf 'Sorter exited before the web UI became available.\n' >&2
