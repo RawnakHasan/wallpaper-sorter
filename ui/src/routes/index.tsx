@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { OverviewPage } from '../../legacy-app';
+import { OverviewPage } from '../features/overview/OverviewPage';
 
 export const Route = createFileRoute('/')({
   component: OverviewPage,
