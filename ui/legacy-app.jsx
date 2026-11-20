@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Link,
   Outlet,
@@ -6,9 +7,62 @@ import {
   useRouterState,
   useSearch,
 } from '@tanstack/react-router';
+import { Icon } from './src/components/Icon';
+import { Thumb } from './src/components/Thumb';
+import { closeLayer, confirmDialog, hasLayer, openSheet } from './src/components/dialogs';
+import { getStatus, statusQueryKey } from './src/features/status/api';
+import { Toast } from './src/components/Toast';
+import { useHotkeysStore } from './src/stores/hotkeys';
+import { useRecentFoldersStore } from './src/stores/recent-folders';
+import { useSelectionStore } from './src/stores/selection';
+import { useToastStore } from './src/stores/toast';
+import { setTheme as setStoredTheme, useThemeStore } from './src/stores/theme';
 import './src/legacy';
 
 const WS = window.WS;
+WS.closeLayer = closeLayer;
+WS.hasLayer = hasLayer;
+WS.openSheet = (title, content, footer, onClose) => openSheet(title, content, footer, WS.icon('close'), onClose);
+WS.confirmBox = confirmDialog;
+WS.toast = (message, options) => useToastStore.getState().show(message, options);
+WS.setTheme = setStoredTheme;
+WS.recentFolders = () => useRecentFoldersStore.getState().folders;
+WS.rememberFolder = (folder) => useRecentFoldersStore.getState().remember(folder);
+WS.clearSelection = () => useSelectionStore.getState().clear();
+const selectionKeys = new Proxy(new Set(), {
+  get(_target, property) {
+    const state = useSelectionStore.getState();
+    if (property === 'add') return (key) => { state.add(key); return selectionKeys; };
+    if (property === 'delete') return (key) => {
+      const existed = state.keys.has(key);
+      state.remove(key);
+      return existed;
+    };
+    if (property === 'clear') return () => state.clear();
+    const value = Reflect.get(state.keys, property, state.keys);
+    return typeof value === 'function' ? value.bind(state.keys) : value;
+  },
+});
+Object.defineProperty(WS, 'selection', {
+  configurable: true,
+  get() {
+    const state = useSelectionStore.getState();
+    return {
+      keys: selectionKeys,
+      get last() {
+        return useSelectionStore.getState().last;
+      },
+      set last(value) {
+        useSelectionStore.getState().setLast(value);
+      },
+    };
+  },
+});
+Object.defineProperty(WS, 'keys', {
+  configurable: true,
+  get: () => useHotkeysStore.getState().actions,
+  set: (actions) => useHotkeysStore.getState().setActions(actions),
+});
 const RefreshContext = createContext({ revision: 0, ready: false, focusRef: null, scrollRef: null, refresh: () => {} });
 
 const NAV = [
@@ -23,46 +77,8 @@ const NAV = [
   ['/settings', 'Settings', 'settings'],
 ];
 
-const ICONS = {
-  overview: ['M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'],
-  inbox: ['M12 3v11m0 0 4-4m-4 4-4-4M4 14v6h16v-6'],
-  library: ['M3 6h7l2 2h9v12H3z'],
-  tags: ['M4 4h9l7 7-9 9-7-7z', 'M8 8h.01'],
-  duplicates: ['M7 7h11v11H7zM3 3h11v4M3 3v11h4'],
-  data: ['M4 5c0-2 16-2 16 0v14c0 2-16 2-16 0zm0 0c0 2 16 2 16 0M4 12c0 2 16 2 16 0'],
-  resort: ['M4 7h11l-3-3m3 3-3 3M20 17H9l3 3m-3-3 3-3'],
-  activity: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2'],
-  settings: ['M4 7h16M4 12h16M4 17h16M8 5v4M16 10v4M11 15v4'],
-};
-
-function applyTheme() {
-  let theme = null;
-  try {
-    theme = localStorage.getItem('ws-theme');
-  } catch {
-    // Theme persistence is optional in restricted browser contexts.
-  }
-  if (theme === 'dark' || theme === 'light') document.documentElement.dataset.theme = theme;
-  else delete document.documentElement.dataset.theme;
-}
-
-WS.setTheme = (value) => {
-  try {
-    if (value === 'dark' || value === 'light') localStorage.setItem('ws-theme', value);
-    else localStorage.removeItem('ws-theme');
-  } catch {
-    // Theme persistence is optional in restricted browser contexts.
-  }
-  applyTheme();
-};
-applyTheme();
-
 function NavIcon({ name }) {
-  return (
-    <svg className="nv-icon" viewBox="0 0 24 24" aria-hidden="true">
-      {ICONS[name].map((d) => <path d={d} key={d} />)}
-    </svg>
-  );
+  return <Icon name={name} className="nv-icon" />;
 }
 export function LegacyPage({ name }) {
   const ref = useRef(null);
@@ -114,13 +130,21 @@ export function AppShell() {
   const routeSearch = useSearch({ strict: false });
   const routeKey = JSON.stringify(routeSearch);
   const navigate = useNavigate();
+  const statusQuery = useQuery({
+    queryKey: statusQueryKey,
+    queryFn: getStatus,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: true,
+  });
+  const status = statusQuery.data;
+  const online = statusQuery.isPending ? null : !statusQuery.isError;
+  const inboxCount = status?.counts.inbox ?? 0;
   const [search, setSearch] = useState('');
-  const [online, setOnline] = useState(null);
-  const [inboxCount, setInboxCount] = useState(0);
   const [ready, setReady] = useState(false);
   const [revision, setRevision] = useState(0);
   const focusRef = useRef(null);
   const scrollRef = useRef(null);
+  const signature = useRef('');
 
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
   const context = useMemo(() => ({ revision, ready, focusRef, scrollRef, refresh }), [revision, ready, refresh]);
@@ -146,38 +170,25 @@ export function AppShell() {
       }
       refresh();
     };
-    WS.onOnline(setOnline);
     WS.keys = {};
-    let signature = '';
-    let initialized = false;
-
-    const poll = async () => {
-      try {
-        const status = await WS.get('/api/status');
-        WS.status = status;
-        setInboxCount(status.counts.inbox);
-        const nextSignature = JSON.stringify([status.counts, status.activity_last_id]);
-        const element = document.activeElement;
-        const typing = element && ['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName);
-        if (signature && nextSignature !== signature && !WS.hasLayer() && !typing) WS.refresh();
-        signature = nextSignature;
-      } catch {
-        // The connection chip reflects API availability.
-      } finally {
-        if (!initialized) {
-          initialized = true;
-          setReady(true);
-        }
-      }
-    };
-    poll();
-    const timer = window.setInterval(poll, 3000);
     return () => {
-      window.clearInterval(timer);
       WS.refresh = () => {};
-      WS.onOnline(() => {});
     };
-  }, []);
+  }, [focusRef, refresh, scrollRef]);
+
+  useEffect(() => {
+    if (statusQuery.isFetched) setReady(true);
+  }, [statusQuery.isFetched]);
+
+  useEffect(() => {
+    if (!status) return;
+    WS.status = status;
+    const nextSignature = JSON.stringify([status.counts, status.activity_last_id]);
+    const element = document.activeElement;
+    const typing = element && ['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName);
+    if (signature.current && nextSignature !== signature.current && !WS.hasLayer() && !typing) WS.refresh();
+    signature.current = nextSignature;
+  }, [status]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -265,7 +276,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
-      <div id="toast" hidden role="status" aria-live="polite" />
+      <Toast />
     </RefreshContext.Provider>
   );
 }
@@ -475,12 +486,7 @@ export function ActivityPage() {
 }
 
 function LegacyThumb({ hash }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    ref.current?.replaceChildren(WS.thumb(hash, ''));
-    return () => ref.current?.replaceChildren();
-  }, [hash]);
-  return <span className="list-thumb" ref={ref} />;
+  return <span className="list-thumb"><Thumb hash={hash} /></span>;
 }
 
 export function DuplicatesPage() {
@@ -601,20 +607,13 @@ const GAP_TEXT = {
   renumber: 'Everything is renumbered without gaps whenever an image arrives.',
 };
 
-function currentTheme() {
-  try {
-    return localStorage.getItem('ws-theme') || 'system';
-  } catch {
-    return 'system';
-  }
-}
-
 export function SettingsPage() {
   const { revision, refresh } = useContext(RefreshContext);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [gapMode, setGapMode] = useState(null);
-  const [theme, setTheme] = useState(currentTheme);
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
 
   useEffect(() => {
     let disposed = false;
@@ -757,7 +756,7 @@ export function SettingsPage() {
         <h2>Appearance</h2>
         <div className="seg" role="group" aria-label="Theme">
           {['system', 'dark', 'light'].map((value) => (
-            <button key={value} className={theme === value ? 'on' : ''} onClick={() => { WS.setTheme(value); setTheme(value); }}>
+            <button key={value} className={theme === value ? 'on' : ''} onClick={() => setTheme(value)}>
               {value[0].toUpperCase() + value.slice(1)}
             </button>
           ))}
