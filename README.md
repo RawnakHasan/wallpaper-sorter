@@ -56,6 +56,12 @@ For normal use:
     target/release/wallpaper-sorter --once           # sorts what is waiting now, then exits
     target/release/wallpaper-sorter                  # keeps running (Ctrl-C to stop)
 
+For one command that builds and starts the sorter, waits for the UI, and opens it in your browser, run
+`./scripts/start-and-open.sh`. It stays in the foreground; press Ctrl+C to stop the sorter. Pass normal sorter
+options such as `--config FILE` or `--port N`; for a port set in the config, set `WALLPAPER_SORTER_PORT` to match.
+It requires `curl` and the Linux desktop `xdg-open` command. If the UI is already responding at that address, the
+script opens it without starting a second instance.
+
   Preview a whole-library Re-sort without the browser with `target/release/wallpaper-sorter --resort-preview`;
   add `--folder Wuthering-Waves/Chisa` to limit the scope. It prints action counts before listing changes and does not
   move or rename images. Like other runs, opening the library may initialize or refresh its `.sorter` metadata.
