@@ -24,9 +24,8 @@ import {
   getFolderChangePreview,
   getGapFillPreview,
   getLibraryFolders,
-  getLibraryImages,
   libraryFoldersQueryKey,
-  libraryImagesQueryKey,
+  libraryImagesQueryOptions,
 } from './api';
 import type {
   FolderChangePreview,
@@ -669,8 +668,7 @@ export function LibraryPage() {
     : folders[0]?.path ?? '';
   const currentInfo = folders.find((entry) => entry.path === currentFolder);
   const imagesQuery = useQuery({
-    queryKey: libraryImagesQueryKey(currentFolder),
-    queryFn: () => getLibraryImages(currentFolder),
+    ...libraryImagesQueryOptions(currentFolder),
     enabled: !!currentFolder,
     refetchInterval: 3000,
     refetchIntervalInBackground: true,
@@ -702,8 +700,15 @@ export function LibraryPage() {
     await refreshAfterAction();
   };
   const navigateToFolder = async (folder: string) => {
-    useSelectionStore.getState().clear();
-    await navigate({ to: '/library', search: { folder } });
+    try {
+      await queryClient.ensureQueryData(libraryImagesQueryOptions(folder));
+      await navigate({ to: '/library', search: { folder } });
+    } catch (error) {
+      showToast(messageOf(error), { error: true });
+    }
+  };
+  const prefetchFolder = (folder: string) => {
+    void queryClient.prefetchQuery(libraryImagesQueryOptions(folder));
   };
 
   const createMutation = useMutation({
@@ -943,6 +948,8 @@ export function LibraryPage() {
                 className={folder.path === currentFolder ? 'on' : ''}
                 aria-current={folder.path === currentFolder ? 'true' : undefined}
                 style={{ paddingLeft: 8 + depth * 14 }}
+                onPointerEnter={() => prefetchFolder(folder.path)}
+                onFocus={() => prefetchFolder(folder.path)}
                 onClick={() => { void navigateToFolder(folder.path); }}
               >
                 <span>{folder.name}</span>
@@ -979,9 +986,14 @@ export function LibraryPage() {
               return (
                 <Fragment key={path}>
                   {index ? <span>/</span> : null}
-                  <button type="button" onClick={() => {
-                    if (folders.some((entry) => entry.path === path)) void navigateToFolder(path);
-                  }}>{segment}</button>
+                  <button
+                    type="button"
+                    onPointerEnter={() => prefetchFolder(path)}
+                    onFocus={() => prefetchFolder(path)}
+                    onClick={() => {
+                      if (folders.some((entry) => entry.path === path)) void navigateToFolder(path);
+                    }}
+                  >{segment}</button>
                 </Fragment>
               );
             })}

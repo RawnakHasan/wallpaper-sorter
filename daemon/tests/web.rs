@@ -293,7 +293,10 @@ fn status_and_the_security_checks() {
     );
     assert_eq!(e.get("/api/nothing").status, 404);
     assert!(String::from_utf8_lossy(&e.get("/").body).contains("Wallpaper Sorter"));
-    assert_eq!(e.get("/design").status, 404);
+    let route = e.get("/library?folder=Wallpapers");
+    assert_eq!(route.status, 200);
+    assert!(String::from_utf8_lossy(&route.body).contains("Wallpaper Sorter"));
+    assert_eq!(e.get("/assets/missing.js").status, 404);
 }
 
 #[cfg(unix)]

@@ -26,6 +26,14 @@ export function getLibraryImages(folder: string) {
   return getJson(`/api/images?${search}`, libraryImagesSchema);
 }
 
+export function libraryImagesQueryOptions(folder: string) {
+  return {
+    queryKey: libraryImagesQueryKey(folder),
+    queryFn: () => getLibraryImages(folder),
+    staleTime: 10_000,
+  };
+}
+
 export function createLibraryFolder(folder: string) {
   return sendJson('POST', '/api/folders', { folder }, createFolderRequestSchema, createFolderResponseSchema);
 }

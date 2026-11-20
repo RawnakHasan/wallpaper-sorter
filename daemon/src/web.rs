@@ -407,6 +407,11 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             FONT_MONO,
             "public, max-age=86400",
         )),
+        (Method::Get, [first, ..]) if *first != "api" && *first != "assets" => Ok(Resp::asset(
+            "text/html; charset=utf-8",
+            INDEX_HTML.as_bytes(),
+            "no-cache",
+        )),
         (Method::Get, ["api", "status"]) => status(ctx),
         (Method::Get, ["api", "inbox"]) => Ok(Resp::json(200, &ctx.shared.lock().inbox()?)),
         (Method::Get, ["api", "folders"]) => Ok(Resp::json(200, &ctx.shared.lock().folders()?)),

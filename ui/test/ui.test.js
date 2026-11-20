@@ -113,7 +113,7 @@ async function fetchText(sorter, path) {
   return res.text();
 }
 
-async function openPage(sorter, hash) {
+async function openPage(sorter, route) {
   // Use Node's fetch for every request. jsdom's HTTP resource loader sometimes
   // receives ECONNRESET while it is loading the deferred scripts from tiny_http.
   // This still runs the real document and scripts, in their browser order.
@@ -121,7 +121,7 @@ async function openPage(sorter, hash) {
   const scriptSources = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/gi)].map((m) => m[1]);
   const documentHtml = html.replace(/<script\b[^>]*\bsrc="[^"]+"[^>]*><\/script>\s*/gi, '');
   const dom = new JSDOM(documentHtml, {
-    url: sorter.url + (hash || ''),
+    url: new URL(route || '/', sorter.url),
     runScripts: 'dangerously',
     pretendToBeVisual: true,
     beforeParse(w) {
@@ -156,8 +156,9 @@ async function openPage(sorter, hash) {
       el.dispatchEvent(new w.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...(init || {}) }));
     },
     toast: () => (ui.q('#toast') && !ui.q('#toast').hidden ? ui.q('#toast').textContent : ''),
-    go(hash) {
-      w.location.hash = hash;
+    go(path) {
+      w.history.pushState(null, '', path);
+      w.dispatchEvent(new w.PopStateEvent('popstate'));
     },
     async close() {
       w.dispatchEvent(new w.Event('pagehide'));
@@ -175,11 +176,11 @@ async function openPage(sorter, hash) {
 const api = (s, method, p, body) =>
   fetch(s.url + p.replace(/^\//, ''), { method, headers: { 'Content-Type': 'application/json' }, body: method === 'GET' ? undefined : JSON.stringify(body || {}) }).then((r) => r.json());
 
-async function withSorter(prep, hash, fn) {
+async function withSorter(prep, route, fn) {
   const s = await startSorter(prep);
   let ui;
   try {
-    ui = await openPage(s, hash);
+    ui = await openPage(s, route);
     await fn(ui, s);
   } finally {
     if (ui) await ui.close();
@@ -214,7 +215,7 @@ test('inbox: select an image, assign it to a folder, undo', () =>
       put(path.join(lib, 'wallhaven-1q2le9.png'));
       put(path.join(lib, 'wallhaven-2zzzzz.png'));
     },
-    '#/inbox',
+    '/inbox',
     async (ui, s) => {
       await waitFor(() => ui.qa('.cell').length === 2, 'two images');
       assert.equal(ui.q('.selbar').hidden, true);
@@ -242,7 +243,7 @@ test('inbox: saving a tag with the assignment sorts the other waiting images too
       put(path.join(lib, 'Violet Evergarden.png'));
       put(path.join(lib, 'Violet.full.1234.png'));
     },
-    '#/inbox',
+    '/inbox',
     async (ui, s) => {
       await waitFor(() => ui.qa('.cell').length === 2, 'two images');
       ui.click(ui.byText('.cell', 'Violet Evergarden') || ui.qa('.cell')[0]);
@@ -267,7 +268,7 @@ test('inbox: saving a tag with the assignment sorts the other waiting images too
 test('inbox: a file name is shown as text, never as HTML', () =>
   withSorter(
     (lib) => put(path.join(lib, '<img src=x onerror=alert(1)> & "quotes".png')),
-    '#/inbox',
+    '/inbox',
     async (ui) => {
       const cell = await waitFor(() => ui.q('.cell'), 'the image');
       assert.equal(ui.qa('.grid [onerror]').length, 0, 'no element was made from the name');
@@ -281,7 +282,7 @@ test('inbox: keyboard shortcuts select everything and clear it', () =>
     (lib) => {
       for (const n of ['wallhaven-aaaaaa.png', 'wallhaven-bbbbbb.png', 'wallhaven-cccccc.png']) put(path.join(lib, n));
     },
-    '#/inbox',
+    '/inbox',
     async (ui) => {
       await waitFor(() => ui.qa('.cell').length === 3, 'three images');
       ui.key(ui.d.body, 'a', { ctrlKey: true });
@@ -297,7 +298,7 @@ test('inbox: keyboard shortcuts select everything and clear it', () =>
 test('inbox: files in the intake folder wait there with their artist', () =>
   withSorter(
     (lib, intake) => put(path.join(intake, 'BLACKmeow-91709880/151861634_p0--.png')),
-    '#/inbox',
+    '/inbox',
     async (ui) => {
       const cell = await waitFor(() => ui.q('.cell'), 'the Pixiv image');
       assert.match(cell.textContent, /Pixiv/);
@@ -310,7 +311,7 @@ test('inbox: files in the intake folder wait there with their artist', () =>
   ));
 
 test('tags: the filename tester follows the rules', () =>
-  withSorter(() => {}, '#/tags', async (ui) => {
+  withSorter(() => {}, '/tags', async (ui) => {
     const input = await waitFor(() => ui.q('#tester-in'), 'the tester');
     ui.type(input, 'Chisa Skadi.png');
     await waitFor(() => /Conflict/.test(ui.q('.tester .result').textContent), 'the conflict');
@@ -330,7 +331,7 @@ test('tags: the filename tester follows the rules', () =>
   }));
 
 test('tags: add a tag and delete it again', () =>
-  withSorter(() => {}, '#/tags', async (ui, s) => {
+  withSorter(() => {}, '/tags', async (ui, s) => {
     await waitFor(() => ui.byText('button', 'Add tag'), 'the Add tag button');
     ui.click(ui.byText('button', 'Add tag'));
     const sheet = await waitFor(() => ui.q('.sheet'), 'the sheet');
@@ -351,7 +352,7 @@ test('tags: add a tag and delete it again', () =>
   }));
 
 test('tags: a bad folder is explained, not silently ignored', () =>
-  withSorter(() => {}, '#/tags', async (ui) => {
+  withSorter(() => {}, '/tags', async (ui) => {
     await waitFor(() => ui.byText('button', 'Add tag'), 'the button');
     ui.click(ui.byText('button', 'Add tag'));
     const sheet = await waitFor(() => ui.q('.sheet'), 'the sheet');
@@ -369,8 +370,11 @@ test('library: browse a folder and close the gaps', () =>
     (lib) => {
       for (const n of [1, 3, 4]) put(path.join(lib, `Wuthering-Waves/Chisa/Chisa ${n}.png`));
     },
-    '#/library?folder=Wuthering-Waves%2FChisa',
+    '/library?folder=Wuthering-Waves%2FChisa',
     async (ui, s) => {
+      assert.equal(ui.w.location.pathname, '/library');
+      assert.equal(new URLSearchParams(ui.w.location.search).get('folder'), 'Wuthering-Waves/Chisa');
+      assert.equal(ui.w.location.hash, '');
       await waitFor(() => ui.qa('.cell').length === 3, 'three images');
       assert.equal(ui.q('.more').textContent, '', 'no literal null after the final image chunk');
       assert.equal(ui.q('.cell img').alt, 'Chisa 1.png');
@@ -382,7 +386,15 @@ test('library: browse a folder and close the gaps', () =>
       const details = ui.q('.cell .open');
       assert.match(details.getAttribute('aria-label'), /^Details of /);
       assert.ok(details.querySelector('svg[aria-hidden="true"]'), 'details uses an accessible icon button');
+      ui.click(details);
+      const detailSheet = await waitFor(() => ui.q('dialog.sheet'), 'the image details sheet');
+      ui.click(ui.q('button[aria-label="Close"]', detailSheet));
       const css = await fetchText(s, '/assets/app.css');
+      assert.match(css, /\.sheet\{[^}]*inset:0 0 0 auto[^}]*transform:none[^}]*animation:slide/);
+      assert.match(css, /\.sheet\{[^}]*height:100dvh/);
+      assert.match(css, /\.sheet\{[^}]*max-height:100dvh/);
+      assert.match(css, /\.sheet \.content\{[^}]*flex:1/);
+      assert.match(css, /@keyframes slide\{0%\{transform:translate\(12px\)\}to\{transform:translate\(0\)\}\}/);
       assert.match(css, /\.cell \.open\{[^}]*top:\s*4px/);
       assert.match(css, /\.cell \.check\{[^}]*right:\s*34px/);
       assert.match(css, /\.cell img\{[^}]*object-fit:\s*contain/);
@@ -405,13 +417,41 @@ test('library: browse a folder and close the gaps', () =>
     }
   ));
 
+test('library: keeps the current folder visible while the next folder loads', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Wuthering-Waves/Chisa/Chisa 1.png'));
+      put(path.join(lib, 'Nature/Nature 1.png'));
+    },
+    '/library?folder=Wuthering-Waves%2FChisa',
+    async (ui) => {
+      await waitFor(() => ui.qa('.cell').length === 1, 'the current folder image');
+      const request = ui.w.fetch;
+      ui.w.fetch = (input, init) => {
+        const url = new URL(input, ui.w.location.href);
+        if (url.pathname === '/api/images' && url.searchParams.get('folder') === 'Nature') {
+          return new Promise((resolve) => setTimeout(() => resolve(request(input, init)), 250));
+        }
+        return request(input, init);
+      };
+
+      ui.click(ui.byText('.tree button', 'Nature'));
+      assert.equal(ui.q('.page-head h1').textContent, 'Chisa');
+      assert.doesNotMatch(ui.q('.page').textContent, /Loading…/);
+      await waitFor(() => ui.q('.page-head h1').textContent === 'Nature', 'the target folder');
+      assert.equal(ui.qa('.cell').length, 1);
+      assert.equal(ui.w.location.pathname, '/library');
+      assert.equal(new URLSearchParams(ui.w.location.search).get('folder'), 'Nature');
+    }
+  ));
+
 test('thumbnails can be rebuilt from details or the selection toolbar', () =>
   withSorter(
     (lib) => {
       put(path.join(lib, 'Nature/Nature 1.png'));
       put(path.join(lib, 'Nature/Nature 2.png'));
     },
-    '#/library?folder=Nature',
+    '/library?folder=Nature',
     async (ui, s) => {
       await waitFor(() => ui.qa('.cell').length === 2, 'two library images');
       const images = await api(s, 'GET', '/api/images?folder=Nature');
@@ -441,7 +481,7 @@ test('library: shows image counts grouped by source', () =>
       put(path.join(lib, 'Wuthering-Waves/Chisa/Kuchiba.Chisa.full.4511113.png'));
       put(path.join(lib, 'Wuthering-Waves/Chisa/opaque-hash.png'));
     },
-    '#/library?folder=Wuthering-Waves%2FChisa',
+    '/library?folder=Wuthering-Waves%2FChisa',
     async (ui) => {
       await waitFor(() => ui.qa('.cell').length === 3, 'three images');
       const counts = ui.q('.source-counts');
@@ -458,7 +498,7 @@ test('library: create folders and manage prefix, rename, and merge', () =>
       put(path.join(lib, 'Nature/Nature 1.png'));
       put(path.join(lib, 'Archive/old.png'));
     },
-    '#/library?folder=Nature',
+    '/library?folder=Nature',
     async (ui, s) => {
       await waitFor(() => ui.qa('.cell').length === 1, 'the Nature image');
       ui.click(ui.byText('button', 'New folder'));
@@ -474,7 +514,7 @@ test('library: create folders and manage prefix, rename, and merge', () =>
       assert.doesNotMatch(ui.qa('.folder-preview', sheet)[2].textContent, /\bnull\b/);
       ui.click(ui.byText('footer button', 'Done', sheet));
 
-      ui.go('#/library?folder=Nature');
+      ui.go('/library?folder=Nature');
       await waitFor(() => ui.q('.page-head h1').textContent === 'Nature', 'Nature folder');
       ui.click(ui.byText('button', 'Manage folder'));
       sheet = await waitFor(() => ui.q('.sheet'), 'the folder management sheet');
@@ -535,7 +575,7 @@ test('library: delete asks first, goes to the trash, and can be undone', () =>
       put(path.join(lib, 'Nature/Nature 1.png'));
       put(path.join(lib, 'Nature/Nature 2.png'));
     },
-    '#/library?folder=Nature',
+    '/library?folder=Nature',
     async (ui, s) => {
       await waitFor(() => ui.qa('.cell').length === 2, 'two images');
       ui.click(ui.qa('.cell')[0]);
@@ -561,7 +601,7 @@ test('re-sort: previews a folder, applies it, and offers batch undo', () =>
       put(path.join(lib, 'Archive/mystery.png'));
       put(path.join(lib, 'Wuthering-Waves/Chisa/Chisa 1.png'));
     },
-    '#/resort',
+    '/resort',
     async (ui, s) => {
       const scope = await waitFor(() => ui.q('select[aria-label="Re-sort scope"]'), 'the scope picker');
       scope.value = 'Archive';
@@ -597,7 +637,7 @@ test('re-sort: unmatched files are counted without rendering an unbounded list',
         fs.appendFileSync(file, String(n));
       }
     },
-    '#/resort',
+    '/resort',
     async (ui) => {
       ui.click(await waitFor(() => ui.byText('button', 'Scan and preview'), 'the preview button'));
       const summary = await waitFor(() => ui.q('.resort-summary'), 'the re-sort response');
@@ -612,14 +652,14 @@ test('duplicates: a copy is listed with its original and can be cleared', () =>
       put(path.join(lib, 'Wuthering-Waves/Chisa/Chisa 1.png'), 77);
       put(path.join(lib, 'Chisa copy.png'), 77);
     },
-    '#/duplicates',
+    '/duplicates',
     async (ui) => {
       const row = await waitFor(() => ui.q('.list > div'), 'the copy');
       assert.match(row.textContent, /Chisa copy\.png/);
       assert.match(row.textContent, /Same as Wuthering-Waves\/Chisa\/Chisa 1\.png/);
       const original = ui.q('a', row);
       assert.ok(original);
-      assert.match(original.getAttribute('href'), /#\/library\?folder=Wuthering-Waves%2FChisa$/);
+      assert.match(original.getAttribute('href'), /^\/library\?folder=Wuthering-Waves%2FChisa$/);
       ui.click(ui.byText('button', 'Restore…', row));
       const sheet = await waitFor(() => ui.q('.sheet'), 'the restore sheet');
       const folder = sheet.querySelector('input[aria-label="Folder"]');
@@ -635,7 +675,7 @@ test('duplicates: deleting one or emptying the folder can be undone', () =>
       put(path.join(lib, 'Wuthering-Waves/Chisa/Chisa 1.png'), 91);
       put(path.join(lib, 'Chisa copy.png'), 91);
     },
-    '#/duplicates',
+    '/duplicates',
     async (ui) => {
       let row = await waitFor(() => ui.q('.list > div'), 'the duplicate');
       ui.click(ui.byText('button', 'Delete', row));
@@ -662,7 +702,7 @@ test('data: filter, find unknown sources and set one by hand', () =>
       put(path.join(lib, 'Arknights/Skadi/Skadi 1.png'));
       put(path.join(lib, 'Wuthering-Waves/Chisa/Chisa 1.png'));
     },
-    '#/data',
+    '/data',
     async (ui, s) => {
       await waitFor(() => ui.qa('.tbl tbody tr').length === 3, 'three records');
       const pager = ui.q('.data-pager');
@@ -714,7 +754,7 @@ test('activity: the log lists what happened and undoes it', () =>
     async (ui, s) => {
       const inbox = await api(s, 'GET', '/api/inbox');
       await api(s, 'POST', '/api/assign', { paths: [inbox[0].path], folder: 'Nature' });
-      ui.go('#/activity');
+      ui.go('/activity');
       const row = await waitFor(() => ui.q('.act'), 'a log row');
       assert.match(row.textContent, /Assigned/);
       assert.match(row.textContent, /Nature\/Nature 1\.png/);
@@ -726,7 +766,7 @@ test('activity: the log lists what happened and undoes it', () =>
   ));
 
 test('settings: change how gaps are handled, and the theme', () =>
-  withSorter(() => {}, '#/settings', async (ui, s) => {
+  withSorter(() => {}, '/settings', async (ui, s) => {
     const gap = await waitFor(() => ui.q('select[aria-label="Gaps in the numbering"]'), 'the select');
     assert.equal(gap.value, 'keep');
     gap.value = 'last';
@@ -750,7 +790,7 @@ test('settings: change how gaps are handled, and the theme', () =>
   }));
 
 test('the page follows the sorter: a file that arrives shows up without reloading', () =>
-  withSorter(() => {}, '#/inbox', async (ui, s) => {
+  withSorter(() => {}, '/inbox', async (ui, s) => {
     await waitFor(() => ui.q('.empty') && /Inbox clear/.test(ui.q('.empty').textContent), 'an empty inbox');
     put(path.join(s.lib, 'wallhaven-1q2le9.png'));
     await waitFor(() => ui.qa('.cell').length === 1, 'the new image (the page checks every few seconds)', 12000);
@@ -766,12 +806,12 @@ test('the page says so when the sorter stops', () =>
 test('first-run setup shows a welcome card and can be completed', () =>
   withSorter(
     (lib) => put(path.join(lib, 'Nature/Nature 1.png'), 1),
-    '#/',
+    '/',
     async (ui, s) => {
       await api(s, 'PUT', '/api/settings', { setup_complete: false });
-      ui.go('#/settings');
+      ui.go('/settings');
       await waitFor(() => ui.q('#main h1')?.textContent === 'Settings', 'the settings route');
-      ui.go('#/');
+      ui.go('/');
       await waitFor(() => ui.q('.welcome'), 'the welcome card');
       ui.click(ui.byText('button', 'Finish setup'));
       await waitFor(() => !ui.q('.welcome'), 'setup completed');

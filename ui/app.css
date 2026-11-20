@@ -123,7 +123,7 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .more{display:flex;justify-content:center;padding:16px}
 
 /* library */
-.lib{display:flex;gap:20px;align-items:flex-start}
+.lib{display:flex;gap:12px;align-items:flex-start}
 .tree{width:240px;flex:none;border-right:1px solid var(--bd);padding-right:8px;max-height:calc(100vh - 140px);overflow:auto}
 .tree button{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;height:28px;border:0;background:transparent;border-radius:6px;cursor:pointer;text-align:left;color:var(--t2);padding-right:8px}
 .tree button:hover{background:var(--hv)}
@@ -191,7 +191,7 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 
 /* sheets, dialogs, toast */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50}
-.sheet{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);height:100dvh;max-width:none;margin:0;padding:0;background:var(--rs);border:0;border-left:1px solid var(--bd);z-index:51;display:flex;flex-direction:column;animation:slide var(--dur) var(--ease)}
+.sheet{position:fixed;top:0;right:0;bottom:0;left:auto;width:min(460px,100%);height:100dvh;max-width:none;max-height:100dvh;margin:0;padding:0;background:var(--rs);border:0;border-left:1px solid var(--bd);z-index:51;display:flex;flex-direction:column;transform:none;animation:slide var(--dur) var(--ease)}
 .sheet>header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-bottom:1px solid var(--bd)}
 .sheet .content{flex:1;overflow:auto;padding:16px}
 .sheet>footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--bd)}
@@ -209,7 +209,7 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .preview-line{margin-top:6px;color:var(--t2)}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;min-height:40px;padding:6px 16px;border-radius:6px;border:1px solid var(--bd);background:var(--rs);z-index:60;max-width:92%;animation:up var(--dur) var(--ease)}
 .toast.err{border-color:var(--er)}
-@keyframes slide{from{transform:translateX(24px);opacity:0}}
+@keyframes slide{from{transform:translateX(12px)}to{transform:translateX(0)}}
 @keyframes up{from{opacity:0;transform:translate(-50%,8px)}}
 @keyframes thumb-shimmer{to{background-position:-100% 0}}
 @media (prefers-reduced-motion:reduce){.sheet,.toast,.cell.loading{animation:none}.btn,.cell img{transition:none}}
