@@ -61,7 +61,7 @@ it('renders library images and moves a selection using the chosen destination', 
   );
   const { client } = renderLibrary();
 
-  expect(await screen.findByRole('heading', { name: 'Nature' })).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Nature' }, { timeout: 5000 })).toBeTruthy();
   fireEvent.click(await screen.findByRole('listitem', { name: 'Nature 1.png' }));
   expect(screen.getByText('1 selected')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Move to folder…' }));

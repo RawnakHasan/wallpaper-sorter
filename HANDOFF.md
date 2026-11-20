@@ -226,6 +226,8 @@ tables are the real specification; do not regenerate them from the code.
   intake folder, no `..`).
 - The web server listens on 127.0.0.1 only, rejects other `Host` headers, requires JSON for changing requests and
   checks `Origin`. The page is served with a CSP that forbids inline scripts and styles.
+- The Library folder tree keeps `style={{ paddingLeft }}` for depth indentation. React applies this through the CSSOM,
+  which the CSP allows; confirm in a real browser console before claiming it is CSP-clean.
 - Filenames are untrusted: React renders them as text; do not use `dangerouslySetInnerHTML` or `innerHTML`.
 
 ### 3.6 UI notes
