@@ -1,6 +1,6 @@
 # Wallpaper Sorter
 
-Start with `HANDOFF.md`: where things stand, what to do next, and a guide for the owner and for another AI.
+Start with `HANDOFF.md`: it is the single guide and todo list for the owner and AI agents. This README is only an overview and command reference.
 
 Rust core for the wallpaper sorter (design notes and the web UI mock-up live elsewhere).
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs every test suite and writes one report file in a fixed format.
 #
-#   scripts/collect-report.sh [report-file]        (default: test-report.md in the project folder)
+#   scripts/collect-report.sh [report-file]        (default: test-report.txt in the project folder)
 #
 # Needs cargo. Node and npm are optional (without them the UI checks are skipped).
 # The first run builds everything, which takes a few minutes on a small machine.
@@ -9,7 +9,7 @@
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 1
-OUT="${1:-$ROOT/test-report.md}"
+OUT="${1:-$ROOT/test-report.txt}"
 TMP="$(mktemp -d)"
 have() { command -v "$1" >/dev/null 2>&1; }
 say() { printf '%s\n' "$*" >&2; }
@@ -184,7 +184,7 @@ fi
   echo "- Anything else:"
 } >"$OUT"
 
-BASE="${OUT%.md}"
+BASE="${OUT%.*}"
 cp "$TMP/build.log" "$BASE.build.log" 2>/dev/null
 [ -f "$TMP/cargo.log" ] && cp "$TMP/cargo.log" "$BASE.cargo.log"
 [ -f "$TMP/npm.log" ] && cp "$TMP/npm.log" "$BASE.npm.log"

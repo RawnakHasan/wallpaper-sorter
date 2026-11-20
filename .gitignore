@@ -2,6 +2,7 @@
 /ui/node_modules/
 /ui/test/node_modules/
 /test-report.md
+/test-report.txt
 /test-report.*.log
 /cargo.log
 /ui.log

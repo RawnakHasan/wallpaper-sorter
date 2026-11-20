@@ -33,9 +33,9 @@ about each image's origin, the activity log with undo, and settings.
 | Web UI (`ui/`) | All nine routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
-Latest verification (2026-11-20): `npm --prefix ui run typecheck`, `npm --prefix ui test` (18 tests),
+Latest verification (2026-11-20): `npm --prefix ui run typecheck`, `npm --prefix ui test` (32 Vitest tests),
 `cargo build`, `cargo test` (116 Rust tests), and `SORTER_BIN=./target/debug/wallpaper-sorter node --test ui/test/ui.test.js`
-(25 real-binary UI tests) all passed. The real-browser checklist below has not yet been completed.
+(27 real-binary UI tests) all passed. The real-browser checklist below has not yet been completed.
 
 ---
 
@@ -54,9 +54,9 @@ cd wallpaper-sorter
 scripts/collect-report.sh
 ```
 
-It builds everything, runs the Rust tests and all UI checks, and writes **`test-report.md`** (plus full build, Rust,
+It builds everything, runs the Rust tests and all UI checks, and writes **`test-report.txt`** (plus full build, Rust,
 npm, typecheck, Vitest, and integration logs next to it). The first build takes several minutes on a small machine.
-Send me `test-report.md`. If the script itself fails, send what it printed, and run the pieces by hand:
+Send me `test-report.txt`. If the script itself fails, send what it printed, and run the pieces by hand:
 
 ```
 cargo build --all-targets
@@ -276,7 +276,7 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 4.1 UI automated tests
 
-The 25 jsdom integration tests load the built app against the real binary and API. The 18 Vitest tests cover shared
+The 27 jsdom integration tests load the built app against the real binary and API. The 32 Vitest tests cover shared
 components, feature components, and stores. Neither suite validates visual layout or real image loading.
 
 ### 4.2 Check the UI in a real browser
@@ -311,6 +311,16 @@ the original config text.
   of files, worth caching for tens of thousands. The pipeline sits behind one mutex, so API calls wait while a large
   batch is being hashed.
 - "Close gaps: move the last images into the gaps" fills **every** gap at once.
+
+### 4.5 Consolidated backlog
+
+- Complete the real-browser checklist in section 2.5 at wide and 390 px widths, in dark and light.
+- Add a thumbnail-cache size limit and a `log.jsonl` size limit; keep origin records permanent.
+- Videos remain parked.
+- Fetching wallpapers from site APIs remains parked, especially a Pixiv API integration.
+- Cache or reduce `/api/status` work if it becomes slow with tens of thousands of files.
+- Confirm the remaining Library tree indentation in a real browser console; React sets it through CSSOM, but jsdom
+  cannot verify CSP behavior.
 
 ---
 
