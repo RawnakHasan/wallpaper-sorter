@@ -648,13 +648,41 @@ test('duplicates: a copy is listed with its original and can be cleared', () =>
       const row = await waitFor(() => ui.q('.list > div'), 'the copy');
       assert.match(row.textContent, /Chisa copy\.png/);
       assert.match(row.textContent, /Same as Wuthering-Waves\/Chisa\/Chisa 1\.png/);
-      assert.ok(ui.q('a[href="#/library?folder=Wuthering-Waves%2FChisa"]', row));
+      const original = ui.q('a', row);
+      assert.ok(original);
+      assert.match(original.getAttribute('href'), /#\/library\?folder=Wuthering-Waves%2FChisa$/);
       ui.click(ui.byText('button', 'Restore…', row));
       const sheet = await waitFor(() => ui.q('.sheet'), 'the restore sheet');
       const folder = sheet.querySelector('input[aria-label="Folder"]');
       ui.type(folder, 'Wuthering-Waves/Chisa');
       ui.click(ui.byText('button', 'Restore as new image', sheet));
       await waitFor(() => ui.q('.empty') && /No duplicates/.test(ui.q('.empty').textContent), 'an empty list');
+    }
+  ));
+
+test('duplicates: deleting one or emptying the folder can be undone', () =>
+  withSorter(
+    (lib) => {
+      put(path.join(lib, 'Wuthering-Waves/Chisa/Chisa 1.png'), 91);
+      put(path.join(lib, 'Chisa copy.png'), 91);
+    },
+    '#/duplicates',
+    async (ui) => {
+      let row = await waitFor(() => ui.q('.list > div'), 'the duplicate');
+      ui.click(ui.byText('button', 'Delete', row));
+      let dialog = await waitFor(() => ui.q('.dialog'), 'delete confirmation');
+      ui.click(ui.byText('button', 'Delete', dialog));
+      await waitFor(() => ui.q('.empty') && /No duplicates/.test(ui.q('.empty').textContent), 'the empty duplicate view');
+      ui.click(ui.byText('#toast button', 'Undo'));
+      row = await waitFor(() => ui.q('.list > div'), 'the restored duplicate');
+
+      ui.click(ui.byText('button', 'Empty Duplicates folder'));
+      dialog = await waitFor(() => ui.q('.dialog'), 'empty-folder confirmation');
+      ui.click(ui.byText('button', 'Move to trash', dialog));
+      await waitFor(() => /Moved 1 copy to the trash/.test(ui.toast()), 'the empty-folder result');
+      await waitFor(() => ui.q('.empty') && /No duplicates/.test(ui.q('.empty').textContent), 'the cleared duplicate view');
+      ui.click(ui.byText('#toast button', 'Undo'));
+      await waitFor(() => ui.qa('.list > div').length === 1, 'the duplicate restored from trash');
     }
   ));
 

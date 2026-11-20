@@ -482,13 +482,139 @@ function ActivityPage() {
   );
 }
 
+function LegacyThumb({ hash }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    ref.current?.replaceChildren(WS.thumb(hash, ''));
+    return () => ref.current?.replaceChildren();
+  }, [hash]);
+  return <span className="list-thumb" ref={ref} />;
+}
+
+function DuplicatesPage() {
+  const { revision, refresh } = useContext(RefreshContext);
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState(null);
+  const { deleteFiles, dupFolder } = WS.ui;
+
+  useEffect(() => {
+    let disposed = false;
+    WS.get('/api/duplicates')
+      .then((result) => {
+        if (!disposed) {
+          setItems(result);
+          setError(null);
+        }
+      })
+      .catch((cause) => {
+        if (!disposed) setError(cause);
+      });
+    return () => { disposed = true; };
+  }, [revision]);
+
+  const restore = async (item) => {
+    const folders = (await WS.get('/api/folders')).filter((folder) =>
+      folder.path !== dupFolder() && !folder.path.startsWith(dupFolder() + '/')
+    );
+    const picker = WS.folderPicker({ folders });
+    const go = WS.h('button', { class: 'btn primary', text: 'Restore as new image' });
+    const problem = WS.h('div', { class: 'error', role: 'alert' });
+    go.onclick = async () => {
+      const folder = picker.get();
+      if (!folder) {
+        problem.textContent = 'Choose a folder.';
+        return;
+      }
+      go.disabled = true;
+      try {
+        const result = await WS.post('/api/duplicates/restore', { paths: [item.path], folder });
+        WS.closeLayer();
+        WS.toast(`Restored ${WS.plural(result.done.length, 'copy', 'copies')} as new images`, { undo: () => WS.undoBatch(result.batch) });
+        WS.refresh();
+      } catch (cause) {
+        problem.textContent = cause.message;
+        go.disabled = false;
+      }
+    };
+    WS.openSheet('Restore duplicate', WS.h('div', {},
+      WS.h('p', { class: 'muted', text: item.name }),
+      WS.h('div', { class: 'field' }, WS.h('span', { class: 'lbl', text: 'Folder' }), picker.el),
+      problem
+    ), [WS.h('button', { class: 'btn', text: 'Cancel', onclick: WS.closeLayer }), go]);
+  };
+
+  if (error) return <div className="page"><p className="error" role="alert">{error.message}</p><button className="btn" onClick={refresh}>Try again</button></div>;
+  if (!items) return <div className="page"><p className="muted">Loading…</p></div>;
+
+  const total = items.reduce((sum, item) => sum + item.size, 0);
+  const emptyFolder = async () => {
+    if (!(await WS.confirmBox(`Move all ${items.length} copies (${WS.fmtBytes(total)}) to the trash? You can undo this.`, 'Move to trash', true))) return;
+    try {
+      const result = await WS.post('/api/duplicates/empty');
+      WS.toast(`Moved ${WS.plural(result.done.length, 'copy', 'copies')} to the trash`, { undo: () => WS.undoBatch(result.batch) });
+      refresh();
+    } catch (cause) {
+      WS.toast(cause.message, { error: true });
+    }
+  };
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <h1>Duplicates</h1>
+        {items.length ? <span className="sub">{WS.plural(items.length, 'copy', 'copies')}, {WS.fmtBytes(total)}</span> : null}
+        <span className="spacer" />
+        {items.length ? <button className="btn danger" onClick={emptyFolder}>Empty {dupFolder()} folder</button> : null}
+      </div>
+      {items.length ? (
+        <div className="list">
+          {items.map((item) => {
+            const relative = item.duplicate_of && !item.duplicate_of.startsWith('/');
+            return (
+              <div key={item.path}>
+                <LegacyThumb hash={item.hash} />
+                <div className="grow">
+                  <div className="m">{item.name}</div>
+                  <div className="muted">
+                    Same as{' '}
+                    {relative ? (
+                      <Link
+                        to="/library"
+                        search={{ folder: WS.dirname(item.duplicate_of) }}
+                        className="m"
+                      >
+                        {item.duplicate_of}
+                      </Link>
+                    ) : <span className="m">{item.duplicate_of || 'an image in the library'}</span>}
+                    {' · '}{WS.fmtBytes(item.size)}
+                  </div>
+                </div>
+                <div className="row actions">
+                  <button className="btn small" onClick={() => restore(item)}>Restore…</button>
+                  <button className="btn small danger" onClick={() => deleteFiles([item.path], item.name)}>Delete</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : <div className="empty"><b>No duplicates</b>Copies of images you already have are moved here instead of being sorted twice.</div>}
+    </div>
+  );
+}
+
 const rootRoute = createRootRoute({ component: AppShell });
 const routes = NAV.map(([path, , name]) =>
   createRoute({
     getParentRoute: () => rootRoute,
     path,
     validateSearch: (search) => search,
-    component: () => name === 'overview' ? <OverviewPage /> : name === 'activity' ? <ActivityPage /> : <LegacyPage name={name} />,
+    component: () => name === 'overview'
+      ? <OverviewPage />
+      : name === 'activity'
+        ? <ActivityPage />
+        : name === 'duplicates'
+          ? <DuplicatesPage />
+          : <LegacyPage name={name} />,
   })
 );
 const router = createRouter({

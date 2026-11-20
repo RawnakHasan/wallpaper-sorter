@@ -1,9 +1,9 @@
 'use strict';
-// The remaining pages: Tags, Duplicates, Data, Settings.
+// The remaining pages: Tags, Data, Settings.
 (function () {
   const WS = window.WS;
   const h = WS.h;
-  const { page, openAssign, deleteFiles, dupFolder, enc } = WS.ui;
+  const { page, dupFolder } = WS.ui;
   const SITES = ['Wallhaven', 'Zerochan', 'Konachan', 'yande.re', 'Danbooru', 'Safebooru', 'Pixiv', 'Unknown'];
 
   // ---------- Tags
@@ -122,71 +122,6 @@
     );
 
     return page('Tags', `${WS.plural(tags.length, 'tag')} in ${WS.plural(groups.size, 'folder')}`, h('button', { class: 'btn primary', text: 'Add tag', onclick: () => openTagSheet(null, folders) }), tester, tags.length ? list : WS.empty('No tags yet', 'A tag says which folder an image goes to when its name contains a keyword.'));
-  };
-
-  // ---------- Duplicates
-  WS.pages.duplicates = async function () {
-    const items = await WS.get('/api/duplicates');
-    const total = items.reduce((n, i) => n + i.size, 0);
-    const emptyBtn = items.length
-      ? h('button', {
-          class: 'btn danger',
-          text: `Empty ${dupFolder()} folder`,
-          onclick: async () => {
-            if (!(await WS.confirmBox(`Move all ${items.length} copies (${WS.fmtBytes(total)}) to the trash? You can undo this.`, 'Move to trash', true))) return;
-            try {
-              const r = await WS.post('/api/duplicates/empty');
-              WS.toast(`Moved ${WS.plural(r.done.length, 'copy', 'copies')} to the trash`, { undo: () => WS.undoBatch(r.batch) });
-              WS.refresh();
-            } catch (e) {
-              WS.toast(e.message, { error: true });
-            }
-          },
-        })
-      : null;
-    const rows = items.map((d) => {
-      const rel = d.duplicate_of && !d.duplicate_of.startsWith('/');
-      return h(
-        'div',
-        {},
-        WS.thumb(d.hash, ''),
-        h(
-          'div',
-          { class: 'grow' },
-          h('div', { class: 'm', text: d.name }),
-          h('div', { class: 'muted' }, 'Same as ', rel ? h('a', { href: `#/library?folder=${enc(WS.dirname(d.duplicate_of))}`, class: 'm', text: d.duplicate_of }) : h('span', { class: 'm', text: d.duplicate_of || 'an image in the library' }), ` · ${WS.fmtBytes(d.size)}`)
-        ),
-        h('div', { class: 'row actions' }, h('button', {
-          class: 'btn small',
-          text: 'Restore…',
-          onclick: async () => {
-            const folders = (await WS.get('/api/folders')).filter((f) => f.path !== dupFolder() && !f.path.startsWith(dupFolder() + '/'));
-            const picker = WS.folderPicker({ folders });
-            const go = h('button', { class: 'btn primary', text: 'Restore as new image' });
-            const problem = h('div', { class: 'error', role: 'alert' });
-            go.onclick = async () => {
-              const folder = picker.get();
-              if (!folder) {
-                problem.textContent = 'Choose a folder.';
-                return;
-              }
-              go.disabled = true;
-              try {
-                const r = await WS.post('/api/duplicates/restore', { paths: [d.path], folder });
-                WS.closeLayer();
-                WS.toast(`Restored ${WS.plural(r.done.length, 'copy', 'copies')} as new images`, { undo: () => WS.undoBatch(r.batch) });
-                WS.refresh();
-              } catch (e) {
-                problem.textContent = e.message;
-                go.disabled = false;
-              }
-            };
-            WS.openSheet('Restore duplicate', h('div', {}, h('p', { class: 'muted', text: d.name }), h('div', { class: 'field' }, h('span', { class: 'lbl', text: 'Folder' }), picker.el), problem), [h('button', { class: 'btn', text: 'Cancel', onclick: WS.closeLayer }), go]);
-          },
-        }), h('button', { class: 'btn small danger', text: 'Delete', onclick: () => deleteFiles([d.path], d.name) }))
-      );
-    });
-    return page('Duplicates', items.length ? `${WS.plural(items.length, 'copy', 'copies')}, ${WS.fmtBytes(total)}` : '', emptyBtn, items.length ? h('div', { class: 'list' }, rows) : WS.empty('No duplicates', 'Copies of images you already have are moved here instead of being sorted twice.'));
   };
 
   // ---------- Data
