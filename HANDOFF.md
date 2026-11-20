@@ -227,10 +227,11 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 3.6 UI notes
 
-- `src/main.jsx` is the React shell and TanStack hash router; Overview, Activity, and Duplicates are React-rendered routes.
+- `src/main.jsx` is the React shell and TanStack hash router; Overview, Activity, Duplicates, and Settings are
+  React-rendered routes.
   `src/legacy.js` imports the remaining page modules into a compatibility bridge. `core.js` (helpers, API client,
   toast, sheets,   pickers), `pages.js` (grid, assign and detail sheets, Inbox, Library, Re-sort), and `pages2.js`
-  (Tags, Data, Settings) still expose `window.WS`. This keeps behavior stable while views migrate one at a
+  (Tags and Data) still expose `window.WS`. This keeps behavior stable while views migrate one at a
   time.
 - The shell owns the 3-second status polling, keyboard shortcuts, navigation, and theme. `WS.refresh()` re-renders the
   active legacy page.

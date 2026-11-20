@@ -777,6 +777,7 @@ test('settings: change how gaps are handled, and the theme', () =>
     await waitFor(() => ui.toast().includes('Intake folder added'), 'the intake confirmation');
     const status = await api(s, 'GET', '/api/status');
     assert.equal(status.intake.some((i) => i.path === addedPath), true);
+
   }));
 
 test('the page follows the sorter: a file that arrives shows up without reloading', () =>
