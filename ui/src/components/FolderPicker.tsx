@@ -19,6 +19,7 @@ export function FolderPicker({ folders, value = '', hide, placeholder, onChange,
   const recent = useRecentFoldersStore((state) => state.folders);
   const [input, setInput] = useState(value);
   const [open, setOpen] = useState(false);
+  // Keep the editable input synchronized when its parent selects or clears a folder.
   useEffect(() => setInput(value), [value]);
   const known = folders.map((folder) => folder.path).filter((path) => path !== hide);
   const query = input.trim().toLowerCase();
