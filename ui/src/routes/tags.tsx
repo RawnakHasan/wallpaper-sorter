@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { LegacyPage } from '../../legacy-app';
+import { TagsPage } from '../features/tags/TagsPage';
 
 export const Route = createFileRoute('/tags')({
-  component: () => <LegacyPage name="tags" />,
+  component: TagsPage,
 });

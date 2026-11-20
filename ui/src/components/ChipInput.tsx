@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 interface ChipInputProps {
   initial?: string[];
@@ -9,15 +9,18 @@ interface ChipInputProps {
 export function ChipInput({ initial = [], placeholder = '', onChange }: ChipInputProps) {
   const [values, setValues] = useState(initial);
   const [pending, setPending] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const update = (next: string[]) => {
     setValues(next);
     onChange?.(next);
   };
+  const updatePending = (value: string) => setPending(value);
   const add = () => {
-    const value = pending.trim().replace(/,$/, '').trim();
+    const value = (inputRef.current?.value ?? pending).trim().replace(/,$/, '').trim();
     if (value && !values.includes(value)) update([...values, value]);
     setPending('');
+    if (inputRef.current) inputRef.current.value = '';
   };
 
   return (
@@ -35,16 +38,18 @@ export function ChipInput({ initial = [], placeholder = '', onChange }: ChipInpu
         </span>
       ))}
       <input
+        ref={inputRef}
         className="chip-in"
         value={pending}
         placeholder={placeholder}
         aria-label={placeholder || 'Add'}
-        onChange={(event) => setPending(event.currentTarget.value)}
+        onChange={(event) => updatePending(event.currentTarget.value)}
+        onInput={(event) => updatePending(event.currentTarget.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ',') {
             event.preventDefault();
             add();
-          } else if (event.key === 'Backspace' && !pending && values.length) {
+          } else if (event.key === 'Backspace' && !inputRef.current?.value && values.length) {
             update(values.slice(0, -1));
           }
         }}
