@@ -31,6 +31,7 @@ export default defineConfig({
     assetsInlineLimit: 0,
     rollupOptions: {
       output: {
+        format: 'iife',
         entryFileNames: 'assets/app.js',
         chunkFileNames: 'assets/chunk-[name].js',
         assetFileNames: (asset) => asset.name?.endsWith('.css') ? 'assets/app.css' : 'assets/[name][extname]',

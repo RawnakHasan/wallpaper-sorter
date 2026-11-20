@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { activityQueryKey, getActivity, undoActivity } from '../activity/api';
 import { getStatus, statusQueryKey, updateSettings } from '../status/api';
 import { useToastStore } from '../../stores/toast';
-import { ActivityRow } from './components/ActivityRow';
+import { ActivityRow } from '../activity/components/ActivityRow';
 import { WatchedEntry } from './components/WatchedEntry';
 
 const RECENT_ACTIVITY_LIMIT = 8;

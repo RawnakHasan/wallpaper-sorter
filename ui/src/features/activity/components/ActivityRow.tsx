@@ -1,4 +1,4 @@
-import type { ActivityEvent } from '../../activity/schemas';
+import type { ActivityEvent } from '../schemas';
 
 function activityLabel(event: ActivityEvent) {
   if (event.kind === 'undo') return 'Undone';
