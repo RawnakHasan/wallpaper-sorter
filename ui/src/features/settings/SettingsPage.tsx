@@ -107,9 +107,9 @@ export function SettingsPage() {
   const gapMutation = useMutation({
     mutationFn: (mode: GapMode) => updateSettings({ gap_mode: mode }),
     onSuccess: async () => {
-      setGapMode(null);
-      showToast('Saved');
+      showToast('Saved', { success: true });
       await refreshStatus();
+      setGapMode(null);
     },
     onError: (error) => {
       setGapMode(null);

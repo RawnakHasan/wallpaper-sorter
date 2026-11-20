@@ -779,10 +779,28 @@ test('settings: change how gaps are handled, and the theme', () =>
   withSorter(() => {}, '/settings', async (ui, s) => {
     const gap = await waitFor(() => ui.q('select[aria-label="Gaps in the numbering"]'), 'the select');
     assert.equal(gap.value, 'keep');
+    const fetch = ui.w.fetch.bind(ui.w);
+    let delayNextStatus = true;
+    let statusRefreshStarted = false;
+    ui.w.fetch = (url, init) => {
+      if (delayNextStatus && new URL(url, ui.w.location.href).pathname === '/api/status') {
+        delayNextStatus = false;
+        statusRefreshStarted = true;
+        return new Promise((resolve, reject) => {
+          setTimeout(() => fetch(url, init).then(resolve, reject), 200);
+        });
+      }
+      return fetch(url, init);
+    };
     gap.value = 'last';
     gap.dispatchEvent(new ui.w.Event('change', { bubbles: true }));
+    await waitFor(() => statusRefreshStarted, 'the settings status refresh');
+    await sleep(50);
+    assert.equal(gap.value, 'last', 'the optimistic selection remains while status refreshes');
     await waitFor(() => /Saved/.test(ui.toast()), 'the confirmation');
     assert.equal((await api(s, 'GET', '/api/settings')).gap_mode, 'last');
+    await waitFor(() => !gap.disabled, 'the settings refresh to finish');
+    assert.equal(gap.value, 'last');
     ui.click(ui.byText('.seg button', 'Dark'));
     assert.equal(ui.d.documentElement.dataset.theme, 'dark');
     ui.click(ui.byText('.seg button', 'System'));
