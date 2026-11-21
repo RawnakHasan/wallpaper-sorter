@@ -82,6 +82,49 @@ it('renders library images and moves a selection using the chosen destination', 
   client.clear();
 });
 
+it('renders library site tags as separate tag chips in image details', async () => {
+  const taggedImage = {
+    path: 'Nature/Nature 1.png',
+    name: 'Nature 1.png',
+    number: 1,
+    size: 120,
+    hash: 'image-hash',
+    origin: {
+      hash: 'image-hash',
+      path: 'Nature/Nature 1.png',
+      original_name: 'wallhaven-abc123.png',
+      sources: [{
+        site: 'Wallhaven',
+        id: 'abc123',
+        url: 'https://wallhaven.cc/w/abc123',
+        page: null,
+        artist: null,
+        artist_id: null,
+      }],
+      added: 1_700_000_000,
+      note: '',
+      width: 800,
+      height: 600,
+      tags: ['anime girls', 'black dress'],
+      rating: 'sfw',
+    },
+  };
+  server.use(
+    http.get('http://127.0.0.1/api/folders', () => HttpResponse.json(folders)),
+    http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
+    http.get('http://127.0.0.1/api/images', () => HttpResponse.json([taggedImage])),
+    http.get('http://127.0.0.1/api/tags', () => HttpResponse.json([])),
+  );
+  const { client } = renderLibrary();
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Details of Nature 1.png' }));
+
+  expect((await screen.findByText('anime girls')).className).toContain('tagchip');
+  expect(screen.getByText('black dress').className).toContain('tagchip');
+  expect(screen.queryByText('anime girls, black dress')).toBeNull();
+  client.clear();
+});
+
 it('renders a recoverable error when the folder list cannot be loaded', async () => {
   server.use(
     http.get('http://127.0.0.1/api/folders', () => HttpResponse.json({ error: 'Folder service unavailable' }, { status: 500 })),

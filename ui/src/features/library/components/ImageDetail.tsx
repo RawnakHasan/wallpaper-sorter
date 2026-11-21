@@ -45,7 +45,6 @@ export function ImageDetail({
     rows.push(['Added', formatDateTime(origin.added)]);
     if (origin.note) rows.push(['Why here', origin.note]);
     if (origin.rating) rows.push(['Content rating', origin.rating]);
-    if (origin.tags.length) rows.push(['Site tags', origin.tags.join(', ')]);
   }
 
   return (
@@ -80,6 +79,14 @@ export function ImageDetail({
             </Fragment>
           ))}
         </div>
+        {origin?.tags.length ? (
+          <div className="kv">
+            <div>Site tags</div>
+            <div className="site-tags">
+              {origin.tags.map((tag) => <span className="tagchip" key={tag}>{tag}</span>)}
+            </div>
+          </div>
+        ) : null}
         {origin?.sources.map((source, index) => {
           const url = safeUrl(source.url);
           return (

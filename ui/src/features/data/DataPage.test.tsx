@@ -17,6 +17,7 @@ const unknownRecord = {
   width: 800,
   height: 600,
   note: '',
+  tags: ['anime girls', 'black dress', 'long hair'],
 };
 
 function renderData() {
@@ -54,6 +55,10 @@ it('filters unknown-source records and saves a manually selected source', async 
   expect(await screen.findByRole('heading', { name: 'Data' }, { timeout: 5000 })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Unknown source (1)' }));
   fireEvent.click(await screen.findByRole('row', { name: /quiet\.png/ }, { timeout: 5000 }));
+
+  expect(screen.getByText('anime girls').className).toContain('tagchip');
+  expect(screen.getByText('black dress').className).toContain('tagchip');
+  expect(screen.queryByText('anime girls, black dress, long hair')).toBeNull();
 
   const sites = await screen.findAllByRole('combobox', { name: 'Site' }, { timeout: 5000 });
   fireEvent.change(sites[1], { target: { value: 'Wallhaven' } });

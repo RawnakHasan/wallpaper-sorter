@@ -36,7 +36,6 @@ export function OriginDetails({ record, pending, onClose, onSave }: OriginDetail
   rows.push(['Added', formatDateTime(record.added)]);
   if (record.note) rows.push(['Why here', record.note]);
   if (record.rating) rows.push(['Content rating', record.rating]);
-  if (record.tags.length) rows.push(['Site tags', record.tags.join(', ')]);
 
   return (
     <dialog
@@ -68,6 +67,14 @@ export function OriginDetails({ record, pending, onClose, onSave }: OriginDetail
             </Fragment>
           ))}
         </div>
+        {record.tags.length ? (
+          <div className="kv">
+            <div>Site tags</div>
+            <div className="site-tags">
+              {record.tags.map((tag) => <span className="tagchip" key={tag}>{tag}</span>)}
+            </div>
+          </div>
+        ) : null}
         {record.sources.map((source, index) => {
           const url = safeUrl(source.url);
           return (
