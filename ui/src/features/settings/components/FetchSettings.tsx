@@ -22,6 +22,9 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
   const [danbooruKey, setDanbooruKey] = useState('');
   const [danbooruUserId, setDanbooruUserId] = useState('');
   const [zerochanUsername, setZerochanUsername] = useState('');
+  const [editingZerochan, setEditingZerochan] = useState(false);
+  const [editingWallhavenKey, setEditingWallhavenKey] = useState(false);
+  const [editingDanbooru, setEditingDanbooru] = useState(false);
   const ratingsMutation = useMutation({
     mutationFn: updateSettings,
     onSuccess: async () => {
@@ -37,6 +40,8 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
       setDanbooruUsername('');
       setDanbooruKey('');
       setDanbooruUserId('');
+      setEditingWallhavenKey(false);
+      setEditingDanbooru(false);
       showToast('API credentials saved', { success: true });
       await queryClient.invalidateQueries({ queryKey: secretsQueryKey });
     },
@@ -46,6 +51,7 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
     mutationFn: updateSettings,
     onSuccess: async () => {
       setZerochanUsername('');
+      setEditingZerochan(false);
       showToast('Zerochan username saved', { success: true });
       await queryClient.invalidateQueries({ queryKey: statusQueryKey });
     },
@@ -143,35 +149,66 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
       </div>
       <div className="field">
         <label htmlFor="zerochan-username">Zerochan username</label>
-        <input
-          id="zerochan-username"
-          className="input wide"
-          autoComplete="off"
-          maxLength={80}
-          value={zerochanUsername}
-          placeholder={settings.zerochan_username_saved ? 'Saved; enter a new name to replace' : 'Required to enable Zerochan'}
-          onChange={(event) => setZerochanUsername(event.currentTarget.value)}
-        />
-        <div className="row">
-          <button
-            className="btn small"
-            type="button"
-            disabled={zerochanMutation.isPending || !zerochanUsername.trim()}
-            onClick={() => zerochanMutation.mutate({ zerochan_username: zerochanUsername.trim() })}
-          >
-            Save Zerochan username
-          </button>
-          {settings.zerochan_username_saved ? (
+        {settings.zerochan_username_saved && !editingZerochan ? (
+          <div className="row">
+            <span className="m">{settings.zerochan_username}</span>
+            <button
+              className="btn small"
+              type="button"
+              aria-label="Edit Zerochan username"
+              disabled={zerochanMutation.isPending}
+              onClick={() => {
+                setZerochanUsername(settings.zerochan_username);
+                setEditingZerochan(true);
+              }}
+            >
+              Edit
+            </button>
             <button
               className="btn small"
               type="button"
               disabled={zerochanMutation.isPending}
               onClick={() => zerochanMutation.mutate({ zerochan_username: '' })}
             >
-              Remove Zerochan username
+              Remove
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <>
+            <input
+              id="zerochan-username"
+              className="input wide"
+              autoComplete="off"
+              maxLength={80}
+              value={zerochanUsername}
+              placeholder="Enter Zerochan username"
+              onChange={(event) => setZerochanUsername(event.currentTarget.value)}
+            />
+            <div className="row">
+              <button
+                className="btn small"
+                type="button"
+                disabled={zerochanMutation.isPending || !zerochanUsername.trim()}
+                onClick={() => zerochanMutation.mutate({ zerochan_username: zerochanUsername.trim() })}
+              >
+                Save Zerochan username
+              </button>
+              {settings.zerochan_username_saved ? (
+                <button
+                  className="btn small"
+                  type="button"
+                  disabled={zerochanMutation.isPending}
+                  onClick={() => {
+                    setZerochanUsername('');
+                    setEditingZerochan(false);
+                  }}
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </>
+        )}
         <p className="muted">
           Zerochan requires this name in the request User-Agent and limits API use to 60 requests per minute.
         </p>
@@ -203,16 +240,36 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
         username and API key are only needed for authenticated requests.
       </p>
       <div className="field">
-        <label htmlFor="wallhaven-api-key">Wallhaven API key</label>
-        <input
-          id="wallhaven-api-key"
-          className="input wide"
-          type="password"
-          autoComplete="new-password"
-          value={wallhavenKey}
-          placeholder={secretsQuery.data?.wallhaven_saved ? 'Saved; leave empty to keep' : 'Optional'}
-          onChange={(event) => setWallhavenKey(event.currentTarget.value)}
-        />
+        {secretsQuery.data?.wallhaven_saved && !editingWallhavenKey ? (
+          <div className="row">
+            <span className="lbl">Wallhaven API key</span>
+            <span className="muted">Saved (write-only)</span>
+            <button className="btn small" type="button" aria-label="Edit Wallhaven API key" onClick={() => setEditingWallhavenKey(true)}>
+              Edit
+            </button>
+          </div>
+        ) : (
+          <>
+            <label htmlFor="wallhaven-api-key">Wallhaven API key</label>
+            <input
+              id="wallhaven-api-key"
+              className="input wide"
+              type="password"
+              autoComplete="new-password"
+              value={wallhavenKey}
+              placeholder={secretsQuery.data?.wallhaven_saved ? 'Enter a replacement key' : 'Optional'}
+              onChange={(event) => setWallhavenKey(event.currentTarget.value)}
+            />
+            {secretsQuery.data?.wallhaven_saved ? (
+              <button className="btn small" type="button" aria-label="Cancel Wallhaven API key edit" onClick={() => {
+                setWallhavenKey('');
+                setEditingWallhavenKey(false);
+              }}>
+                Cancel
+              </button>
+            ) : null}
+          </>
+        )}
         {secretsQuery.data?.wallhaven_saved ? (
           <button
             className="btn small"
@@ -225,39 +282,85 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
         ) : null}
       </div>
       <div className="field">
-        <label htmlFor="danbooru-username">Danbooru username</label>
-        <input
-          id="danbooru-username"
-          className="input wide"
-          autoComplete="off"
-          value={danbooruUsername}
-          placeholder={secretsQuery.data?.danbooru_saved ? 'Saved; leave empty to keep' : 'Optional'}
-          onChange={(event) => setDanbooruUsername(event.currentTarget.value)}
-        />
+        {(
+          secretsQuery.data?.danbooru_username
+          || secretsQuery.data?.danbooru_user_id
+          || secretsQuery.data?.danbooru_saved
+        ) && !editingDanbooru ? (
+          <>
+            <label>Danbooru credentials</label>
+            <div className="row">
+              <span className="muted">
+                Username: {secretsQuery.data?.danbooru_username || 'Not set'} · User ID: {secretsQuery.data?.danbooru_user_id || 'Not set'} · API key: {secretsQuery.data?.danbooru_saved ? 'Saved (write-only)' : 'Not set'}
+              </span>
+              <button className="btn small" type="button" aria-label="Edit Danbooru credentials" onClick={() => {
+                setDanbooruUsername(secretsQuery.data?.danbooru_username ?? '');
+                setDanbooruUserId(secretsQuery.data?.danbooru_user_id ?? '');
+                setEditingDanbooru(true);
+              }}>
+                Edit
+              </button>
+              <button
+                className="btn small"
+                type="button"
+                disabled={secretsMutation.isPending}
+                onClick={() => secretsMutation.mutate({ clear_danbooru: true })}
+              >
+                Remove
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <label htmlFor="danbooru-username">Danbooru username</label>
+            <input
+              id="danbooru-username"
+              className="input wide"
+              autoComplete="off"
+              value={danbooruUsername}
+              placeholder={secretsQuery.data?.danbooru_username ? 'Enter a replacement username' : 'Optional'}
+              onChange={(event) => setDanbooruUsername(event.currentTarget.value)}
+            />
+            <label htmlFor="danbooru-api-key">Danbooru API key</label>
+            <input
+              id="danbooru-api-key"
+              className="input wide"
+              type="password"
+              autoComplete="new-password"
+              value={danbooruKey}
+              placeholder={secretsQuery.data?.danbooru_saved ? 'Enter a replacement key' : 'Optional'}
+              onChange={(event) => setDanbooruKey(event.currentTarget.value)}
+            />
+            <label htmlFor="danbooru-user-id">Danbooru numeric user ID (required for Danbooru API requests)</label>
+            <input
+              id="danbooru-user-id"
+              className="input wide"
+              inputMode="numeric"
+              value={danbooruUserId}
+              placeholder={secretsQuery.data?.danbooru_user_id ? 'Enter a replacement ID' : 'Required for API requests'}
+              onChange={(event) => setDanbooruUserId(event.currentTarget.value)}
+            />
+            {editingDanbooru ? (
+              <button className="btn small" type="button" onClick={() => {
+                setDanbooruUsername('');
+                setDanbooruKey('');
+                setDanbooruUserId('');
+                setEditingDanbooru(false);
+              }}>
+                Cancel
+              </button>
+            ) : null}
+          </>
+        )}
       </div>
-      <div className="field">
-        <label htmlFor="danbooru-api-key">Danbooru API key</label>
-        <input
-          id="danbooru-api-key"
-          className="input wide"
-          type="password"
-          autoComplete="new-password"
-          value={danbooruKey}
-          placeholder={secretsQuery.data?.danbooru_saved ? 'Saved; leave empty to keep' : 'Optional'}
-          onChange={(event) => setDanbooruKey(event.currentTarget.value)}
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="danbooru-user-id">Danbooru numeric user ID (required for Danbooru API requests)</label>
-        <input
-          id="danbooru-user-id"
-          className="input wide"
-          inputMode="numeric"
-          value={danbooruUserId}
-          onChange={(event) => setDanbooruUserId(event.currentTarget.value)}
-        />
-      </div>
-      <div className="row">
+      {(
+        !secretsQuery.data?.wallhaven_saved
+        || editingWallhavenKey
+        || !secretsQuery.data?.danbooru_username
+        && !secretsQuery.data?.danbooru_user_id
+        && !secretsQuery.data?.danbooru_saved
+        || editingDanbooru
+      ) ? <div className="row">
         <button
           className="btn primary"
           type="button"
@@ -271,7 +374,7 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
         >
           Save API credentials
         </button>
-        {secretsQuery.data?.danbooru_saved ? (
+        {secretsQuery.data?.danbooru_saved || secretsQuery.data?.danbooru_user_id ? (
           <button
             className="btn small"
             type="button"
@@ -281,7 +384,7 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
             Remove Danbooru credentials
           </button>
         ) : null}
-      </div>
+      </div> : null}
     </div>
   );
 }

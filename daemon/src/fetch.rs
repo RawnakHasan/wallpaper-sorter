@@ -191,12 +191,19 @@ struct SearchItem {
     rating: String,
     tags: Vec<String>,
     preview: String,
+    image_url: Option<String>,
 }
 
 struct SearchCandidate {
     id: String,
     preview_url: String,
+    image_url: Option<String>,
     rating: String,
+    tags: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct SearchDetails {
     tags: Vec<String>,
 }
 
@@ -301,6 +308,7 @@ impl FetchManager {
             self.endpoints.allow_http,
             &secrets,
             true,
+            true,
             &self.agent,
             &self.limiter,
             None,
@@ -319,6 +327,14 @@ impl FetchManager {
             {
                 continue;
             }
+            let image_url = candidate.image_url.filter(|url| {
+                parse_remote_url(
+                    url,
+                    self.endpoints.image_hosts(site),
+                    self.endpoints.allow_http,
+                )
+                .is_ok()
+            });
             let token = blake3::hash(
                 format!(
                     "{}:{}:{}",
@@ -356,6 +372,7 @@ impl FetchManager {
                 rating: candidate.rating,
                 tags: candidate.tags,
                 preview: format!("/api/search/preview/{token}"),
+                image_url,
             });
         }
         Ok(SearchResponse {
@@ -397,6 +414,7 @@ impl FetchManager {
             self.endpoints.allow_http,
             &secrets,
             false,
+            false,
             &self.agent,
             &self.limiter,
             None,
@@ -437,6 +455,40 @@ impl FetchManager {
             entry.hash = Some(hash);
         }
         Ok(Some(thumbnail))
+    }
+
+    pub(crate) fn search_details(
+        &self,
+        shared: Arc<Shared>,
+        secrets_path: &Path,
+        site_label: &str,
+        id: &str,
+    ) -> Result<SearchDetails, String> {
+        let item = parse_input(Some(site_label), id)?;
+        if item.site != Site::Wallhaven {
+            return Err("details are not available for this site".into());
+        }
+        let secrets = secrets::load(secrets_path)?;
+        let settings = shared.lock().cfg.settings.clone();
+        let data = fetch_metadata(
+            &item,
+            &secrets,
+            &settings,
+            &self.endpoints,
+            &self.agent,
+            &self.limiter,
+            &self.konachan_tag_cache,
+        )?;
+        check_rating_with_konachan(
+            item.site,
+            &data.rating,
+            &settings.danbooru_rating,
+            &settings.wallhaven_purity,
+            &settings.yandere_rating,
+            &settings.safebooru_rating,
+            &settings.konachan_rating,
+        )?;
+        Ok(SearchDetails { tags: data.tags })
     }
 
     pub(crate) fn submit(
@@ -771,7 +823,7 @@ fn supported_fetch_site(site: Site) -> bool {
 fn supported_search_site(site: Site) -> bool {
     matches!(
         site,
-        Site::Wallhaven | Site::Danbooru | Site::YandeRe | Site::Safebooru
+        Site::Wallhaven | Site::Danbooru | Site::YandeRe | Site::Safebooru | Site::Konachan
     )
 }
 
@@ -814,6 +866,10 @@ fn search_url(
             endpoints.safebooru_api,
             page.saturating_sub(1)
         ),
+        Site::Konachan => format!(
+            "{}/post.json?limit={SEARCH_PAGE_SIZE}&page={page}&tags={encoded}",
+            endpoints.konachan_api
+        ),
         _ => unreachable!("only supported sites are searched"),
     }
 }
@@ -847,7 +903,7 @@ fn parse_search_response(
             let last_page = value["meta"]["last_page"].as_u64().unwrap_or(page as u64);
             (posts, (page as u64) < last_page)
         }
-        Site::Danbooru | Site::YandeRe | Site::Safebooru => {
+        Site::Danbooru | Site::YandeRe | Site::Safebooru | Site::Konachan => {
             let posts = value
                 .as_array()
                 .ok_or_else(|| format!("{} search response is not a results list", site.label()))?;
@@ -860,7 +916,7 @@ fn parse_search_response(
     for post in posts.iter().take(SEARCH_PAGE_SIZE) {
         let id = match site {
             Site::Wallhaven => post["id"].as_str().map(str::to_string),
-            Site::Danbooru | Site::YandeRe | Site::Safebooru => post["id"]
+            Site::Danbooru | Site::YandeRe | Site::Safebooru | Site::Konachan => post["id"]
                 .as_u64()
                 .map(|id| id.to_string())
                 .or_else(|| post["id"].as_str().map(str::to_string)),
@@ -871,7 +927,9 @@ fn parse_search_response(
         };
         let rating = match site {
             Site::Wallhaven => post["purity"].as_str(),
-            Site::Danbooru | Site::YandeRe | Site::Safebooru => post["rating"].as_str(),
+            Site::Danbooru | Site::YandeRe | Site::Safebooru | Site::Konachan => {
+                post["rating"].as_str()
+            }
             _ => None,
         };
         let Some(rating) = rating else {
@@ -894,6 +952,9 @@ fn parse_search_response(
             Site::Wallhaven => post["thumbs"]["small"].as_str(),
             Site::Danbooru => post["preview_file_url"].as_str(),
             Site::YandeRe | Site::Safebooru => post["preview_url"].as_str(),
+            Site::Konachan => post["sample_url"]
+                .as_str()
+                .or_else(|| post["preview_url"].as_str()),
             _ => None,
         };
         let Some(preview_url) = preview_url.filter(|url| !url.is_empty()) else {
@@ -904,7 +965,7 @@ fn parse_search_response(
                 .as_array()
                 .into_iter()
                 .flatten()
-                .filter_map(|tag| tag["name"].as_str())
+                .filter_map(|tag| tag.as_str().or_else(|| tag["name"].as_str()))
                 .take(100)
                 .map(str::to_string)
                 .collect(),
@@ -926,11 +987,29 @@ fn parse_search_response(
                     .take(100)
                     .map(|tag| tag.replace('_', " ")),
             ),
+            Site::Konachan => unique_tags(
+                post["tags"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .take(100)
+                    .map(|tag| tag.replace('_', " ")),
+            ),
             _ => Vec::new(),
         };
+        let image_url = match site {
+            Site::Wallhaven => post["path"].as_str(),
+            Site::Danbooru | Site::YandeRe | Site::Safebooru | Site::Konachan => {
+                post["file_url"].as_str()
+            }
+            _ => None,
+        }
+        .filter(|url| !url.is_empty())
+        .map(str::to_string);
         candidates.push(SearchCandidate {
             id,
             preview_url: preview_url.to_string(),
+            image_url,
             rating: rating.to_string(),
             tags,
         });
@@ -946,6 +1025,7 @@ fn post_url(site: Site, id: &str) -> String {
         Site::Safebooru => {
             format!("https://safebooru.org/index.php?page=post&s=view&id={id}")
         }
+        Site::Konachan => format!("https://konachan.net/post/show/{id}"),
         _ => unreachable!("only supported sites are searched"),
     }
 }
@@ -1161,6 +1241,7 @@ fn fetch_metadata(
         &api_hosts,
         endpoints.allow_http,
         secrets,
+        true,
         true,
         agent,
         limiter,
@@ -1438,6 +1519,7 @@ fn fetch_konachan_tag_type(
         endpoints.allow_http,
         secrets,
         true,
+        true,
         agent,
         limiter,
         None,
@@ -1631,6 +1713,7 @@ fn download_image(
         endpoints.allow_http,
         secrets,
         false,
+        true,
         agent,
         limiter,
         zerochan_username,
@@ -1675,6 +1758,7 @@ fn get_follow(
     allow_http: bool,
     secrets: &ApiSecrets,
     api_request: bool,
+    rate_limited: bool,
     agent: &Agent,
     limiter: &RateLimiter,
     zerochan_username: Option<&str>,
@@ -1683,7 +1767,9 @@ fn get_follow(
     let mut retried_rate_limit = false;
     for redirects in 0..=MAX_REDIRECTS {
         let parsed = parse_remote_url(&current, allowed_authorities, allow_http)?;
-        limiter.wait(site);
+        if rate_limited {
+            limiter.wait(site);
+        }
         let mut request = agent.get(&current);
         let user_agent = user_agent(site, secrets, zerochan_username)?;
         request = request.set("User-Agent", &user_agent);
@@ -2644,6 +2730,7 @@ mod tests {
                 true,
                 &ApiSecrets::default(),
                 true,
+                true,
                 &AgentBuilder::new().redirects(0).build(),
                 &RateLimiter::without_delay(),
                 username,
@@ -2662,6 +2749,7 @@ mod tests {
                 &slow_endpoints.api_hosts(site),
                 true,
                 &ApiSecrets::default(),
+                true,
                 true,
                 &AgentBuilder::new()
                     .timeout_read(Duration::from_millis(50))
@@ -2699,6 +2787,7 @@ mod tests {
                 &endpoints.api_hosts(site),
                 true,
                 &secrets,
+                true,
                 true,
                 &AgentBuilder::new().redirects(0).build(),
                 &RateLimiter::without_delay(),
@@ -2845,6 +2934,14 @@ mod tests {
                 false,
                 "GET /index.php?page=dapi&s=post&q=index&limit=20&pid=0&tags=anime+girls&json=1",
             ),
+            (
+                "Konachan.net",
+                include_str!("fixtures/konachan-search.json"),
+                "404420",
+                "anime girls",
+                false,
+                "GET /post.json?limit=20&page=1&tags=anime+girls",
+            ),
         ];
         for (site, fixture, expected_id, query, has_more, expected_path) in sites {
             let (address, worker) = fake_server(vec![
@@ -2852,7 +2949,9 @@ mod tests {
                 response(200, "image/png", image.clone()),
             ]);
             let mut manager = FetchManager::new(endpoints(&address));
-            manager.limiter = Arc::new(RateLimiter::without_delay());
+            if site != "Wallhaven" {
+                manager.limiter = Arc::new(RateLimiter::without_delay());
+            }
             let result = manager
                 .search(shared.clone(), &secret_path, site, query, 1)
                 .unwrap();
@@ -2864,15 +2963,50 @@ mod tests {
             if site == "yande.re" || site == "Safebooru" {
                 assert!(result.items[0].tags.contains(&"anime girls".to_string()));
             }
+            if site == "Konachan.net" {
+                assert!(result.items[0]
+                    .tags
+                    .contains(&"denia (wuthering waves)".to_string()));
+                assert!(result.items[0].image_url.is_some());
+            }
+            if site == "Wallhaven" {
+                assert_eq!(
+                    result.items[0].image_url.as_deref(),
+                    Some(format!("http://{address}/wallhaven-full.png").as_str())
+                );
+            }
             let token = result.items[0]
                 .preview
                 .rsplit('/')
                 .next()
                 .expect("preview key");
+            let wallhaven_api_budget = (site == "Wallhaven").then(|| {
+                manager
+                    .limiter
+                    .next
+                    .lock()
+                    .unwrap()
+                    .get("Wallhaven")
+                    .copied()
+                    .unwrap()
+            });
             let preview = manager
                 .preview(token, &secret_path, &thumbs)
                 .unwrap()
                 .expect("cached preview");
+            if let Some(api_budget) = wallhaven_api_budget {
+                assert_eq!(
+                    manager
+                        .limiter
+                        .next
+                        .lock()
+                        .unwrap()
+                        .get("Wallhaven")
+                        .copied(),
+                    Some(api_budget),
+                    "CDN preview requests must not consume the Wallhaven API budget"
+                );
+            }
             assert!(preview.starts_with(&[0xff, 0xd8]));
             assert_eq!(
                 manager
@@ -2893,6 +3027,41 @@ mod tests {
             }
             assert_eq!(requests.len(), 2, "{site}");
         }
+        drop(daemon);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn wallhaven_search_details_load_tags_from_the_documented_post_endpoint() {
+        let root = temp_dir("wallhaven-search-details");
+        let config_path = root.join("config.toml");
+        fs::write(&config_path, "").unwrap();
+        let daemon = Daemon::start_with(
+            root.clone(),
+            Config::default(),
+            Options::default(),
+            Some(config_path),
+        )
+        .unwrap();
+        let secret_path = root.join("secrets.toml");
+        fs::write(&secret_path, "").unwrap();
+        let (address, worker) = fake_server(vec![response(
+            200,
+            "application/json",
+            include_str!("fixtures/wallhaven-info.json")
+                .as_bytes()
+                .to_vec(),
+        )]);
+        let mut manager = FetchManager::new(endpoints(&address));
+        manager.limiter = Arc::new(RateLimiter::without_delay());
+
+        let details = manager
+            .search_details(daemon.handle(), &secret_path, "Wallhaven", "abc123")
+            .unwrap();
+
+        assert_eq!(details.tags, ["anime girls", "beach", "sky"]);
+        let requests = worker.join().unwrap();
+        assert!(requests[0].starts_with("GET /api/v1/w/abc123"));
         drop(daemon);
         fs::remove_dir_all(root).unwrap();
     }
@@ -3238,6 +3407,7 @@ mod tests {
             &endpoints.api_hosts(Site::Wallhaven),
             true,
             &ApiSecrets::default(),
+            true,
             true,
             &AgentBuilder::new().redirects(0).build(),
             &RateLimiter::without_delay(),

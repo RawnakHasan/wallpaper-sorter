@@ -30,15 +30,16 @@ about each image's origin, the activity log with undo, and settings.
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. HTTP and thumbnail tests pass. |
-| Web UI (`ui/`) | All ten routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. Phases 1–5 support Wallhaven, Danbooru, yande.re, and Safebooru; Konachan.net and Zerochan Fetch/metadata lookup are implemented, with Zerochan image downloads disabled pending host approval. |
+| Web UI (`ui/`) | All ten routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. Browse supports Wallhaven, Danbooru, yande.re, Safebooru, and Konachan.net; Zerochan Fetch/metadata lookup is implemented, while Zerochan image downloads/browsing remain disabled pending host approval. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
-Phase 5 verification: `cargo test --workspace` (141 Rust tests), `cargo fmt --all -- --check`,
-`npm --prefix ui run typecheck`, `npm --prefix ui test -- --run` (42 Vitest tests), and
-`npm --prefix ui run build` passed. The generated minified bundle reports upstream Rollup annotation and chunk-size
-warnings. The real-binary jsdom run previously passed 26 of 27 tests; the folder-rename preview test timed out in the
-full run, although it passed once when run alone after a short settle delay. Treat that integration test as unresolved.
-Live-site fetching/search and real-browser visual checks have not been completed.
+Latest verification: `cargo test` (157 tests), `cargo fmt --all -- --check`,
+`npm --prefix ui run typecheck`, and `npm --prefix ui test -- --maxWorkers=1` (48 tests) passed. The UI production
+build passed using a temporary output directory to avoid clobbering the embedded bundle during validation; Vite
+reported upstream annotation and chunk-size warnings. The real-binary jsdom run previously passed 26 of 27 tests;
+the folder-rename preview test timed out in the full run, although it passed once when run alone after a short settle
+delay. That integration test remains unresolved. Live-site fetching/search and real-browser visual checks have not
+been completed.
 
 ---
 
@@ -279,6 +280,9 @@ tables are the real specification; do not regenerate them from the code.
 - The Overview fetch panel accepts one ID or post-page link per line. Bare IDs use the selected site; a supported
   link identifies its site. Settings stores Wallhaven and Danbooru credentials, Konachan.net's maximum rating, the
   Zerochan username, and the unrated-site warning preference.
+- Saved non-secret identities are displayed with Edit controls. API keys remain write-only and show saved/replacement
+  state rather than their value. Browse includes Konachan.net; Zerochan browsing stays unavailable until a documented
+  full-size image host is approved.
 - When a fetched Danbooru character has no matching tag, the Overview offers to create one and assign that image
   into the new destination; the suggestion defaults under a matching series tag when one exists.
 - Because of the CSP, never set `style="..."` attributes or use inline handlers. Setting `el.style.x = ...` from
@@ -334,16 +338,17 @@ the original config text.
 Current update: Phases 1 and 2 are implemented for Wallhaven and Danbooru. Phase 2 adds metadata-backed matcher hints,
 conflict candidates, explicit tag creation from Inbox, source editing, and metadata-only lookup. Phase 3 adds fetch
 and lookup support for yande.re and Safebooru. Phase 4 adds bulk metadata enrichment from selected Data records by
-their saved source site and ID. Phase 5 adds in-app search/browsing for Wallhaven, Danbooru, yande.re, and Safebooru,
-with daemon-served, content-hash-cached previews. Phase 6 adds Konachan.net and Zerochan Fetch plus metadata lookup;
-Zerochan full-size image downloads remain blocked because the official docs do not name a downloadable image host.
+their saved source site and ID. Phase 5 adds in-app search/browsing for Wallhaven, Danbooru, yande.re, Safebooru, and
+Konachan.net, with daemon-served, cached previews; Wallhaven post tags load on demand from its documented details API.
+Phase 6 adds Konachan.net and Zerochan Fetch plus metadata lookup; Zerochan full-size image downloads and browsing
+remain blocked because the official docs do not name a downloadable image host.
 
 | Feature | Sketch |
 |---|---|
 | First-run welcome | Implemented: missing config plus `--library` creates a starter config; the Overview page tracks setup completion. |
 | Size caps | Thumbnail cache (delete oldest), `log.jsonl` (keep recent entries; origin records stay forever). |
 | Videos | The extension list is a setting; `Video/` files would need their own thumbnails. Parked by the owner ("later"). |
-| Additional site APIs | Phase 3: yande.re and Safebooru implemented. Phase 4: bulk origin enrichment implemented. Phase 5: in-app search/browsing for Wallhaven, Danbooru, yande.re, and Safebooru, with daemon-local previews. Phase 6: Konachan.net and Zerochan Fetch/metadata lookup; Zerochan image download awaits host approval. Pixiv remains out of scope. |
+| Additional site APIs | Phase 3: yande.re and Safebooru implemented. Phase 4: bulk origin enrichment implemented. Phase 5: in-app search/browsing for Wallhaven, Danbooru, yande.re, Safebooru, and Konachan.net, with daemon-local previews. Phase 6: Konachan.net and Zerochan Fetch/metadata lookup; Zerochan image download and browsing await host approval. Pixiv remains out of scope. |
 
 ### 4.4 Smaller known limits
 
@@ -359,6 +364,9 @@ Zerochan full-size image downloads remain blocked because the official docs do n
 - "Close gaps: move the last images into the gaps" fills **every** gap at once.
 - Fetching, search, and previews have only been exercised against local fake API/CDN servers; confirm live response
   fields, CDN redirects, and rating behavior before relying on them against the sites.
+- Preview thumbnails are lazy and cached. The shared per-site API limiter is applied to metadata/search requests and
+  Fetch downloads; daemon preview requests to allowlisted CDN hosts do not consume the API quota. Wallhaven search
+  listings omit tags, so the Details dialog fetches its documented `/w/{id}` record only when opened.
 
 ### 4.5 Consolidated backlog
 
@@ -369,7 +377,7 @@ Zerochan full-size image downloads remain blocked because the official docs do n
 - Verify Zerochan terms; the checked `/terms` URL redirected to an ordinary page rather than terms. Approve an exact Zerochan
   full-size image hostname before enabling image downloads; current metadata samples included `s1.zerochan.net`,
   `s3.zerochan.net`, and `static.zerochan.net`, none of which are allowlisted for downloads.
-- Zerochan search remains optional; it is not part of this Fetch-only work.
+- Zerochan search and image browsing remain disabled until an exact full-size image host is documented and approved.
 - Add a thumbnail-cache size limit and a `log.jsonl` size limit; keep origin records permanent.
 - Videos remain parked.
 - Pixiv API fetching remains parked.
@@ -409,7 +417,7 @@ Zerochan full-size image downloads remain blocked because the official docs do n
   normal page, so terms were not verified.
 - Bulk metadata enrichment runs selected Data records sequentially through the metadata-only lookup API. It uses each record's first supported stored source with a nonempty ID, continues after per-record errors, refreshes the Data/Inbox/Library views, and offers undo for any Inbox files sorted during lookup.
 - yande.re API documentation: [API](https://yande.re/help/api), [ratings](https://yande.re/help/ratings). Safebooru documentation: [DAPI](https://safebooru.org/index.php?page=help&topic=dapi), [ratings](https://safebooru.org/index.php?page=help&topic=rating). The DAPI endpoint and JSON fields were also checked using a read-only sample response; automated tests use local fixtures only.
-- Search documentation reviewed: [Wallhaven API](https://wallhaven.cc/help/api) and [Terms of Service](https://wallhaven.cc/terms); [Danbooru API](https://danbooru.donmai.us/wiki_pages/help%3Aapi) and [Terms of Service](https://danbooru.donmai.us/terms_of_service). Wallhaven documents 24 results/page and 45 requests/minute; the client spaces requests at 1.35 seconds and applies its configured purity filter. Danbooru requires a unique User-Agent containing the numeric user ID, allows 10 read requests/second globally, and recommends about 1/second for longer sessions; the client requires that ID and paces requests at 1/second.
+- Search documentation reviewed: [Wallhaven API](https://wallhaven.cc/help/api) and [Terms of Service](https://wallhaven.cc/terms); [Danbooru API](https://danbooru.donmai.us/wiki_pages/help%3Aapi) and [Terms of Service](https://danbooru.donmai.us/terms_of_service). Wallhaven documents 24 results/page and 45 API requests/minute; the client spaces API calls at 1.35 seconds and applies its configured purity filter. Its search listing example omits tags, while the documented `/w/{id}` endpoint includes them. Thumbnail CDN requests are lazy/cached and do not consume that API budget. Danbooru requires a unique User-Agent containing the numeric user ID, allows 10 read requests/second globally, and recommends about 1/second for longer sessions; the client requires that ID and paces API requests at 1/second.
 - yande.re `/terms` returned 404 and the checked Safebooru terms URL redirected to the site homepage, so their current terms were not verified. The API/rating docs were reviewed; neither specifies a numeric request limit, required User-Agent, or redirect policy. Client requests are paced at 1/second and constrained to exact site/CDN allowlists. Safebooru's rating docs warn that ratings can be wrong and do not define General semantics; General remains the configured conservative default.
 
 ---

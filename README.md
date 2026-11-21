@@ -120,12 +120,13 @@ folder is not a logged file action.
 | `POST /api/undo` `{batch}` or `{id}` | undo a batch or one action |
 | `PUT /api/origins` `{hash, site, id}` | set or edit an image's source by hand |
 | `POST /api/origins/lookup` `{hash, site, id}` | look up tags and metadata without downloading; may sort an Inbox image |
-| `GET/PUT /api/settings` | settings, including `gap_mode`, `setup_complete`, per-site rating/purity, Zerochan username saved status, and unrated-site warning preference |
+| `GET/PUT /api/settings` | settings, including `gap_mode`, `setup_complete`, per-site rating/purity, the editable Zerochan username, and unrated-site warning preference |
 | `POST /api/fetch` `{items: [{site?, input}]}` | queue 1–100 Wallhaven, Danbooru, yande.re, Safebooru, Konachan.net, or Zerochan IDs/post links; links identify their site |
 | `GET /api/fetch/{job_id}` | per-item fetch progress and outcome |
-| `GET /api/search?site=&q=&page=` | search or browse a supported site's public posts; results include daemon-local preview URLs |
+| `GET /api/search?site=&q=&page=` | search or browse Wallhaven, Danbooru, yande.re, Safebooru, or Konachan.net; results include daemon-local preview URLs |
+| `GET /api/search/details?site=Wallhaven&id=` | load the documented Wallhaven post details, including tags, when opening a result |
 | `GET /api/search/preview/{key}` | fetch an allowlisted search preview and serve its content-hash-cached thumbnail |
-| `GET /api/secrets`, `PUT /api/secrets` | read credential-presence flags or save/clear credentials; secret values are never returned |
+| `GET /api/secrets`, `PUT /api/secrets` | read saved flags and non-secret Danbooru identity, or save/clear credentials; API keys are never returned |
 | `POST /api/rescan` | look at the library folder and intake folders again (also done after a tag is added or changed) |
 | `POST /api/intake` `{path, recursive, remove_empty_folders}` / `PUT /api/intake/N` / `DELETE /api/intake/N` | add, edit or remove an intake folder; watch state and errors are returned in `/api/status` |
 | `GET /api/thumb/<hash>`, `POST /api/thumb/<hash>/refresh`, `GET /api/image/<hash>` | cached thumbnail, regenerate a thumbnail, and full image, addressed by content hash |
@@ -140,10 +141,14 @@ User-Agent. The official docs do not identify a permitted full-size image host, 
 currently refused with an explicit error. The live metadata response named `s1.zerochan.net`, `s3.zerochan.net`, and
 `static.zerochan.net`; none are allowlisted for downloading.
 Browse uses these same rating limits. Search previews are fetched by the daemon from allowlisted site hosts and served
-locally to remain compatible with the page's Content Security Policy. Danbooru requires a numeric user ID for its
-request User-Agent; API credentials are optional for public reads.
+locally to remain compatible with the page's Content Security Policy. Preview CDN fetches are lazy and cached; they do
+not consume the API request budget. Wallhaven search listings do not include tags, so its documented post-details
+endpoint is queried only when opening a result. The result view offers an allowlisted full-size image link and a
+Download action that uses the normal Fetch pipeline. Danbooru requires a numeric user ID for its request User-Agent;
+API credentials are optional for public reads.
 Credentials are stored in `secrets.toml` beside
-the active config file with owner-only permissions. The API returns only whether credentials are saved. If a
+the active config file with owner-only permissions. Saved API keys remain write-only and can be replaced using Edit;
+non-secret usernames and the Danbooru user ID are shown so they can be edited. If a
 Danbooru character has no matching tag, the Overview offers to create one; confirming suggests its series folder
 and sorts the fetched image there, while “Not now” dismisses the suggestion.
 

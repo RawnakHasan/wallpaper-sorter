@@ -1116,6 +1116,8 @@ fn fetch_settings_and_credentials_are_validated_and_write_only() {
     assert_eq!(saved.status, 200);
     let response = String::from_utf8_lossy(&saved.body);
     assert!(!response.contains("secret"));
+    assert!(response.contains("\"danbooru_username\":\"alice\""));
+    assert!(response.contains("\"danbooru_user_id\":\"123\""));
     assert_eq!(e.get("/api/secrets").json()["danbooru_saved"], true);
     let secrets_path = e.cfg_path.parent().unwrap().join("secrets.toml");
     assert_eq!(
@@ -1156,6 +1158,7 @@ fn fetch_settings_and_credentials_are_validated_and_write_only() {
             "safebooru_rating": "safe",
             "konachan_rating": "s",
             "zerochan_username_saved": false,
+            "zerochan_username": "",
             "warn_before_unrated_sites": true
         })
     );
@@ -1180,7 +1183,7 @@ fn fetch_settings_and_credentials_are_validated_and_write_only() {
 }
 
 #[test]
-fn zerochan_username_is_saved_but_never_returned_and_warning_is_configurable() {
+fn zerochan_username_is_saved_and_editable_and_warning_is_configurable() {
     let e = setup(|_, _| {});
     assert_eq!(
         e.get("/api/settings").json()["zerochan_username_saved"],
@@ -1197,15 +1200,19 @@ fn zerochan_username_is_saved_but_never_returned_and_warning_is_configurable() {
     );
     assert_eq!(saved.status, 200);
     let response = String::from_utf8_lossy(&saved.body);
-    assert!(!response.contains("private-user-name"));
+    assert!(response.contains("private-user-name"));
     assert_eq!(saved.json()["zerochan_username_saved"], true);
+    assert_eq!(saved.json()["zerochan_username"], "private-user-name");
     assert_eq!(saved.json()["warn_before_unrated_sites"], false);
     assert_eq!(saved.json()["konachan_rating"], "q");
     assert_eq!(
         e.get("/api/status").json()["settings"]["zerochan_username_saved"],
         true
     );
-    assert!(!String::from_utf8_lossy(&e.get("/api/status").body).contains("private-user-name"));
+    assert_eq!(
+        e.get("/api/status").json()["settings"]["zerochan_username"],
+        "private-user-name"
+    );
     let config = fs::read_to_string(&e.cfg_path).unwrap();
     assert!(config.contains("zerochan_username = \"private-user-name\""));
     assert!(!e.cfg_path.parent().unwrap().join("secrets.toml").exists());

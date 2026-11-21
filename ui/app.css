@@ -107,10 +107,15 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .empty b{display:block;color:var(--tx);font-size:16px;margin-bottom:4px}
 .error{color:var(--er)}
 .search-controls{align-items:flex-end}
+.search-controls>.field{margin-bottom:0}
+.search-controls>.field:first-child{min-width:120px}
 .search-query{flex:1;min-width:220px}
 .search-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
 .search-card{min-width:0;overflow:hidden;border:1px solid var(--bd);border-radius:8px;background:var(--sf)}
 .search-preview{display:block;width:100%;aspect-ratio:16/10;object-fit:contain;background:var(--sk)}
+.search-preview-button{display:block;width:100%;padding:0;border:0;background:transparent;cursor:zoom-in}
+.search-detail-sheet{width:min(1000px,95vw);max-height:92vh}
+.search-detail-image{display:block;width:100%;max-height:68vh;object-fit:contain;background:var(--sk)}
 .search-card-body{display:grid;gap:8px;padding:10px}
 .search-tags{display:flex;flex-wrap:wrap;gap:5px}
 

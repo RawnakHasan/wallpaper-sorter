@@ -6,5 +6,7 @@ export const server = setupServer(
   http.get('http://127.0.0.1/api/secrets', () => HttpResponse.json({
     wallhaven_saved: false,
     danbooru_saved: false,
+    danbooru_username: null,
+    danbooru_user_id: null,
   })),
 );

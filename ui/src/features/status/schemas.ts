@@ -13,6 +13,7 @@ export const settingsSchema = z.object({
   safebooru_rating: z.enum(['general', 'safe', 'questionable', 'explicit']).default('general'),
   konachan_rating: z.enum(['s', 'q', 'e']).default('s'),
   zerochan_username_saved: z.boolean().default(false),
+  zerochan_username: z.string().default(''),
   warn_before_unrated_sites: z.boolean().default(true),
 }).passthrough();
 

@@ -27,6 +27,8 @@ export const fetchJobSchema = z.object({
 export const secretsStatusSchema = z.object({
   wallhaven_saved: z.boolean(),
   danbooru_saved: z.boolean(),
+  danbooru_username: z.string().nullable(),
+  danbooru_user_id: z.string().nullable(),
 }).strict();
 
 export const secretsUpdateSchema = z.object({

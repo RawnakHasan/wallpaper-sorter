@@ -30,6 +30,8 @@ pub(crate) struct SecretsUpdate {
 pub(crate) struct SecretsStatus {
     wallhaven_saved: bool,
     danbooru_saved: bool,
+    danbooru_username: Option<String>,
+    danbooru_user_id: Option<String>,
 }
 
 impl ApiSecrets {
@@ -46,6 +48,8 @@ impl ApiSecrets {
         SecretsStatus {
             wallhaven_saved: self.wallhaven_api_key.is_some(),
             danbooru_saved: self.danbooru_username.is_some() && self.danbooru_api_key.is_some(),
+            danbooru_username: self.danbooru_username.clone(),
+            danbooru_user_id: self.danbooru_user_id.clone(),
         }
     }
 }
@@ -179,6 +183,8 @@ mod tests {
         let response = serde_json::to_string(&status(&path).unwrap()).unwrap();
         assert!(!response.contains("private"));
         assert!(response.contains("\"wallhaven_saved\":true"));
+        assert!(response.contains("\"danbooru_username\":\"alice\""));
+        assert!(response.contains("\"danbooru_user_id\":\"123\""));
         let text = fs::read_to_string(&path).unwrap();
         assert!(text.contains("private-wallhaven-key"));
         assert!(text.contains("private-danbooru-key"));

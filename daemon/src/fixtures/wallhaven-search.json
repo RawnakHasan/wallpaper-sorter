@@ -3,7 +3,11 @@
     {
       "id": "abc123",
       "purity": "sfw",
-      "thumbs": { "small": "__BASE__/wallhaven-thumb.png" },
+      "path": "__BASE__/wallhaven-full.png",
+      "thumbs": {
+        "large": "__BASE__/wallhaven-large.png",
+        "small": "__BASE__/wallhaven-thumb.png"
+      },
       "tags": [{ "name": "anime girls" }]
     },
     {

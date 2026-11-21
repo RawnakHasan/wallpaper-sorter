@@ -1,25 +1,77 @@
-import { useState, type FormEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useToastStore } from '../../stores/toast';
+import { fetchJobQueryKey, getFetchJob, submitFetch } from '../fetch/api';
 import { searchPosts } from './api';
-import { type SearchSite } from './schemas';
+import { SearchImageSheet } from './components/SearchImageSheet';
+import { type SearchResults, type SearchSite } from './schemas';
 
-const sites: SearchSite[] = ['Wallhaven', 'Danbooru', 'yande.re', 'Safebooru'];
+const sites: SearchSite[] = ['Wallhaven', 'Danbooru', 'yande.re', 'Safebooru', 'Konachan.net'];
 
 function messageOf(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
 export function SearchPage() {
+  const queryClient = useQueryClient();
+  const showToast = useToastStore((state) => state.show);
   const [site, setSite] = useState<SearchSite>('Wallhaven');
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState<{ site: SearchSite; query: string; page: number } | null>(null);
   const [searchVersion, setSearchVersion] = useState(0);
+  const [selectedItem, setSelectedItem] = useState<SearchResults['items'][number] | null>(null);
+  const [downloadJobId, setDownloadJobId] = useState<number | null>(null);
+  const reportedJobId = useRef<number | null>(null);
+  const downloadMutation = useMutation({
+    mutationFn: ({ postSite, id }: { postSite: SearchSite; id: string }) =>
+      submitFetch({ items: [{ site: postSite, input: id }] }),
+    onSuccess: (job) => {
+      reportedJobId.current = null;
+      setDownloadJobId(job.id);
+    },
+    onError: (error) => showToast(messageOf(error), { error: true }),
+  });
+  const downloadJobQuery = useQuery({
+    queryKey: downloadJobId === null ? ['fetch-job', null] : fetchJobQueryKey(downloadJobId),
+    queryFn: () => getFetchJob(downloadJobId!),
+    enabled: downloadJobId !== null,
+    refetchInterval: (queryState) => queryState.state.data?.done ? false : 750,
+  });
   const resultsQuery = useQuery({
     queryKey: ['site-search', searchVersion, submitted?.site, submitted?.query, submitted?.page],
     queryFn: () => searchPosts(submitted!.site, submitted!.query, submitted!.page),
     enabled: submitted !== null,
     retry: false,
   });
+
+  useEffect(() => {
+    if (downloadJobId !== null && downloadJobQuery.isError) {
+      showToast(messageOf(downloadJobQuery.error), { error: true });
+      setDownloadJobId(null);
+      return;
+    }
+    const job = downloadJobQuery.data;
+    if (!job?.done || downloadJobId === null || reportedJobId.current === downloadJobId) return;
+    reportedJobId.current = downloadJobId;
+    const result = job.items[0];
+    if (result?.state === 'sorted') {
+      showToast(`Downloaded and sorted to ${result.location ?? 'a folder'}`, { success: true });
+    } else if (result?.state === 'inbox') {
+      showToast('Downloaded to the Inbox', { success: true });
+    } else if (result?.state === 'duplicate') {
+      showToast('That image is already in the library');
+    } else {
+      showToast(result?.message ?? 'The download failed', { error: true });
+    }
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['inbox'] }),
+      queryClient.invalidateQueries({ queryKey: ['library'] }),
+      queryClient.invalidateQueries({ queryKey: ['data'] }),
+      queryClient.invalidateQueries({ queryKey: ['activity'] }),
+      queryClient.invalidateQueries({ queryKey: ['status'] }),
+    ]);
+    setDownloadJobId(null);
+  }, [downloadJobId, downloadJobQuery.data, downloadJobQuery.error, downloadJobQuery.isError, queryClient, showToast]);
 
   const search = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -44,6 +96,7 @@ export function SearchPage() {
               onChange={(event) => setSite(event.currentTarget.value as SearchSite)}
             >
               {sites.map((entry) => <option key={entry} value={entry}>{entry}</option>)}
+              <option value="" disabled>Zerochan (image host not approved)</option>
             </select>
           </label>
           <label className="field search-query">
@@ -62,6 +115,7 @@ export function SearchPage() {
           </button>
         </div>
         <p className="muted">Leave the query blank to browse recent posts. Results respect the rating limits in Settings.</p>
+        <p className="muted">Zerochan image browsing is unavailable until its full-size image host is documented and approved.</p>
       </form>
 
       {resultsQuery.isError ? <p className="error" role="alert">{messageOf(resultsQuery.error)}</p> : null}
@@ -94,12 +148,19 @@ export function SearchPage() {
             <div className="search-grid">
               {resultsQuery.data.items.map((item) => (
                 <article className="search-card" key={`${resultsQuery.data!.site}:${item.id}`}>
-                  <img
-                    className="search-preview"
-                    src={item.preview}
-                    alt={`${resultsQuery.data!.site} post ${item.id}`}
-                    loading="lazy"
-                  />
+                  <button
+                    className="search-preview-button"
+                    type="button"
+                    aria-label={`View image ${item.id}`}
+                    onClick={() => setSelectedItem(item)}
+                  >
+                    <img
+                      className="search-preview"
+                      src={item.preview}
+                      alt={`${resultsQuery.data!.site} post ${item.id}`}
+                      loading="lazy"
+                    />
+                  </button>
                   <div className="search-card-body">
                     <div className="row">
                       <span className="m">{item.id}</span>
@@ -107,17 +168,42 @@ export function SearchPage() {
                       <span className="spacer" />
                       <a className="btn small" href={item.url} target="_blank" rel="noreferrer">Open post</a>
                     </div>
+                    <div className="row">
+                      <button className="btn small" type="button" onClick={() => setSelectedItem(item)}>
+                        View image and tags
+                      </button>
+                      <button
+                        className="btn small"
+                        type="button"
+                        disabled={downloadMutation.isPending || downloadJobId !== null}
+                        onClick={() => downloadMutation.mutate({
+                          postSite: resultsQuery.data!.site as SearchSite,
+                          id: item.id,
+                        })}
+                      >
+                        Download
+                      </button>
+                    </div>
                     {item.tags.length ? (
                       <div className="search-tags">
                         {item.tags.slice(0, 12).map((tag) => <span className="tagchip" key={tag}>{tag}</span>)}
                       </div>
-                    ) : <p className="muted">No tags returned</p>}
+                    ) : resultsQuery.data.site === 'Wallhaven'
+                      ? <p className="muted">Open the image to load its tags</p>
+                      : <p className="muted">No tags returned</p>}
                   </div>
                 </article>
               ))}
             </div>
           ) : <div className="empty"><b>No matching posts</b>Try different tags or widen the rating limit in Settings.</div>}
         </>
+      ) : null}
+      {selectedItem && submitted ? (
+        <SearchImageSheet
+          site={submitted.site}
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+        />
       ) : null}
     </div>
   );

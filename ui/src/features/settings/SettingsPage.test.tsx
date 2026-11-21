@@ -109,6 +109,8 @@ it('saves API credentials without reading them back and persists the rating safe
     http.get('http://127.0.0.1/api/secrets', () => HttpResponse.json({
       wallhaven_saved: wallhavenSaved,
       danbooru_saved: false,
+      danbooru_username: null,
+      danbooru_user_id: null,
     })),
     http.put('http://127.0.0.1/api/settings', async ({ request }) => {
       settingUpdates.push(await request.json());
@@ -121,7 +123,12 @@ it('saves API credentials without reading them back and persists the rating safe
     http.put('http://127.0.0.1/api/secrets', async ({ request }) => {
       secretUpdate = await request.json();
       wallhavenSaved = true;
-      return HttpResponse.json({ wallhaven_saved: true, danbooru_saved: true });
+      return HttpResponse.json({
+        wallhaven_saved: true,
+        danbooru_saved: false,
+        danbooru_username: null,
+        danbooru_user_id: null,
+      });
     }),
   );
   const { client } = renderSettings();
@@ -146,6 +153,14 @@ it('saves API credentials without reading them back and persists the rating safe
   await waitFor(() => expect(secretUpdate).toEqual({
     wallhaven_api_key: 'wallhaven-secret-value',
   }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Wallhaven API key' }));
+  fireEvent.change(screen.getByLabelText('Wallhaven API key'), {
+    target: { value: 'replacement-key' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save API credentials' }));
+  await waitFor(() => expect(secretUpdate).toEqual({
+    wallhaven_api_key: 'replacement-key',
+  }));
   expect(await screen.findByRole('button', { name: 'Remove Wallhaven key' })).toBeTruthy();
   client.clear();
 });
@@ -156,6 +171,7 @@ it('saves Zerochan identity, Konachan rating, and the unrated-site warning prefe
     ...settings,
     konachan_rating: 's',
     zerochan_username_saved: false,
+    zerochan_username: '',
     warn_before_unrated_sites: true,
   };
   server.use(
@@ -166,11 +182,16 @@ it('saves Zerochan identity, Konachan rating, and the unrated-site warning prefe
     http.get('http://127.0.0.1/api/secrets', () => HttpResponse.json({
       wallhaven_saved: false,
       danbooru_saved: false,
+      danbooru_username: null,
+      danbooru_user_id: null,
     })),
     http.put('http://127.0.0.1/api/settings', async ({ request }) => {
       const body = await request.json() as Record<string, unknown>;
       updates.push(body);
-      if (typeof body.zerochan_username === 'string') currentSettings.zerochan_username_saved = Boolean(body.zerochan_username);
+      if (typeof body.zerochan_username === 'string') {
+        currentSettings.zerochan_username = body.zerochan_username;
+        currentSettings.zerochan_username_saved = Boolean(body.zerochan_username);
+      }
       if (typeof body.konachan_rating === 'string') currentSettings.konachan_rating = body.konachan_rating;
       if (typeof body.warn_before_unrated_sites === 'boolean') currentSettings.warn_before_unrated_sites = body.warn_before_unrated_sites;
       return HttpResponse.json(currentSettings);
@@ -182,19 +203,63 @@ it('saves Zerochan identity, Konachan rating, and the unrated-site warning prefe
   fireEvent.change(zerochanName, { target: { value: 'sample-user' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save Zerochan username' }));
   await waitFor(() => expect(updates[0]).toEqual({ zerochan_username: 'sample-user' }));
-  expect(await screen.findByRole('button', { name: 'Remove Zerochan username' })).toBeTruthy();
+  expect(await screen.findByText('sample-user')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Zerochan username' }));
+  const editName = screen.getByRole('textbox', { name: 'Zerochan username' }) as HTMLInputElement;
+  expect(editName.value).toBe('sample-user');
+  fireEvent.change(editName, { target: { value: 'updated-user' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save Zerochan username' }));
+  await waitFor(() => expect(updates[1]).toEqual({ zerochan_username: 'updated-user' }));
 
   fireEvent.change(screen.getByRole('combobox', { name: 'Maximum Konachan.net rating' }), {
     target: { value: 'q' },
   });
-  await waitFor(() => expect(updates[1]).toEqual({ konachan_rating: 'q' }));
+  await waitFor(() => expect(updates[2]).toEqual({ konachan_rating: 'q' }));
 
   const warning = screen.getByRole('checkbox', { name: /Warn before using unrated sites/ });
   expect((warning as HTMLInputElement).checked).toBe(true);
   fireEvent.click(warning);
-  await waitFor(() => expect(updates[2]).toEqual({ warn_before_unrated_sites: false }));
+  await waitFor(() => expect(updates[3]).toEqual({ warn_before_unrated_sites: false }));
   await waitFor(() => expect((screen.getByRole('checkbox', { name: /Warn before using unrated sites/ }) as HTMLInputElement).checked).toBe(false));
   fireEvent.click(screen.getByRole('checkbox', { name: /Warn before using unrated sites/ }));
-  await waitFor(() => expect(updates[3]).toEqual({ warn_before_unrated_sites: true }));
+  await waitFor(() => expect(updates[4]).toEqual({ warn_before_unrated_sites: true }));
+  client.clear();
+});
+
+it('shows editable Danbooru identity while keeping its API key write-only', async () => {
+  let update: unknown;
+  server.use(
+    http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
+    http.get('http://127.0.0.1/api/secrets', () => HttpResponse.json({
+      wallhaven_saved: false,
+      danbooru_saved: true,
+      danbooru_username: 'alice',
+      danbooru_user_id: '123',
+    })),
+    http.put('http://127.0.0.1/api/secrets', async ({ request }) => {
+      update = await request.json();
+      return HttpResponse.json({
+        wallhaven_saved: false,
+        danbooru_saved: true,
+        danbooru_username: 'alice',
+        danbooru_user_id: '456',
+      });
+    }),
+  );
+  const { client } = renderSettings();
+
+  expect(await screen.findByText(/Username: alice · User ID: 123 · API key: Saved/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Danbooru credentials' }));
+  expect((screen.getByLabelText('Danbooru username') as HTMLInputElement).value).toBe('alice');
+  expect((screen.getByLabelText('Danbooru numeric user ID (required for Danbooru API requests)') as HTMLInputElement).value).toBe('123');
+  expect((screen.getByLabelText('Danbooru API key') as HTMLInputElement).value).toBe('');
+  fireEvent.change(screen.getByLabelText('Danbooru numeric user ID (required for Danbooru API requests)'), {
+    target: { value: '456' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save API credentials' }));
+  await waitFor(() => expect(update).toEqual({
+    danbooru_username: 'alice',
+    danbooru_user_id: '456',
+  }));
   client.clear();
 });

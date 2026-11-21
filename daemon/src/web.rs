@@ -475,7 +475,7 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 .ok_or_else(|| ApiError::new(400, "site is required"))?;
             if !matches!(
                 site.as_str(),
-                "Wallhaven" | "Danbooru" | "yande.re" | "Safebooru"
+                "Wallhaven" | "Danbooru" | "yande.re" | "Safebooru" | "Konachan.net"
             ) {
                 return Err(ApiError::new(400, "choose a supported site"));
             }
@@ -500,6 +500,23 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 .search(ctx.shared.clone(), secrets_path, site, search_query, page)
                 .map_err(|error| ApiError::new(502, error))?;
             Ok(Resp::json(200, &result))
+        }
+        (Method::Get, ["api", "search", "details"]) => {
+            let secrets_path = ctx
+                .secrets_path
+                .as_deref()
+                .ok_or_else(|| ApiError::new(503, "site search requires a saved config file"))?;
+            let site = query
+                .get("site")
+                .ok_or_else(|| ApiError::new(400, "site is required"))?;
+            let id = query
+                .get("id")
+                .ok_or_else(|| ApiError::new(400, "post ID is required"))?;
+            let details = ctx
+                .fetch
+                .search_details(ctx.shared.clone(), secrets_path, site, id)
+                .map_err(|error| ApiError::new(502, error))?;
+            Ok(Resp::json(200, &details))
         }
         (Method::Get, ["api", "search", "preview", token]) => {
             let secrets_path = ctx
@@ -1236,6 +1253,10 @@ fn public_settings(settings: &sorter_core::Settings) -> Result<Value, ApiError> 
     object.insert(
         "zerochan_username_saved".into(),
         json!(!settings.zerochan_username.trim().is_empty()),
+    );
+    object.insert(
+        "zerochan_username".into(),
+        json!(settings.zerochan_username),
     );
     Ok(value)
 }

@@ -1,0 +1,13 @@
+{
+  "data": {
+    "id": "abc123",
+    "purity": "sfw",
+    "path": "__BASE__/wallhaven-full.png",
+    "file_type": "image/png",
+    "tags": [
+      { "name": "anime girls" },
+      { "name": "beach" },
+      { "name": "sky" }
+    ]
+  }
+}
