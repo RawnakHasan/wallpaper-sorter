@@ -121,8 +121,8 @@ export function InboxDetail({
                     onClick={() => toggleTag(source.name)}
                   >
                     {source.name}
+                    {source.id ? <>{' '}<span className="m muted">({source.id})</span></> : null}
                   </button>
-                  {source.id ? <span className="m muted">({source.id})</span> : null}
                   {source.site ? <span className="badge">{source.site}</span> : null}
                 </div>
               ))}
