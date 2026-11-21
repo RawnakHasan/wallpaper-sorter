@@ -194,6 +194,7 @@ pub fn build_plan_with(
                 dest: Dest::Folder(f.clone()),
                 rule: Rule::Assigned,
                 matched: vec![],
+                candidates: vec![],
                 ignored: String::new(),
             },
             None => decision,

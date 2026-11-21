@@ -8,6 +8,8 @@ use std::sync::Mutex;
 
 /// Longest side of a thumbnail, in pixels.
 const MAX_SIDE: u32 = 400;
+const MAX_PREVIEW_BYTES: usize = 5 * 1024 * 1024;
+const MAX_PREVIEW_PIXELS: u64 = 40_000_000;
 
 pub struct Thumbs {
     dir: PathBuf,
@@ -33,6 +35,68 @@ impl Thumbs {
 
     pub fn dir(&self) -> &Path {
         &self.dir
+    }
+
+    pub fn cached(&self, hash: &str) -> io::Result<Option<Vec<u8>>> {
+        validate_hash(hash)?;
+        match fs::read(self.dir.join(format!("{hash}.jpg"))) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Generates and stores a local thumbnail for bytes received from an allowlisted site.
+    pub fn cache_preview(&self, bytes: &[u8]) -> io::Result<(String, Vec<u8>)> {
+        if bytes.is_empty() || bytes.len() > MAX_PREVIEW_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "preview is empty or exceeds the size limit",
+            ));
+        }
+        let hash = blake3::hash(bytes).to_hex().to_string();
+        if let Some(cached) = self.cached(&hash)? {
+            return Ok((hash, cached));
+        }
+        let _one_at_a_time = self.drawing.lock().map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "thumbnail generation lock is poisoned",
+            )
+        })?;
+        if let Some(cached) = self.cached(&hash)? {
+            return Ok((hash, cached));
+        }
+        let bad = |error: String| io::Error::new(io::ErrorKind::InvalidData, error);
+        let reader = image::ImageReader::new(std::io::Cursor::new(bytes))
+            .with_guessed_format()
+            .map_err(|error| bad(error.to_string()))?;
+        let (width, height) = reader
+            .into_dimensions()
+            .map_err(|error| bad(error.to_string()))?;
+        if width == 0 || height == 0 || u64::from(width) * u64::from(height) > MAX_PREVIEW_PIXELS {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "preview dimensions exceed the pixel limit",
+            ));
+        }
+        let image = image::load_from_memory(bytes).map_err(|error| bad(error.to_string()))?;
+        let small = image.thumbnail(MAX_SIDE, MAX_SIDE).to_rgb8();
+        let mut thumbnail = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut thumbnail, 80)
+            .encode(
+                small.as_raw(),
+                small.width(),
+                small.height(),
+                image::ExtendedColorType::Rgb8,
+            )
+            .map_err(|error| bad(error.to_string()))?;
+        fs::create_dir_all(&self.dir)?;
+        let cached = self.dir.join(format!("{hash}.jpg"));
+        let tmp = cached.with_extension("tmp");
+        fs::write(&tmp, &thumbnail)?;
+        fs::rename(tmp, cached)?;
+        Ok((hash, thumbnail))
     }
 
     /// The JPEG thumbnail for the image with this hash, drawn from `source` if it is not cached yet.

@@ -12,11 +12,11 @@ A small background program for Linux, written in Rust. It watches `~/Pictures/Wa
 When an image is finished downloading it:
 
 1. looks for duplicates by content hash and sends copies to a `Duplicates` folder inside the library;
-2. looks at the filename, finds tags (keyword lists) that match, and picks a folder (for example
+2. matches filename words and any saved site-tag hints against tags (keyword lists), then picks a folder (for example
    `Wuthering-Waves/Chisa/`);
 3. moves and renames the file to `<Prefix> <number>.<same extension>` (for example `Chisa 19.png`);
-4. writes a permanent record of where the image came from (site, id, artist, link) and logs every action so it can be
-   undone.
+4. writes a permanent record of where the image came from (site, id, artist, link, tags, rating) and logs every action
+   so it can be undone.
 
 Images it cannot place wait in an **Inbox**. A web page on `http://127.0.0.1:8421/` shows the Inbox (assign images to
 folders with thumbnails and multi-select), the library folders, the tags (with a filename tester), duplicates, the data
@@ -30,14 +30,15 @@ about each image's origin, the activity log with undo, and settings.
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. HTTP and thumbnail tests pass. |
-| Web UI (`ui/`) | All nine routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. Overview supports Phase 1 fetching from Wallhaven and Danbooru. |
+| Web UI (`ui/`) | All ten routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. Phases 1–5 support Wallhaven, Danbooru, yande.re, and Safebooru; Konachan.com remains pending verification. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
-Fetch-phase verification: `npm --prefix ui run typecheck`, `npm --prefix ui test` (36 Vitest tests),
-`npm --prefix ui run build`, `cargo fmt --check`, `cargo build`, and `cargo test --workspace` (132 Rust tests) passed.
-The real-binary jsdom run passed 26 of 27 tests; the folder-rename preview test timed out in the full run, although
-it passed once when run alone after a short settle delay. Treat that integration test as unresolved. Live-site fetching
-and real-browser checks have not been completed.
+Phase 5 verification: `cargo test --workspace` (141 Rust tests), `cargo fmt --all -- --check`,
+`npm --prefix ui run typecheck`, `npm --prefix ui test -- --run` (42 Vitest tests), and
+`npm --prefix ui run build` passed. The generated minified bundle reports upstream Rollup annotation and chunk-size
+warnings. The real-binary jsdom run previously passed 26 of 27 tests; the folder-rename preview test timed out in the
+full run, although it passed once when run alone after a short settle delay. Treat that integration test as unresolved.
+Live-site fetching/search and real-browser visual checks have not been completed.
 
 ---
 
@@ -193,9 +194,10 @@ ui/       Vite-built static assets embedded in the binary; source and the npm bu
 spec/     the tables and the reference matcher (Python)
 ```
 
-Data flow for a new file: watcher event -> debounce -> `Pipeline::process` -> `prepare_with` (hash, snapshot) ->
-`build_plan_with` -> `apply` (moves + log) -> `record` (index + origin records). The UI's "assign" uses the same path
-with `PlanOptions { forced_dest }`.
+Data flow for a new local file: watcher event -> debounce -> `Pipeline::process` -> `prepare_with` (hash, snapshot) ->
+`build_plan_with` -> `apply` (moves + log) -> `record` (index + origin records). Fetch writes metadata to the origin
+store by content hash before passing its completed temporary file to this same planning path. The UI's "assign" uses
+the same path with `PlanOptions { forced_dest }`.
 
 ### 3.4 Spec first: how a rule is changed
 
@@ -205,8 +207,8 @@ The behaviour lives in tables, and the Rust code must match them.
 |---|---|---|
 | `spec/cases.csv` (324 rows) | matcher results for 264 real filenames + 60 edge cases | `cd spec && python3 gen_cases.py` (uses `ref_matcher.py`, `tags.starter.toml`, `tree_images.txt`) |
 | `spec/numbering.csv` (29) | next number, gap modes | hand-written (`gen_numbering.py` only formats it) |
-| `spec/plan_cases.toml` (31) | batches, duplicates, assign, gap modes, re-sort stays | hand-written |
-| `spec/origins.csv` (26) | site/id parsing and manual-source URLs; Safebooru is manual only | hand-written |
+| `spec/plan_cases.toml` (40) | batches, duplicates, assign, gap modes, re-sort stays, metadata hints, and conflict candidates | hand-written |
+| `spec/origins.csv` (26) | site/id parsing and manual-source URLs | hand-written |
 
 To change a rule: edit the reference or the table first, regenerate, then make `cargo test` pass. Hand-written
 tables are the real specification; do not regenerate them from the code.
@@ -219,9 +221,10 @@ tables are the real specification; do not regenerate them from the code.
 - Output name is `<Prefix> <N>.<extension exactly as saved>`. Prefix per folder, default the folder name with hyphens
   turned into spaces. Next number = highest + 1; gaps stay unless the gap mode says otherwise.
 - Matching is on whole words; words are split at non-letters, camelCase and letter/digit boundaries; long hex runs and
-  everything after `drawn_by_` are dropped. The deepest folder wins; different characters of one game go to the shared
-  parent; unrelated tags are a conflict and wait in the Inbox. A **generic** tag applies only if no specific tag matched
-  and the cleaned name has at most 4 words. A **strict** tag also needs one of its `strict_words` in the name.
+  everything after `drawn_by_` are dropped. API metadata tags are separate hint phrases and do not count toward the
+  generic word limit. The deepest folder wins; different characters of one game go to the shared parent; unrelated
+  tags are a conflict and wait in the Inbox. A **generic** tag applies only if no specific tag matched and the cleaned
+  filename has at most 4 words. A **strict** tag also needs one of its `strict_words` in the filename.
 - Duplicates are found by BLAKE3 content hash, **before** tag matching, across the whole library (not the Duplicates
   folder itself). A file already in the library must never count as the original of itself (`library_hashes_except`).
 - Origin records are permanent and keyed by content hash; a file moved by hand is followed on the next `reconcile()`.
@@ -229,13 +232,26 @@ tables are the real specification; do not regenerate them from the code.
   intake folder, no `..`).
 - The web server listens on 127.0.0.1 only, rejects other `Host` headers, requires JSON for changing requests and
   checks `Origin`. The page is served with a CSP that forbids inline scripts and styles.
-- Fetching accepts supported Wallhaven and Danbooru post IDs or page links, never arbitrary URLs. Remote requests use
+- Fetching accepts supported Wallhaven, Danbooru, yande.re, and Safebooru post IDs or page links, never arbitrary URLs. Remote requests use
   HTTPS, exact site host allowlists for image URLs and redirects, per-site pacing, and a 32 MiB image limit. API
   credentials are sent only to the API host, stored beside the active config in `secrets.toml` with owner-only
   permissions, and never returned by the API. Failed partial downloads are removed when possible; download staging
   and startup recovery reject symlinked `.sorter` staging directories.
-- Fetch rating defaults are Wallhaven `sfw` and Danbooru `g`; Settings can widen either limit. Fetch jobs report
-  per-entry queued, downloading, and final states, and a 429 response is retried once when it supplies `Retry-After`.
+- Site search uses fixed per-site API endpoints, validates returned preview hosts and every redirect, limits previews
+  to 5 MiB and 40 million pixels, and serves content-hash-cached thumbnails through the daemon; the browser never
+  loads remote images. Danbooru requests require a numeric user ID in the User-Agent.
+- Fetch rating defaults are Wallhaven `sfw`, Danbooru `g`, yande.re `s`, and Safebooru `general`; Settings can widen
+  each implemented site's limit. Fetch jobs report per-entry queued, downloading, and final states, and a 429 response
+  is retried once when it supplies `Retry-After`.
+- Origin records retain fetched tags, rating, and artist metadata with serde defaults for old records. Wallhaven tags
+  are all matching hints; Danbooru character and copyright tags are hints, while artist tags are stored only as artist
+  metadata. Inbox conflict choices expose the deepest conflicting folder and matching phrase. Confirmed tag creation
+  can immediately sort other waiting files. Details supports manual source edits and metadata-only lookup for all four
+  implemented sites; a lookup that makes an Inbox match is undoable.
+- Phase 3 API support currently includes yande.re and Safebooru, with a one-request-per-second client pace, descriptive
+  User-Agent, safe-default rating limits, and exact API/image host allowlists. Konachan.com remains unsupported for
+  fetching: its official pages were inaccessible during verification, and the accessible Konachan.net API is a
+  different host that must not be assumed interchangeable.
 - The Library folder tree keeps `style={{ paddingLeft }}` for depth indentation. React applies this through the CSSOM,
   which the CSP allows; confirm in a real browser console before claiming it is CSP-clean.
 - Filenames are untrusted: React renders them as text; do not use `dangerouslySetInnerHTML` or `innerHTML`.
@@ -307,35 +323,43 @@ Folder creation, rename, merge, and prefix changes are implemented in the Librar
 previewed and logged; rename pins an old effective prefix only when the new path would change it, and undo restores
 the original config text.
 
-Current update: Phase 1 fetching is implemented for Wallhaven and Danbooru. The older fetch row in the sketch below
-predates this work; live-site validation remains in the backlog.
+Current update: Phases 1 and 2 are implemented for Wallhaven and Danbooru. Phase 2 adds metadata-backed matcher hints,
+conflict candidates, explicit tag creation from Inbox, source editing, and metadata-only lookup. Phase 3 adds fetch
+and lookup support for yande.re and Safebooru. Phase 4 adds bulk metadata enrichment from selected Data records by
+their saved source site and ID. Phase 5 adds in-app search/browsing for Wallhaven, Danbooru, yande.re, and Safebooru,
+with daemon-served, content-hash-cached previews. Zerochan remains optional and is not implemented. Konachan.com is
+deferred because its official API/terms pages could not be verified; do not infer that the accessible Konachan.net
+docs apply to it.
 
 | Feature | Sketch |
 |---|---|
 | First-run welcome | Implemented: missing config plus `--library` creates a starter config; the Overview page tracks setup completion. |
 | Size caps | Thumbnail cache (delete oldest), `log.jsonl` (keep recent entries; origin records stay forever). |
 | Videos | The extension list is a setting; `Video/` files would need their own thumbnails. Parked by the owner ("later"). |
-| Fetch wallpapers from site APIs | Parked by the owner. The matcher takes a plain list of words, so API tags can feed it later. Not Pixiv. |
+| Additional site APIs | Phase 3: yande.re and Safebooru implemented; Konachan.com pending official verification. Phase 4: bulk origin enrichment implemented. Phase 5: in-app search/browsing for the four supported sites, with daemon-local previews. Zerochan remains optional. Pixiv remains out of scope. |
 
 ### 4.4 Smaller known limits
 
 - A second copy of an unsorted Pixiv file that sits **outside** the library is not recognised as a duplicate until the
   first one is inside the library.
 - Adding or changing a tag makes the program look at waiting files again, so files that now match get sorted at once
-  (chosen on purpose, undoable).
+  (chosen on purpose, undoable). Inbox tag creation reports and supports undo for additional files sorted.
 - If the config changes after a folder change, undo is blocked rather than overwriting the newer config. The API returns
   HTTP 409 with a plain-language explanation, and the failed undo leaves both the files and current config untouched.
 - `GET /api/status` lists the Inbox and Duplicates on every call and the page polls it every 3 seconds; fine for hundreds
   of files, worth caching for tens of thousands. The pipeline sits behind one mutex, so API calls wait while a large
   batch is being hashed.
 - "Close gaps: move the last images into the gaps" fills **every** gap at once.
-- Fetching has only been exercised against local fake API/CDN servers; confirm current live response fields, CDN redirects,
-  and whether Danbooru expects a numeric user ID in the User-Agent before relying on live fetches.
+- Fetching, search, and previews have only been exercised against local fake API/CDN servers; confirm live response
+  fields, CDN redirects, and rating behavior before relying on them against the sites.
 
 ### 4.5 Consolidated backlog
 
 - Complete the real-browser checklist in section 2.5 at wide and 390 px widths, in dark and light.
-- Verify Wallhaven and Danbooru fetching against the live sites, including redirects and rating filters.
+- Verify Wallhaven and Danbooru fetching, metadata lookup, search, and previews against the live sites, including redirects and rating filters. Danbooru's official API documentation requires a unique User-Agent containing the user's ID; requests now stop with an actionable error unless the numeric ID is configured.
+- Review official terms and verify live API redirect/rate-limit behavior for yande.re and Safebooru. Their official API/rating docs do not specify a required User-Agent, numeric request limit, or redirect behavior; the client uses a descriptive User-Agent, one request per second, and strict allowlists. Safebooru documents General as a rating but does not define its semantics; the client uses it as the default most restrictive choice.
+- Implement Konachan.com only after its official API documentation and terms are accessible and verified. Do not reuse Konachan.net endpoints or assume IDs/domains are interchangeable.
+- Zerochan search remains optional; Konachan.com remains unsupported pending accessible official API and terms documentation.
 - Add a thumbnail-cache size limit and a `log.jsonl` size limit; keep origin records permanent.
 - Videos remain parked.
 - Pixiv API fetching remains parked.
@@ -360,6 +384,13 @@ predates this work; live-site validation remains in the backlog.
 - Delete goes to a trash inside the library and is undoable; the trash is emptied only on request.
 - UI: minimal and flat, dark first, one accent colour, self-hosted fonts (Hanken Grotesk, JetBrains Mono), runs offline.
 - Pixiv stays with the owner's browser extension; no Pixiv API.
+- API metadata tags are matching hint phrases, not filename words; Wallhaven uses all tags, Danbooru uses character and copyright categories only.
+- Metadata lookup updates origin records without downloading an image. It supports Wallhaven, Danbooru, yande.re, and Safebooru.
+- Bulk metadata enrichment runs selected Data records sequentially through the metadata-only lookup API. It uses each record's first supported stored source with a nonempty ID, continues after per-record errors, refreshes the Data/Inbox/Library views, and offers undo for any Inbox files sorted during lookup.
+- yande.re API documentation: [API](https://yande.re/help/api), [ratings](https://yande.re/help/ratings). Safebooru documentation: [DAPI](https://safebooru.org/index.php?page=help&topic=dapi), [ratings](https://safebooru.org/index.php?page=help&topic=rating). The DAPI endpoint and JSON fields were also checked using a read-only sample response; automated tests use local fixtures only.
+- Search documentation reviewed: [Wallhaven API](https://wallhaven.cc/help/api) and [Terms of Service](https://wallhaven.cc/terms); [Danbooru API](https://danbooru.donmai.us/wiki_pages/help%3Aapi) and [Terms of Service](https://danbooru.donmai.us/terms_of_service). Wallhaven documents 24 results/page and 45 requests/minute; the client spaces requests at 1.35 seconds and applies its configured purity filter. Danbooru requires a unique User-Agent containing the numeric user ID, allows 10 read requests/second globally, and recommends about 1/second for longer sessions; the client requires that ID and paces requests at 1/second.
+- yande.re `/terms` returned 404 and the checked Safebooru terms URL redirected to the site homepage, so their current terms were not verified. The API/rating docs were reviewed; neither specifies a numeric request limit, required User-Agent, or redirect policy. Client requests are paced at 1/second and constrained to exact site/CDN allowlists. Safebooru's rating docs warn that ratings can be wrong and do not define General semantics; General remains the configured conservative default.
+- Konachan.net publishes [Moebooru API documentation](https://konachan.net/help/api) and [rating help](https://konachan.net/help/ratings), but this does not verify Konachan.com. The `.com` help pages returned 403 during this work.
 
 ---
 

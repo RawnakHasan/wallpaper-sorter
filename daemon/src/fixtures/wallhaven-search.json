@@ -1,0 +1,17 @@
+{
+  "data": [
+    {
+      "id": "abc123",
+      "purity": "sfw",
+      "thumbs": { "small": "__BASE__/wallhaven-thumb.png" },
+      "tags": [{ "name": "anime girls" }]
+    },
+    {
+      "id": "def456",
+      "purity": "nsfw",
+      "thumbs": { "small": "__BASE__/blocked-thumb.png" },
+      "tags": [{ "name": "blocked" }]
+    }
+  ],
+  "meta": { "last_page": 2 }
+}

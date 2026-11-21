@@ -16,6 +16,7 @@ import { Route as DuplicatesRouteImport } from './routes/duplicates'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ResortRouteImport } from './routes/resort'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TagsRouteImport } from './routes/tags'
 
@@ -54,6 +55,11 @@ const ResortRoute = ResortRouteImport.update({
   path: '/resort',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/resort': typeof ResortRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/tags': typeof TagsRoute
 }
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/resort': typeof ResortRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/tags': typeof TagsRoute
 }
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/resort': typeof ResortRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/tags': typeof TagsRoute
 }
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/library'
     | '/resort'
+    | '/search'
     | '/settings'
     | '/tags'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/library'
     | '/resort'
+    | '/search'
     | '/settings'
     | '/tags'
   id:
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/library'
     | '/resort'
+    | '/search'
     | '/settings'
     | '/tags'
   fileRoutesById: FileRoutesById
@@ -143,6 +155,7 @@ export interface RootRouteChildren {
   InboxRoute: typeof InboxRoute
   LibraryRoute: typeof LibraryRoute
   ResortRoute: typeof ResortRoute
+  SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   TagsRoute: typeof TagsRoute
 }
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResortRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -223,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   InboxRoute: InboxRoute,
   LibraryRoute: LibraryRoute,
   ResortRoute: ResortRoute,
+  SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   TagsRoute: TagsRoute,
 }

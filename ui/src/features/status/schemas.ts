@@ -9,6 +9,8 @@ export const settingsSchema = z.object({
   generic_max_words: countSchema,
   danbooru_rating: z.enum(['g', 's', 'q', 'e']).default('g'),
   wallhaven_purity: z.enum(['sfw', 'sketchy', 'nsfw']).default('sfw'),
+  yandere_rating: z.enum(['s', 'q', 'e']).default('s'),
+  safebooru_rating: z.enum(['general', 'safe', 'questionable', 'explicit']).default('general'),
 }).passthrough();
 
 export const statusSchema = z.object({

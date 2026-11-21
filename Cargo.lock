@@ -633,6 +633,7 @@ version = "0.1.0"
 dependencies = [
  "csv",
  "serde",
+ "serde_json",
  "toml",
 ]
 
@@ -807,6 +808,7 @@ name = "wallpaper-sorter"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "blake3",
  "httpdate",
  "image",
  "inotify",

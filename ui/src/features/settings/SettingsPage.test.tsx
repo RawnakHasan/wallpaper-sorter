@@ -130,6 +130,13 @@ it('saves API credentials without reading them back and persists the rating safe
     target: { value: 'sketchy' },
   });
   await waitFor(() => expect(settingUpdates).toEqual([{ wallhaven_purity: 'sketchy' }]));
+  fireEvent.change(screen.getByRole('combobox', { name: 'Maximum Safebooru rating' }), {
+    target: { value: 'safe' },
+  });
+  await waitFor(() => expect(settingUpdates).toEqual([
+    { wallhaven_purity: 'sketchy' },
+    { safebooru_rating: 'safe' },
+  ]));
 
   fireEvent.change(screen.getByLabelText('Wallhaven API key'), {
     target: { value: 'wallhaven-secret-value' },

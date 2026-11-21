@@ -118,15 +118,54 @@ it('shows a recoverable error when the inbox cannot be loaded', async () => {
   client.clear();
 });
 
-it('shows artist metadata and creates one tag from multiple selected site tags', async () => {
-  let saveRequest: unknown;
+it('shows conflict candidates and assigns the clicked destination', async () => {
+  const assignments: unknown[] = [];
+  server.use(
+    http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
+    http.get('http://127.0.0.1/api/inbox', () => HttpResponse.json([{
+      ...sourcedItem,
+      candidates: [
+        { folder: 'Nature', matched: ['beach'] },
+        { folder: 'Anime', matched: ['anime girls'] },
+      ],
+    }])),
+    http.post('http://127.0.0.1/api/assign', async ({ request }) => {
+      assignments.push(await request.json());
+      return HttpResponse.json({ batch: 7, done: [], error: null });
+    }),
+  );
+  const { client } = renderInbox();
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Details of sky.png' }));
+  expect(screen.getByRole('heading', { name: 'Possible destinations' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: /Nature \(from "beach"\)/ }));
+
+  await waitFor(() => expect(assignments).toEqual([{
+    paths: ['library/sky.png'],
+    folder: 'Nature',
+  }]));
+  client.clear();
+});
+
+it('selects metadata phrases, confirms a new tag, and reports additional sorted images', async () => {
+  const assignments: unknown[] = [];
   server.use(
     http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
     http.get('http://127.0.0.1/api/inbox', () => HttpResponse.json([sourcedItem])),
-    http.get('http://127.0.0.1/api/folders', () => HttpResponse.json([{ path: 'Nature' }])),
-    http.post('http://127.0.0.1/api/tags', async ({ request }) => {
-      saveRequest = await request.json();
-      return HttpResponse.json([]);
+    http.get('http://127.0.0.1/api/folders', () => HttpResponse.json([
+      { path: 'Nature', name: 'Nature', prefix: 'Nature', count: 0, next_number: 1, gaps: [] },
+    ])),
+    http.get('http://127.0.0.1/api/tags', () => HttpResponse.json([])),
+    http.post('http://127.0.0.1/api/assign', async ({ request }) => {
+      assignments.push(await request.json());
+      return HttpResponse.json({
+        batch: 7,
+        done: [{ id: 1, kind: 'move', from: 'sky.png', to: '/wallpapers/Nature/Nature 1.png' }],
+        error: null,
+        additional_sorted: 2,
+        additional_batch: 8,
+        additional_error: null,
+      });
     }),
   );
   const { client } = renderInbox();
@@ -148,20 +187,67 @@ it('shows artist metadata and creates one tag from multiple selected site tags',
   fireEvent.click(cloudTag);
   expect(skyTag.getAttribute('aria-pressed')).toBe('true');
   expect(cloudTag.getAttribute('aria-pressed')).toBe('true');
-  fireEvent.click(screen.getByRole('button', { name: 'Create tag from selected (2)' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Assign with selected tags (2)…' }));
 
-  expect(await screen.findByRole('heading', { name: 'Add tag' })).toBeTruthy();
+  expect(await screen.findByRole('dialog', { name: 'Assign to folder' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'blue sky' }).getAttribute('aria-pressed')).toBe('true');
   fireEvent.change(screen.getByRole('textbox', { name: 'Folder' }), { target: { value: 'Nature' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  const generic = screen.getByRole('checkbox', { name: 'Generic tag (default)' }) as HTMLInputElement;
+  expect(generic.checked).toBe(true);
+  fireEvent.click(generic);
+  fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Create tag & assign' }));
 
-  await waitFor(() => expect(saveRequest).toEqual({
-    keywords: ['blue sky', 'clouds'],
-    dest: 'Nature',
-    prefix: null,
-    match: 'word',
-    strict_words: [],
-    generic: false,
-  }));
+  await waitFor(() => expect(assignments).toEqual([{
+    paths: ['library/sky.png'],
+    folder: 'Nature',
+    tag: {
+      keywords: ['blue sky', 'clouds'],
+      dest: 'Nature',
+      generic: false,
+    },
+  }]));
+  expect(await screen.findByText(/sorted 2 additional images using the new tag/)).toBeTruthy();
   await waitFor(() => expect(client.isMutating()).toBe(0));
+  client.clear();
+});
+
+it('parses a pasted source link and looks up metadata without leaving the Inbox', async () => {
+  const sourceUpdates: unknown[] = [];
+  const lookups: unknown[] = [];
+  server.use(
+    http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
+    http.get('http://127.0.0.1/api/inbox', () => HttpResponse.json([sourcedItem])),
+    http.put('http://127.0.0.1/api/origins', async ({ request }) => {
+      sourceUpdates.push(await request.json());
+      return HttpResponse.json({ ok: true });
+    }),
+    http.post('http://127.0.0.1/api/origins/lookup', async ({ request }) => {
+      lookups.push(await request.json());
+      return HttpResponse.json({ tags_updated: 3, sorted_to: null, batch: null });
+    }),
+  );
+  const { client } = renderInbox();
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Details of sky.png' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Source ID or link' }), {
+    target: { value: 'https://wallhaven.cc/w/abc123' },
+  });
+  expect((screen.getByRole('combobox', { name: 'Source site' }) as HTMLSelectElement).value).toBe('Wallhaven');
+  expect((screen.getByRole('textbox', { name: 'Source ID or link' }) as HTMLInputElement).value).toBe('abc123');
+  fireEvent.click(screen.getByRole('button', { name: 'Save source' }));
+  await waitFor(() => expect(sourceUpdates).toEqual([{
+    hash: 'sky-hash',
+    site: 'Wallhaven',
+    id: 'abc123',
+  }]));
+
+  fireEvent.click(screen.getByRole('button', { name: 'Look up tags' }));
+  await waitFor(() => expect(lookups).toEqual([{
+    hash: 'sky-hash',
+    site: 'Wallhaven',
+    id: 'abc123',
+  }]));
+  expect(await screen.findByText('Looked up 3 tags; image remains in the Inbox.')).toBeTruthy();
   client.clear();
 });

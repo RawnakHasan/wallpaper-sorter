@@ -69,6 +69,52 @@ it('submits one entry per line and reports each returned result', async () => {
   client.clear();
 });
 
+it('allows bare IDs from yande.re and Safebooru', async () => {
+  let submitted: unknown;
+  server.use(
+    http.post('http://127.0.0.1/api/fetch', async ({ request }) => {
+      submitted = await request.json();
+      return HttpResponse.json({
+        id: 18,
+        done: false,
+        items: [],
+      }, { status: 202 });
+    }),
+    http.get('http://127.0.0.1/api/fetch/18', () => HttpResponse.json({
+      id: 18,
+      done: true,
+      items: [{
+        input: '7132423',
+        site: 'Safebooru',
+        id: '7132423',
+        state: 'inbox',
+        location: 'safebooru-7132423.png',
+        message: 'left in the Inbox (no match)',
+      }],
+    })),
+  );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <FetchPanel />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.change(screen.getByRole('combobox', { name: 'Site for bare IDs' }), {
+    target: { value: 'Safebooru' },
+  });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Post IDs or links' }), {
+    target: { value: '7132423' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Fetch' }));
+
+  await waitFor(() => expect(submitted).toEqual({
+    items: [{ site: 'Safebooru', input: '7132423' }],
+  }));
+  expect(await screen.findByText('left in the Inbox (no match)')).toBeTruthy();
+  client.clear();
+});
+
 it('offers a tag for a new Danbooru character and sorts the fetched image into it', async () => {
   let assignRequest: unknown;
   const status = {

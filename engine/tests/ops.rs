@@ -347,6 +347,34 @@ fn whole_library_resort_matches_the_real_tree_and_is_idempotent() {
     );
 }
 
+#[test]
+fn resort_uses_enriched_origin_tags_for_existing_files() {
+    let d = Dirs::new();
+    let file = d.lib.join("wallhaven-abc123.jpg");
+    put(&file, "metadata only");
+    let mut pipeline = Pipeline::open(&d.lib, d.cfg()).unwrap();
+    let hash = hash_file(&file).unwrap();
+
+    pipeline
+        .update_origin_metadata(
+            &hash,
+            sorter_core::Source::manual(Site::YandeRe, "1268369"),
+            vec!["chisa".into(), "wuthering waves".into()],
+            "s".into(),
+        )
+        .unwrap();
+    let preview = pipeline.resort_preview(None).unwrap();
+
+    assert!(preview.actions.iter().any(|action| {
+        matches!(
+            action,
+            sorter_core::Action::Move { from, to, .. }
+                if Path::new(from) == file
+                    && Path::new(to) == Path::new("Wuthering-Waves/Chisa/Chisa 1.jpg")
+        )
+    }));
+}
+
 #[cfg(unix)]
 #[test]
 fn library_snapshot_skips_an_unreadable_child_directory() {

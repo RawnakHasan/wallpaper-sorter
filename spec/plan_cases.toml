@@ -3,6 +3,7 @@
 # hashes:           content hash -> where that content lives
 # incoming:         files that just arrived, in order
 # incoming_hashes:  path of an incoming file -> its content hash (a file without one cannot be a duplicate)
+# incoming_hints:   path of an incoming file -> metadata hint phrases
 # gap_mode:         optional override: keep | lowest | last | renumber
 
 [[case]]
@@ -49,6 +50,18 @@ expect = ["move: /dl/Chisa Aemeath.png -> Wuthering-Waves/Wuthering Waves 53.png
 name = "no match stays where it is"
 incoming = ["/lib/wallhaven-1q2le9.jpg"]
 expect = ["leave: /lib/wallhaven-1q2le9.jpg (no match)"]
+
+[[case]]
+name = "Yande API tags sort a source-style filename"
+incoming = ["/lib/yande.re 1268369.jpg"]
+incoming_hints = { "/lib/yande.re 1268369.jpg" = ["chisa", "wuthering waves"] }
+expect = ["move: /lib/yande.re 1268369.jpg -> Wuthering-Waves/Chisa/Chisa 1.jpg"]
+
+[[case]]
+name = "Safebooru API tags sort a source-style filename"
+incoming = ["/lib/safebooru-7132423.png"]
+incoming_hints = { "/lib/safebooru-7132423.png" = ["chisa", "wuthering waves"] }
+expect = ["move: /lib/safebooru-7132423.png -> Wuthering-Waves/Chisa/Chisa 1.png"]
 
 [[case]]
 name = "a conflict stays where it is"
@@ -273,3 +286,23 @@ name = "Danbooru character and copyright hints sort a numeric-ID download"
 incoming = ["/lib/danbooru-123456.jpg"]
 incoming_hints = { "/lib/danbooru-123456.jpg" = ["chisa", "wuthering waves"] }
 expect = ["move: /lib/danbooru-123456.jpg -> Wuthering-Waves/Chisa/Chisa 1.jpg"]
+
+# Hand-written expectations for ambiguous metadata matches. Candidate destinations are
+# the deepest unrelated folders, paired with the keyword phrase that matched each folder.
+[[decision_case]]
+name = "conflicting metadata phrases identify both destination folders"
+filename = "wallhaven-abc123.jpg"
+hints = ["waterfall", "space"]
+candidates = [
+  { folder = "Nature", matched = ["waterfall"] },
+  { folder = "Space", matched = ["space"] },
+]
+
+[[decision_case]]
+name = "multiword site tag phrases remain intact as candidate keywords"
+filename = "wallhaven-abc123.jpg"
+hints = ["wuthering waves", "honkai star rail"]
+candidates = [
+  { folder = "Honkai-Star-Rail", matched = ["honkai star rail"] },
+  { folder = "Wuthering-Waves", matched = ["wuthering waves"] },
+]

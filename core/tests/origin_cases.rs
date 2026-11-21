@@ -67,3 +67,15 @@ fn origins_csv() {
         bad.join("\n")
     );
 }
+
+#[test]
+fn yandere_origin_serialization_uses_its_label_and_reads_legacy_records() {
+    assert_eq!(
+        serde_json::to_string(&Site::YandeRe).unwrap(),
+        "\"yande.re\""
+    );
+    assert_eq!(
+        serde_json::from_str::<Site>("\"YandeRe\"").unwrap(),
+        Site::YandeRe
+    );
+}

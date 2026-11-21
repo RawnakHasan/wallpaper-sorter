@@ -1,13 +1,35 @@
 //! Runs spec/plan_cases.toml through build_plan. The expected actions are hand-written.
 
 use serde::Deserialize;
-use sorter_core::{build_plan_with, Config, GapMode, Incoming, Library, PlanOptions};
+use sorter_core::{
+    build_plan_with, classify_with_hints, Config, Dest, GapMode, Incoming, Library, PlanOptions,
+    Rule,
+};
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 #[derive(Deserialize)]
 struct Cases {
     case: Vec<Case>,
+}
+
+#[derive(Deserialize)]
+struct DecisionCases {
+    decision_case: Vec<DecisionCase>,
+}
+
+#[derive(Deserialize)]
+struct DecisionCase {
+    name: String,
+    filename: String,
+    hints: Vec<String>,
+    candidates: Vec<ExpectedCandidate>,
+}
+
+#[derive(Deserialize)]
+struct ExpectedCandidate {
+    folder: String,
+    matched: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -43,6 +65,7 @@ fn plan_cases_toml() {
         if let Some(m) = c.gap_mode {
             cfg.settings.gap_mode = m;
         }
+
         let library = Library {
             folders: c.library.clone(),
             hashes: c.hashes.clone(),
@@ -79,6 +102,47 @@ fn plan_cases_toml() {
         "{} of {} cases differ:\n{}",
         bad.len(),
         cases.case.len(),
+        bad.join("\n")
+    );
+}
+
+#[test]
+fn conflict_candidates_match_hand_written_spec() {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../spec");
+    let base = Config::from_toml(&std::fs::read_to_string(dir.join("tags.starter.toml")).unwrap())
+        .unwrap();
+    let cases: DecisionCases =
+        toml::from_str(&std::fs::read_to_string(dir.join("plan_cases.toml")).unwrap()).unwrap();
+
+    let mut bad = Vec::new();
+    for case in &cases.decision_case {
+        let decision = classify_with_hints(&case.filename, &base, &case.hints);
+        let expected: Vec<_> = case
+            .candidates
+            .iter()
+            .map(|candidate| (candidate.folder.as_str(), candidate.matched.as_slice()))
+            .collect();
+        let actual: Vec<_> = decision
+            .candidates
+            .iter()
+            .map(|candidate| (candidate.folder.as_str(), candidate.matched.as_slice()))
+            .collect();
+        if decision.dest != Dest::Inbox || decision.rule != Rule::Conflict || actual != expected {
+            bad.push(format!(
+                "{}\n   expected {:?}\n   got {:?} ({:?}, {:?})",
+                case.name, expected, actual, decision.dest, decision.rule
+            ));
+        }
+    }
+
+    assert!(
+        !cases.decision_case.is_empty(),
+        "expected hand-written decision cases"
+    );
+    assert!(
+        bad.is_empty(),
+        "{} decision cases differ:\n{}",
+        bad.len(),
         bad.join("\n")
     );
 }

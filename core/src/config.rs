@@ -50,6 +50,10 @@ pub struct Settings {
     pub danbooru_rating: String,
     #[serde(default = "default_wallhaven_purity")]
     pub wallhaven_purity: String,
+    #[serde(default = "default_yandere_rating")]
+    pub yandere_rating: String,
+    #[serde(default = "default_safebooru_rating")]
+    pub safebooru_rating: String,
 }
 
 fn default_danbooru_rating() -> String {
@@ -57,6 +61,12 @@ fn default_danbooru_rating() -> String {
 }
 fn default_wallhaven_purity() -> String {
     "sfw".to_string()
+}
+fn default_yandere_rating() -> String {
+    "s".to_string()
+}
+fn default_safebooru_rating() -> String {
+    "general".to_string()
 }
 
 impl Default for Settings {
@@ -71,6 +81,8 @@ impl Default for Settings {
             gap_mode: GapMode::Keep,
             danbooru_rating: "g".to_string(),
             wallhaven_purity: "sfw".to_string(),
+            yandere_rating: "s".to_string(),
+            safebooru_rating: "general".to_string(),
         }
     }
 }
@@ -145,6 +157,18 @@ impl Config {
         if !["sfw", "sketchy", "nsfw"].contains(&cfg.settings.wallhaven_purity.as_str()) {
             return Err(<toml::de::Error as serde::de::Error>::custom(
                 "settings.wallhaven_purity must be sfw, sketchy, or nsfw",
+            ));
+        }
+        if !["s", "q", "e"].contains(&cfg.settings.yandere_rating.as_str()) {
+            return Err(<toml::de::Error as serde::de::Error>::custom(
+                "settings.yandere_rating must be s, q, or e",
+            ));
+        }
+        if !["general", "safe", "questionable", "explicit"]
+            .contains(&cfg.settings.safebooru_rating.as_str())
+        {
+            return Err(<toml::de::Error as serde::de::Error>::custom(
+                "settings.safebooru_rating must be general, safe, questionable, or explicit",
             ));
         }
         Ok(cfg)

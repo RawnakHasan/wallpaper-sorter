@@ -36,7 +36,7 @@ export function FetchPanel() {
 
   return (
     <section className="panel">
-      <h2>Fetch from Wallhaven or Danbooru</h2>
+      <h2>Fetch from supported sites</h2>
       <p className="muted">Paste one post ID or link per line. Links identify their site automatically.</p>
       <form
         onSubmit={(event) => {
@@ -56,6 +56,8 @@ export function FetchPanel() {
             >
               <option value="Wallhaven">Wallhaven</option>
               <option value="Danbooru">Danbooru</option>
+              <option value="yande.re">yande.re</option>
+              <option value="Safebooru">Safebooru</option>
             </select>
           </label>
           <label className="field fetch-input-field">

@@ -1,6 +1,8 @@
 import { Fragment, useRef } from 'react';
 import { Icon } from '../../../components/Icon';
 import { useNativeDialog } from '../../../components/useNativeDialog';
+import { OriginSourceEditor } from '../../data/components/OriginSourceEditor';
+import type { OriginLookupRequest, Site } from '../../data/schemas';
 import type { LibraryImage } from '../schemas';
 import { formatBytes, formatDateTime, safeUrl } from '../utils';
 
@@ -12,9 +14,23 @@ interface ImageDetailProps {
   onMove: () => void;
   onDelete: () => void;
   onRebuild: (hash: string) => void;
+  sourcePending: boolean;
+  onSaveSource: (request: { hash: string; site: Site; id: string }) => void;
+  onLookupSource: (request: OriginLookupRequest) => void;
 }
 
-export function ImageDetail({ image, folder, pending, onClose, onMove, onDelete, onRebuild }: ImageDetailProps) {
+export function ImageDetail({
+  image,
+  folder,
+  pending,
+  onClose,
+  onMove,
+  onDelete,
+  onRebuild,
+  sourcePending,
+  onSaveSource,
+  onLookupSource,
+}: ImageDetailProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   useNativeDialog(dialogRef);
   const origin = image.origin;
@@ -82,6 +98,13 @@ export function ImageDetail({ image, folder, pending, onClose, onMove, onDelete,
             </div>
           );
         })}
+        <OriginSourceEditor
+          hash={image.hash}
+          source={origin?.sources[0]}
+          pending={sourcePending}
+          onSave={onSaveSource}
+          onLookup={onLookupSource}
+        />
       </div>
       <footer>
         {image.hash ? <button className="btn" type="button" onClick={() => onRebuild(image.hash!)}>Rebuild thumbnail</button> : null}

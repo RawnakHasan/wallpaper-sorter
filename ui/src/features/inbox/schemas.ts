@@ -23,6 +23,10 @@ export const inboxItemSchema = z.object({
   name: z.string(),
   reason: z.enum(['no_match', 'conflict', 'ready']),
   matched: z.array(z.string()),
+  candidates: z.array(z.object({
+    folder: z.string(),
+    matched: z.array(z.string()),
+  })).default([]),
   intake: z.string(),
   size: z.number().nonnegative(),
   modified: z.number().nonnegative(),

@@ -423,6 +423,9 @@ fn assigning_with_a_tag_saves_it_and_sorts_the_files_waiting() {
         json!({ "paths": [first], "folder": "Series/Violet", "tag": { "keywords": ["violet"], "dest": "Series/Violet" } }),
     );
     assert_eq!(r.status, 200, "{}", String::from_utf8_lossy(&r.body));
+    assert_eq!(r.json()["additional_sorted"], 1);
+    assert!(r.json()["additional_batch"].as_u64().is_some());
+    assert!(r.json()["additional_error"].is_null());
     assert!(fs::read_to_string(&e.cfg_path)
         .unwrap()
         .contains("keywords = [\"violet\"]"));
@@ -1134,16 +1137,39 @@ fn fetch_settings_and_credentials_are_validated_and_write_only() {
         e.send(
             "PUT",
             "/api/settings",
-            json!({ "wallhaven_purity": "sketchy", "danbooru_rating": "s" })
+            json!({
+                "wallhaven_purity": "sketchy",
+                "danbooru_rating": "s",
+                "yandere_rating": "q",
+                "safebooru_rating": "safe"
+            })
         )
-        .json()["wallhaven_purity"],
-        "sketchy"
+        .json(),
+        json!({
+            "image_extensions": ["jpg", "jpeg", "png", "webp", "avif", "gif", "bmp"],
+            "duplicates_folder": "Duplicates",
+            "generic_max_words": 4,
+            "gap_mode": "keep",
+            "danbooru_rating": "s",
+            "wallhaven_purity": "sketchy",
+            "yandere_rating": "q",
+            "safebooru_rating": "safe"
+        })
     );
     assert_eq!(
         e.send(
             "PUT",
             "/api/settings",
             json!({ "danbooru_rating": "unrestricted" })
+        )
+        .status,
+        400
+    );
+    assert_eq!(
+        e.send(
+            "PUT",
+            "/api/settings",
+            json!({ "safebooru_rating": "unrestricted" })
         )
         .status,
         400

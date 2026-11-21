@@ -1,6 +1,8 @@
 import { Fragment, useRef, useState } from 'react';
 import { Icon } from '../../../components/Icon';
 import { useNativeDialog } from '../../../components/useNativeDialog';
+import { OriginSourceEditor } from '../../data/components/OriginSourceEditor';
+import type { OriginLookupRequest, Site } from '../../data/schemas';
 import type { InboxItem } from '../schemas';
 import { formatDateTime, reasonLabels, safeUrl } from '../utils';
 
@@ -14,10 +16,13 @@ interface InboxDetailProps {
   pending: boolean;
   onClose: () => void;
   onAssign: () => void;
+  onAssignCandidate: (folder: string) => void;
   onDelete: () => void;
   onRebuild: (hash: string) => void;
   onCreateTag: (keywords: string[]) => void;
-  creatingTag: boolean;
+  sourcePending: boolean;
+  onSaveSource: (request: { hash: string; site: Site; id: string }) => void;
+  onLookupSource: (request: OriginLookupRequest) => void;
 }
 
 export function InboxDetail({
@@ -25,10 +30,13 @@ export function InboxDetail({
   pending,
   onClose,
   onAssign,
+  onAssignCandidate,
   onDelete,
   onRebuild,
   onCreateTag,
-  creatingTag,
+  sourcePending,
+  onSaveSource,
+  onLookupSource,
 }: InboxDetailProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -108,6 +116,32 @@ export function InboxDetail({
             </div>
           );
         })}
+        {origin ? (
+          <OriginSourceEditor
+            hash={origin.hash}
+            source={origin.sources[0]}
+            pending={sourcePending}
+            onSave={onSaveSource}
+            onLookup={onLookupSource}
+          />
+        ) : null}
+        {item.candidates.length ? (
+          <section className="metadata-section">
+            <h3>Possible destinations</h3>
+            <div className="row">
+              {item.candidates.map((candidate) => (
+                <button
+                  className="btn small"
+                  type="button"
+                  key={candidate.folder}
+                  onClick={() => onAssignCandidate(candidate.folder)}
+                >
+                  {candidate.folder} (from {candidate.matched.map((tag) => `"${tag}"`).join(', ')})
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
         {artists.length ? (
           <section className="metadata-section">
             <h3>Artist</h3>
@@ -154,10 +188,9 @@ export function InboxDetail({
           <button
             className="btn small primary"
             type="button"
-            disabled={creatingTag}
             onClick={() => onCreateTag(selectedTags)}
           >
-            {creatingTag ? 'Loading tag editor…' : `Create tag from selected (${selectedTags.length})`}
+            Assign with selected tags ({selectedTags.length})…
           </button>
         ) : null}
       </div>

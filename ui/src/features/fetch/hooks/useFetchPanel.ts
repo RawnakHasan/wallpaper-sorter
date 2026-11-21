@@ -37,7 +37,7 @@ function folderSegment(value: string) {
 export function useFetchPanel() {
   const queryClient = useQueryClient();
   const showToast = useToastStore((state) => state.show);
-  const [site, setSite] = useState<'Wallhaven' | 'Danbooru'>('Wallhaven');
+  const [site, setSite] = useState<'Wallhaven' | 'Danbooru' | 'yande.re' | 'Safebooru'>('Wallhaven');
   const [input, setInput] = useState('');
   const [jobId, setJobId] = useState<number | null>(null);
   const [creatingTag, setCreatingTag] = useState<CharacterTagPrompt | null>(null);

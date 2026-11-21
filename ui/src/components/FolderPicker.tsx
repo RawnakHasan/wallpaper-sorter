@@ -10,22 +10,29 @@ interface FolderPickerProps {
   folders: Folder[];
   value?: string;
   hide?: string;
+  preferred?: string[];
   placeholder?: string;
   onChange?: (path: string) => void;
   inputRef?: Ref<HTMLInputElement>;
 }
 
-export function FolderPicker({ folders, value = '', hide, placeholder, onChange, inputRef }: FolderPickerProps) {
+export function FolderPicker({ folders, value = '', hide, preferred = [], placeholder, onChange, inputRef }: FolderPickerProps) {
   const recent = useRecentFoldersStore((state) => state.folders);
   const [input, setInput] = useState(value);
   const [open, setOpen] = useState(false);
   // Keep the editable input synchronized when its parent selects or clears a folder.
   useEffect(() => setInput(value), [value]);
-  const known = folders.map((folder) => folder.path).filter((path) => path !== hide);
+  const preference = new Map(preferred.map((path, index) => [path, index]));
+  const known = folders
+    .map((folder) => folder.path)
+    .filter((path) => path !== hide)
+    .sort((a, b) => (preference.get(a) ?? Number.MAX_SAFE_INTEGER) - (preference.get(b) ?? Number.MAX_SAFE_INTEGER));
   const query = input.trim().toLowerCase();
+  const preferredKnown = preferred.filter((path) => known.includes(path));
+  const preferredSet = new Set(preferredKnown);
   const suggestions = (query
     ? known.filter((path) => path.toLowerCase().includes(query))
-    : recent.filter((path) => known.includes(path))
+    : [...preferredKnown, ...recent.filter((path) => known.includes(path) && !preferredSet.has(path))]
   ).slice(0, 8);
   const typed = input.trim();
 

@@ -1,6 +1,7 @@
 //! The matching rules, agreed in the design notes and mirrored by spec/ref_matcher.py.
 
 use crate::config::{Config, MatchMode, Tag};
+use serde::Serialize;
 use std::collections::BTreeSet;
 
 const STOP: [&str; 11] = [
@@ -74,15 +75,34 @@ pub struct Decision {
     pub rule: Rule,
     /// The keyword that matched for each tag that took part.
     pub matched: Vec<String>,
+    /// Deepest unrelated folders that matched, with the phrases that triggered them.
+    pub candidates: Vec<MatchCandidate>,
     /// Why a generic tag was ignored, if it was (for display only).
     pub ignored: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MatchCandidate {
+    pub folder: String,
+    pub matched: Vec<String>,
+}
+
 fn decision(dest: Dest, rule: Rule, matched: Vec<String>, ignored: String) -> Decision {
+    decision_with_candidates(dest, rule, matched, ignored, Vec::new())
+}
+
+fn decision_with_candidates(
+    dest: Dest,
+    rule: Rule,
+    matched: Vec<String>,
+    ignored: String,
+    candidates: Vec<MatchCandidate>,
+) -> Decision {
     Decision {
         dest,
         rule,
         matched,
+        candidates,
         ignored,
     }
 }
@@ -299,7 +319,18 @@ pub fn classify_with_hints(filename: &str, cfg: &Config, hints: &[String]) -> De
         }
     }
     if common.is_empty() {
-        decision(Dest::Inbox, Rule::Conflict, names, ignored)
+        let candidates = top
+            .iter()
+            .map(|folder| MatchCandidate {
+                folder: (*folder).to_string(),
+                matched: base
+                    .iter()
+                    .filter(|(tag, _)| tag.dest == *folder)
+                    .map(|(_, keyword)| keyword.clone())
+                    .collect(),
+            })
+            .collect();
+        decision_with_candidates(Dest::Inbox, Rule::Conflict, names, ignored, candidates)
     } else {
         decision(
             Dest::Folder(common.join("/")),

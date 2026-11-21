@@ -19,6 +19,7 @@ const NAV = [
   ['/', 'Overview', 'overview'],
   ['/inbox', 'Inbox', 'inbox'],
   ['/library', 'Library', 'library'],
+  ['/search', 'Browse', 'search'],
   ['/tags', 'Tags', 'tags'],
   ['/duplicates', 'Duplicates', 'duplicates'],
   ['/data', 'Data', 'data'],

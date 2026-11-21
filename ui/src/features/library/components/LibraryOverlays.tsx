@@ -7,6 +7,7 @@ import type { FolderChangeRequest, GapFillMode, LibraryFolder, LibraryImage } fr
 import type { LibraryFile } from '../types';
 import type { Tag } from '../../tags/schemas';
 import type { AssignFilesRequest, FileActionResponse } from '../../files/schemas';
+import type { OriginLookupRequest, Site } from '../../data/schemas';
 
 interface LibraryOverlaysProps {
   selectedImage: LibraryImage | null;
@@ -16,6 +17,9 @@ interface LibraryOverlaysProps {
   onMoveImage: () => void;
   onDeleteImage: () => void;
   onRebuildImage: (hash: string | null) => void;
+  sourcePending: boolean;
+  onSaveSource: (request: { hash: string; site: Site; id: string }) => void;
+  onLookupSource: (request: OriginLookupRequest) => void;
   moveFiles: LibraryFile[] | null;
   folders: LibraryFolder[];
   moveTags: Tag[];
@@ -51,6 +55,9 @@ export function LibraryOverlays({
   onMoveImage,
   onDeleteImage,
   onRebuildImage,
+  sourcePending,
+  onSaveSource,
+  onLookupSource,
   moveFiles,
   folders,
   moveTags,
@@ -89,6 +96,9 @@ export function LibraryOverlays({
           onMove={onMoveImage}
           onDelete={onDeleteImage}
           onRebuild={onRebuildImage}
+          sourcePending={sourcePending}
+          onSaveSource={onSaveSource}
+          onLookupSource={onLookupSource}
         />
       ) : null}
       {moveFiles ? (

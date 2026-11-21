@@ -28,6 +28,7 @@ export function LibraryPage() {
     managementKey, setManagementKey, managementError, setManagementError, gapFolder, setGapFolder,
     gapError, setGapError, dropTarget, setDropTarget, thumbVersions, draggedFiles,
     createMutation, moveMutation, deleteMutation, folderChangeMutation, gapMutation,
+    sourceMutation, lookupMutation,
     navigateToFolder, prefetchFolder, selectedFiles, openMove, deleteSelected, rebuildThumbnails,
     openDeleteImage, openMoveImage, startImageDrag, dropImagesOnFolder, folderChangeDone, fillGaps,
   } = actions;
@@ -172,6 +173,9 @@ export function LibraryPage() {
         onMoveImage={() => { if (selectedImage) openMoveImage(selectedImage); }}
         onDeleteImage={() => { if (selectedImage) openDeleteImage(selectedImage); }}
         onRebuildImage={(hash) => { void rebuildThumbnails([hash]); }}
+        sourcePending={sourceMutation.isPending || lookupMutation.isPending}
+        onSaveSource={(request) => sourceMutation.mutate(request)}
+        onLookupSource={(request) => lookupMutation.mutate(request)}
         moveFiles={moveFiles}
         folders={folders}
         moveTags={moveTags}

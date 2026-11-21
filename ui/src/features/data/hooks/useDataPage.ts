@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useToastStore } from '../../../stores/toast';
-import { dataQueryKey, getData, saveOrigin, unknownCountQueryKey } from '../api';
+import { undoActivity } from '../../activity/api';
+import { dataQueryKey, getData, lookupOrigin, saveOrigin, unknownCountQueryKey } from '../api';
 import type { DataFilters } from '../api';
-import { siteSchema, type Origin } from '../schemas';
+import { siteSchema, type Origin, type OriginSource, type Site } from '../schemas';
 import { messageOf } from '../utils';
 
 const PAGE_SIZE = 50;
@@ -24,6 +25,23 @@ let retainedFilters: PageFilters = {
   folderText: '',
 };
 
+function lookupSite(source: OriginSource): Site | null {
+  if (!source.id.trim()) return null;
+  switch (source.site) {
+    case 'Wallhaven':
+    case 'Danbooru':
+    case 'yande.re':
+    case 'Safebooru':
+      return source.site;
+    default:
+      return null;
+  }
+}
+
+function lookupSource(record: Origin): OriginSource | undefined {
+  return record.sources.find((source) => lookupSite(source) !== null);
+}
+
 export function useDataPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: '/data' });
@@ -36,6 +54,7 @@ export function useDataPage() {
   const [selectedRecord, setSelectedRecord] = useState<Origin | null>(null);
   const [selectedRecords, setSelectedRecords] = useState<Origin[]>([]);
   const [batchSheetOpen, setBatchSheetOpen] = useState(false);
+  const lookupableRecords = selectedRecords.filter((record) => lookupSource(record) !== undefined);
 
   const updateFilters = (patch: Partial<PageFilters>) => {
     const next = { ...filtersRef.current, ...patch };
@@ -113,6 +132,62 @@ export function useDataPage() {
     },
     onError: (error) => showToast(messageOf(error), { error: true }),
   });
+  const bulkLookupMutation = useMutation({
+    mutationFn: async (records: Origin[]) => {
+      const report = {
+        updated: 0,
+        sorted: 0,
+        batches: [] as number[],
+        failures: [] as string[],
+      };
+      for (const record of records) {
+        const source = lookupSource(record);
+        const site = source ? lookupSite(source) : null;
+        if (!source || !site) continue;
+        try {
+          const result = await lookupOrigin({ hash: record.hash, site, id: source.id });
+          report.updated += 1;
+          if (result.sorted_to) report.sorted += 1;
+          if (result.batch !== null) report.batches.push(result.batch);
+        } catch (error) {
+          report.failures.push(`${record.name}: ${messageOf(error)}`);
+        }
+      }
+      return report;
+    },
+    onSuccess: async (report) => {
+      setSelectedRecords([]);
+      const details = [
+        `${report.updated} updated`,
+        report.sorted ? `${report.sorted} sorted from the Inbox` : '',
+        report.failures.length ? `${report.failures.length} failed: ${report.failures[0]}` : '',
+      ].filter(Boolean);
+      const undo = report.batches.length
+        ? async () => {
+          for (const batch of [...report.batches].reverse()) await undoActivity({ batch });
+          await queryClient.invalidateQueries({ queryKey: ['data'] });
+          await queryClient.invalidateQueries({ queryKey: ['inbox'] });
+          await queryClient.invalidateQueries({ queryKey: ['library-images'] });
+          await queryClient.invalidateQueries({ queryKey: ['library-folders'] });
+          await queryClient.invalidateQueries({ queryKey: ['status'] });
+          await queryClient.invalidateQueries({ queryKey: ['activity'] });
+        }
+        : undefined;
+      showToast(`Metadata lookup: ${details.join('; ')}`, {
+        error: report.failures.length > 0,
+        undo,
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['data'] }),
+        queryClient.invalidateQueries({ queryKey: ['inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['library-images'] }),
+        queryClient.invalidateQueries({ queryKey: ['library-folders'] }),
+        queryClient.invalidateQueries({ queryKey: ['status'] }),
+        queryClient.invalidateQueries({ queryKey: ['activity'] }),
+      ]);
+    },
+    onError: (error) => showToast(messageOf(error), { error: true }),
+  });
 
   const toggleSelectedRecord = (record: Origin) => {
     setSelectedRecords((current) => {
@@ -172,5 +247,7 @@ export function useDataPage() {
     batchSheetOpen,
     setBatchSheetOpen,
     batchSaveMutation,
+    lookupableRecords,
+    bulkLookupMutation,
   };
 }

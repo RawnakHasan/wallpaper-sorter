@@ -105,7 +105,7 @@ folder is not a logged file action.
 | `GET /api/activity?limit=` | the log, newest first, with `undone` and `undoable` |
 | `GET /api/tags`, `POST /api/tags`, `PUT /api/tags/N`, `DELETE /api/tags/N` | the tags (edits the config file, keeps its comments) |
 | `POST /api/tags/test` `{filename}` | what would happen to a filename: words, rule, folder, new name |
-| `POST /api/assign` `{paths, folder, tag?}` | put images in a folder; with `tag`, also save a tag |
+| `POST /api/assign` `{paths, folder, tag?}` | put images in a folder; with `tag`, save a confirmed tag and sort other files it matches |
 | `POST /api/delete` `{paths}` | move to `.sorter/trash` (undoable); `POST /api/trash/empty` removes it for good |
 | `POST /api/duplicates/empty` | move everything in Duplicates to the trash |
 | `GET /api/gap-fill?folder=&mode=last\|renumber` | the renames that would close the gaps |
@@ -117,22 +117,39 @@ folder is not a logged file action.
 | `GET /api/folder-merge?from=&to=` / `POST /api/folder-merge` `{from, to}` | preview and move images into another folder using its numbering and duplicate rules |
 | `GET /api/folder-prefix?folder=&prefix=` / `PUT /api/folder-prefix` `{folder, prefix}` | preview and change a folder's numbering prefix |
 | `POST /api/undo` `{batch}` or `{id}` | undo a batch or one action |
-| `PUT /api/origins` `{hash, site, id}` | set an image's source by hand |
-| `GET/PUT /api/settings` | settings, including `gap_mode`, `setup_complete`, `danbooru_rating` (`g`, `s`, `q`, `e`), and `wallhaven_purity` (`sfw`, `sketchy`, `nsfw`) |
-| `POST /api/fetch` `{items: [{site?, input}]}` | queue 1–100 Wallhaven or Danbooru IDs/post links; links identify their site |
+| `PUT /api/origins` `{hash, site, id}` | set or edit an image's source by hand |
+| `POST /api/origins/lookup` `{hash, site, id}` | look up tags and metadata without downloading; may sort an Inbox image |
+| `GET/PUT /api/settings` | settings, including `gap_mode`, `setup_complete`, and per-site maximum ratings/purity |
+| `POST /api/fetch` `{items: [{site?, input}]}` | queue 1–100 Wallhaven, Danbooru, yande.re, or Safebooru IDs/post links; links identify their site |
 | `GET /api/fetch/{job_id}` | per-item fetch progress and outcome |
+| `GET /api/search?site=&q=&page=` | search or browse a supported site's public posts; results include daemon-local preview URLs |
+| `GET /api/search/preview/{key}` | fetch an allowlisted search preview and serve its content-hash-cached thumbnail |
 | `GET /api/secrets`, `PUT /api/secrets` | read credential-presence flags or save/clear credentials; secret values are never returned |
 | `POST /api/rescan` | look at the library folder and intake folders again (also done after a tag is added or changed) |
 | `POST /api/intake` `{path, recursive, remove_empty_folders}` / `PUT /api/intake/N` / `DELETE /api/intake/N` | add, edit or remove an intake folder; watch state and errors are returned in `/api/status` |
 | `GET /api/thumb/<hash>`, `POST /api/thumb/<hash>/refresh`, `GET /api/image/<hash>` | cached thumbnail, regenerate a thumbnail, and full image, addressed by content hash |
 | `POST /api/duplicates/restore` | restore duplicate copies into a destination folder as new numbered images, undoable |
 
-Fetching accepts supported Wallhaven and Danbooru IDs or post-page links, not arbitrary URLs. The UI accepts one
-entry per line and reports each result separately. By default, Wallhaven is limited to SFW and Danbooru to
-General-rated posts; these safeguards can be widened in Settings. Credentials are stored in `secrets.toml` beside
+Fetching accepts supported Wallhaven, Danbooru, yande.re, and Safebooru IDs or post-page links, not arbitrary URLs.
+The UI accepts one entry per line and reports each result separately. By default, Wallhaven is limited to SFW,
+Danbooru to General, yande.re to Safe, and Safebooru to General; these safeguards can be widened in Settings.
+Browse uses these same rating limits. Search previews are fetched by the daemon from allowlisted site hosts and served
+locally to remain compatible with the page's Content Security Policy. Danbooru requires a numeric user ID for its
+request User-Agent; API credentials are optional for public reads.
+Credentials are stored in `secrets.toml` beside
 the active config file with owner-only permissions. The API returns only whether credentials are saved. If a
 Danbooru character has no matching tag, the Overview offers to create one; confirming suggests its series folder
 and sorts the fetched image there, while “Not now” dismisses the suggestion.
+
+API tags are saved with each image's permanent origin record and are used as matching hints (artist tags are not).
+Inbox conflict choices identify the matching phrase and destination. The Details panel can edit an image's source
+and look up metadata for Wallhaven, Danbooru, yande.re, or Safebooru; lookup never downloads the image. When an image is assigned with a
+new tag, the UI requires explicit confirmation, lets the user choose its keywords and generic behavior, and reports
+other waiting images sorted by that tag.
+
+On the Data page, select records with supported site IDs and use **Look up tags** to enrich them in sequence.
+Each site's existing rating guard and request pacing still apply; successful lookups update the origin metadata,
+Inbox matches are sorted through the regular undoable pipeline, and failures are reported without stopping later IDs.
 
 ## Run the tests
 

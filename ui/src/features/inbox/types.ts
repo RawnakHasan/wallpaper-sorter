@@ -8,4 +8,5 @@ export type InboxFilters = {
 export interface AssignFile {
   path: string;
   name: string;
+  tags: string[];
 }

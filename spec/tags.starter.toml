@@ -26,6 +26,8 @@ generic_max_words = 4   # generic tags only apply to names with this many words 
 gap_mode = "keep"       # keep | lowest | last | renumber  (what to do about gaps in the numbering)
 danbooru_rating = "g"   # g | s | q | e  (maximum rating to fetch)
 wallhaven_purity = "sfw" # sfw | sketchy | nsfw  (maximum purity to fetch)
+yandere_rating = "s" # s | q | e (maximum rating to fetch)
+safebooru_rating = "general" # general | safe | questionable | explicit (maximum rating to fetch)
 
 # ---------- Wuthering Waves ----------
 [[tag]]

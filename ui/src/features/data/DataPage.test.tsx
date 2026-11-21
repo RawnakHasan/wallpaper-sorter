@@ -112,6 +112,59 @@ it('selects unknown records and saves one source with individual optional IDs', 
   client.clear();
 });
 
+it('bulk looks up selected supported sources and offers undo for Inbox sorting', async () => {
+  const secondRecord = {
+    ...unknownRecord,
+    hash: 'yande-hash',
+    path: '/wallpapers/yande.jpg',
+    name: 'yande.re 1268369.jpg',
+    sources: [{ site: 'yande.re', id: '1268369' }],
+  };
+  const firstRecord = {
+    ...unknownRecord,
+    hash: 'wallhaven-hash',
+    path: '/wallpapers/wallhaven.jpg',
+    name: 'wallhaven-abc123.jpg',
+    sources: [{ site: 'Wallhaven', id: 'abc123' }],
+  };
+  const lookups: unknown[] = [];
+  const undos: unknown[] = [];
+  server.use(
+    http.get('http://127.0.0.1/api/data', ({ request }) => {
+      const url = new URL(request.url);
+      if (url.searchParams.get('unknown') === '1') {
+        return HttpResponse.json({ total: 0, offset: 0, items: [] });
+      }
+      return HttpResponse.json({ total: 2, offset: 0, items: [firstRecord, secondRecord] });
+    }),
+    http.post('http://127.0.0.1/api/origins/lookup', async ({ request }) => {
+      const body = await request.json() as { hash: string };
+      lookups.push(body);
+      return body.hash === 'wallhaven-hash'
+        ? HttpResponse.json({ tags_updated: 2, sorted_to: 'Nature', batch: 7 })
+        : HttpResponse.json({ error: 'lookup unavailable' }, { status: 502 });
+    }),
+    http.post('http://127.0.0.1/api/undo', async ({ request }) => {
+      undos.push(await request.json());
+      return HttpResponse.json({ undone: [] });
+    }),
+  );
+  const { client } = renderData();
+
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'Select wallhaven-abc123.jpg' }));
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Select yande.re 1268369.jpg' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Look up tags (2)' }));
+
+  await waitFor(() => expect(lookups).toEqual([
+    { hash: 'wallhaven-hash', site: 'Wallhaven', id: 'abc123' },
+    { hash: 'yande-hash', site: 'yande.re', id: '1268369' },
+  ]));
+  expect(await screen.findByText(/Metadata lookup: 1 updated; 1 sorted from the Inbox; 1 failed: yande.re 1268369.jpg: lookup unavailable/)).toBeTruthy();
+  fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+  await waitFor(() => expect(undos).toEqual([{ batch: 7 }]));
+  client.clear();
+});
+
 it('shows a recoverable error when data records cannot be loaded', async () => {
   server.use(
     http.get('http://127.0.0.1/api/data', () => HttpResponse.json({ error: 'Data unavailable' }, { status: 500 })),

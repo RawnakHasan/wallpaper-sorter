@@ -4,8 +4,8 @@ use base64::Engine;
 use image::{ImageFormat, ImageReader};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sorter_core::{Action, Site, Source};
-use sorter_engine::{hash_file, move_no_replace, ExecError, Outcome};
+use sorter_core::{Action, Settings, Site, Source};
+use sorter_engine::{hash_file, move_no_replace, ExecError, Kind, Outcome};
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, Read};
@@ -19,7 +19,9 @@ use ureq::{Agent, AgentBuilder, Response};
 const MAX_ITEMS: usize = 100;
 const MAX_IMAGE_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_API_BYTES: u64 = 2 * 1024 * 1024;
+const MAX_PREVIEW_BYTES: u64 = 5 * 1024 * 1024;
 const MAX_REDIRECTS: usize = 5;
+const SEARCH_PAGE_SIZE: usize = 20;
 
 #[derive(Clone, Deserialize)]
 pub(crate) struct FetchRequest {
@@ -63,6 +65,13 @@ pub(crate) struct FetchJob {
     items: Vec<FetchJobItem>,
 }
 
+#[derive(Clone, Serialize)]
+pub(crate) struct OriginLookupResult {
+    tags_updated: usize,
+    sorted_to: Option<String>,
+    batch: Option<u64>,
+}
+
 #[derive(Clone)]
 struct ParsedItem {
     site: Site,
@@ -73,8 +82,12 @@ struct ParsedItem {
 struct SiteEndpoints {
     wallhaven_api: String,
     danbooru_api: String,
+    yandere_api: String,
+    safebooru_api: String,
     wallhaven_image_hosts: Vec<String>,
     danbooru_image_hosts: Vec<String>,
+    yandere_image_hosts: Vec<String>,
+    safebooru_image_hosts: Vec<String>,
     allow_http: bool,
 }
 
@@ -83,8 +96,20 @@ impl SiteEndpoints {
         Self {
             wallhaven_api: "https://wallhaven.cc/api/v1".into(),
             danbooru_api: "https://danbooru.donmai.us".into(),
-            wallhaven_image_hosts: vec!["w.wallhaven.cc".into(), "wallhaven.cc".into()],
+            yandere_api: "https://yande.re".into(),
+            safebooru_api: "https://safebooru.org".into(),
+            wallhaven_image_hosts: vec![
+                "th.wallhaven.cc".into(),
+                "w.wallhaven.cc".into(),
+                "wallhaven.cc".into(),
+            ],
             danbooru_image_hosts: vec!["cdn.donmai.us".into(), "danbooru.donmai.us".into()],
+            yandere_image_hosts: vec![
+                "assets.yande.re".into(),
+                "files.yande.re".into(),
+                "yande.re".into(),
+            ],
+            safebooru_image_hosts: vec!["safebooru.org".into()],
             allow_http: false,
         }
     }
@@ -93,6 +118,11 @@ impl SiteEndpoints {
         match site {
             Site::Wallhaven => format!("{}/w/{id}", self.wallhaven_api),
             Site::Danbooru => format!("{}/posts/{id}.json", self.danbooru_api),
+            Site::YandeRe => format!("{}/post.json?id={id}", self.yandere_api),
+            Site::Safebooru => format!(
+                "{}/index.php?page=dapi&s=post&q=index&id={id}&json=1",
+                self.safebooru_api
+            ),
             _ => unreachable!("only supported sites are parsed"),
         }
     }
@@ -101,6 +131,8 @@ impl SiteEndpoints {
         match site {
             Site::Wallhaven => vec![url_authority(&self.wallhaven_api).unwrap_or_default()],
             Site::Danbooru => vec![url_authority(&self.danbooru_api).unwrap_or_default()],
+            Site::YandeRe => vec![url_authority(&self.yandere_api).unwrap_or_default()],
+            Site::Safebooru => vec![url_authority(&self.safebooru_api).unwrap_or_default()],
             _ => Vec::new(),
         }
     }
@@ -109,6 +141,8 @@ impl SiteEndpoints {
         match site {
             Site::Wallhaven => &self.wallhaven_image_hosts,
             Site::Danbooru => &self.danbooru_image_hosts,
+            Site::YandeRe => &self.yandere_image_hosts,
+            Site::Safebooru => &self.safebooru_image_hosts,
             _ => &[],
         }
     }
@@ -117,6 +151,37 @@ impl SiteEndpoints {
 #[derive(Default)]
 struct JobStore {
     jobs: HashMap<u64, FetchJob>,
+}
+
+#[derive(Clone)]
+struct PreviewSource {
+    site: Site,
+    url: String,
+    hash: Option<String>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct SearchResponse {
+    site: String,
+    page: u32,
+    has_more: bool,
+    items: Vec<SearchItem>,
+}
+
+#[derive(Serialize)]
+struct SearchItem {
+    id: String,
+    url: String,
+    rating: String,
+    tags: Vec<String>,
+    preview: String,
+}
+
+struct SearchCandidate {
+    id: String,
+    preview_url: String,
+    rating: String,
+    tags: Vec<String>,
 }
 
 #[derive(Default)]
@@ -133,6 +198,7 @@ impl RateLimiter {
         let interval = match site {
             Site::Wallhaven => Duration::from_millis(1350),
             Site::Danbooru => Duration::from_secs(1),
+            Site::YandeRe | Site::Safebooru => Duration::from_secs(1),
             _ => Duration::ZERO,
         };
         let label = site.label();
@@ -162,6 +228,7 @@ pub(crate) struct FetchManager {
     limiter: Arc<RateLimiter>,
     endpoints: SiteEndpoints,
     agent: Agent,
+    previews: Arc<Mutex<HashMap<String, PreviewSource>>>,
 }
 
 impl Default for FetchManager {
@@ -184,7 +251,171 @@ impl FetchManager {
             limiter: Arc::new(RateLimiter::default()),
             endpoints,
             agent,
+            previews: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    pub(crate) fn search(
+        &self,
+        shared: Arc<Shared>,
+        secrets_path: &Path,
+        site_label: &str,
+        query: &str,
+        page: u32,
+    ) -> Result<SearchResponse, String> {
+        if query.len() > 300 {
+            return Err("search query must be 300 characters or fewer".into());
+        }
+        if !(1..=100).contains(&page) {
+            return Err("page must be between 1 and 100".into());
+        }
+        let site = Site::from_label(site_label)
+            .filter(|site| supported_fetch_site(*site))
+            .ok_or_else(|| "choose a supported site".to_string())?;
+        let secrets = secrets::load(secrets_path)?;
+        let settings = shared.lock().cfg.settings.clone();
+        let url = search_url(site, query, page, &settings, &self.endpoints);
+        let response = get_follow(
+            site,
+            &url,
+            &self.endpoints.api_hosts(site),
+            self.endpoints.allow_http,
+            &secrets,
+            true,
+            &self.agent,
+            &self.limiter,
+        )?;
+        require_json(&response)?;
+        let value = read_json_response(response)?;
+        let (candidates, has_more) = parse_search_response(site, &value, page, &settings)?;
+        let mut items = Vec::with_capacity(candidates.len());
+        for candidate in candidates {
+            if parse_remote_url(
+                &candidate.preview_url,
+                self.endpoints.image_hosts(site),
+                self.endpoints.allow_http,
+            )
+            .is_err()
+            {
+                continue;
+            }
+            let token = blake3::hash(
+                format!(
+                    "{}:{}:{}",
+                    site.label(),
+                    candidate.id,
+                    candidate.preview_url
+                )
+                .as_bytes(),
+            )
+            .to_hex()
+            .to_string();
+            let mut previews = self
+                .previews
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            if previews.len() >= 5000 {
+                previews.clear();
+            }
+            let cached_hash = previews
+                .get(&token)
+                .filter(|existing| existing.site == site && existing.url == candidate.preview_url)
+                .and_then(|existing| existing.hash.clone());
+            previews.insert(
+                token.clone(),
+                PreviewSource {
+                    site,
+                    url: candidate.preview_url,
+                    hash: cached_hash,
+                },
+            );
+            drop(previews);
+            items.push(SearchItem {
+                id: candidate.id.clone(),
+                url: post_url(site, &candidate.id),
+                rating: candidate.rating,
+                tags: candidate.tags,
+                preview: format!("/api/search/preview/{token}"),
+            });
+        }
+        Ok(SearchResponse {
+            site: site.label().to_string(),
+            page,
+            has_more,
+            items,
+        })
+    }
+
+    pub(crate) fn preview(
+        &self,
+        token: &str,
+        secrets_path: &Path,
+        thumbs: &crate::thumbs::Thumbs,
+    ) -> Result<Option<Vec<u8>>, String> {
+        if token.len() != 64 || !token.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Ok(None);
+        }
+        let source = self
+            .previews
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .get(token)
+            .cloned();
+        let Some(source) = source else {
+            return Ok(None);
+        };
+        if let Some(hash) = source.hash.as_deref() {
+            if let Some(bytes) = thumbs.cached(hash).map_err(|error| error.to_string())? {
+                return Ok(Some(bytes));
+            }
+        }
+        let secrets = secrets::load(secrets_path)?;
+        let response = get_follow(
+            source.site,
+            &source.url,
+            self.endpoints.image_hosts(source.site),
+            self.endpoints.allow_http,
+            &secrets,
+            false,
+            &self.agent,
+            &self.limiter,
+        )?;
+        if !response
+            .header("Content-Type")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .starts_with("image/")
+        {
+            return Err("site returned a non-image preview".into());
+        }
+        if response
+            .header("Content-Length")
+            .and_then(|length| length.parse::<u64>().ok())
+            .is_some_and(|length| length > MAX_PREVIEW_BYTES)
+        {
+            return Err("site preview exceeds the 5 MiB limit".into());
+        }
+        let mut bytes = Vec::new();
+        response
+            .into_reader()
+            .take(MAX_PREVIEW_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|_| "could not read the site preview".to_string())?;
+        if bytes.is_empty() || bytes.len() as u64 > MAX_PREVIEW_BYTES {
+            return Err("site preview is empty or exceeds the 5 MiB limit".into());
+        }
+        let (hash, thumbnail) = thumbs
+            .cache_preview(&bytes)
+            .map_err(|error| format!("could not cache site preview: {error}"))?;
+        if let Some(entry) = self
+            .previews
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .get_mut(token)
+        {
+            entry.hash = Some(hash);
+        }
+        Ok(Some(thumbnail))
     }
 
     pub(crate) fn submit(
@@ -300,6 +531,83 @@ impl FetchManager {
             .cloned()
     }
 
+    pub(crate) fn lookup_origin(
+        &self,
+        shared: Arc<Shared>,
+        secrets_path: PathBuf,
+        hash: &str,
+        site: &str,
+        id: &str,
+    ) -> Result<OriginLookupResult, String> {
+        let item = parse_input(Some(site), id)?;
+        let secrets = secrets::load(&secrets_path)?;
+        let settings = shared.lock().cfg.settings.clone();
+        let data = fetch_metadata(&item, &secrets, &self.endpoints, &self.agent, &self.limiter)?;
+        check_rating(
+            item.site,
+            &data.rating,
+            &settings.danbooru_rating,
+            &settings.wallhaven_purity,
+            &settings.yandere_rating,
+            &settings.safebooru_rating,
+        )?;
+
+        let mut source = Source::manual(item.site, &item.id);
+        source.artist = data.artist.clone();
+        source.artist_id = data.artist_id.clone();
+        let tags_updated = data.tags.len();
+        let mut pipeline = shared.lock();
+        let path = pipeline
+            .update_origin_metadata(hash, source, data.tags, data.rating)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "no origin record with that hash".to_string())?;
+        let is_inbox_item = pipeline
+            .inbox()
+            .map_err(|error| error.to_string())?
+            .iter()
+            .any(|entry| {
+                entry
+                    .origin
+                    .as_ref()
+                    .is_some_and(|origin| origin.hash == hash)
+            });
+        if !is_inbox_item {
+            return Ok(OriginLookupResult {
+                tags_updated,
+                sorted_to: None,
+                batch: None,
+            });
+        }
+
+        let outcome = pipeline
+            .process(std::slice::from_ref(&path))
+            .map_err(|error| error.to_string())?;
+        if let Some(error) = &outcome.report.error {
+            return Err(error.to_string());
+        }
+        let root = pipeline.root.to_string_lossy();
+        let sorted_to = outcome
+            .report
+            .done
+            .iter()
+            .find(|entry| entry.kind == Kind::Move)
+            .and_then(|entry| {
+                let relative = entry
+                    .to
+                    .strip_prefix(root.as_ref())?
+                    .trim_start_matches('/');
+                Path::new(relative)
+                    .parent()
+                    .map(|folder| folder.to_string_lossy().to_string())
+            });
+        let batch = (!outcome.report.done.is_empty()).then_some(outcome.report.batch);
+        Ok(OriginLookupResult {
+            tags_updated,
+            sorted_to,
+            batch,
+        })
+    }
+
     fn update_item(&self, job_id: u64, index: usize, update: impl FnOnce(&mut FetchJobItem)) {
         self.update_job(job_id, |job| {
             if let Some(item) = job.items.get_mut(index) {
@@ -325,6 +633,10 @@ impl FetchManager {
     }
 }
 
+pub(crate) fn validate_lookup_source(site: &str, id: &str) -> Result<(), String> {
+    parse_input(Some(site), id).map(|_| ())
+}
+
 fn parse_input(site: Option<&str>, input: &str) -> Result<ParsedItem, String> {
     let input = input.trim();
     if input.is_empty() || input.len() > 2048 {
@@ -335,8 +647,8 @@ fn parse_input(site: Option<&str>, input: &str) -> Result<ParsedItem, String> {
     }
     let site = site
         .and_then(Site::from_label)
-        .filter(|site| matches!(site, Site::Wallhaven | Site::Danbooru))
-        .ok_or_else(|| "choose Wallhaven or Danbooru for a bare ID".to_string())?;
+        .filter(|site| supported_fetch_site(*site))
+        .ok_or_else(|| "choose a supported site for a bare ID".to_string())?;
     validate_id(site, input)?;
     Ok(ParsedItem {
         site,
@@ -349,15 +661,16 @@ fn parse_url(input: &str) -> Result<ParsedItem, String> {
         .split_once("://")
         .ok_or_else(|| "unsupported URL".to_string())?;
     if !matches!(scheme.to_ascii_lowercase().as_str(), "http" | "https") {
-        return Err("only Wallhaven and Danbooru post URLs are supported".into());
+        return Err("only supported image-site post URLs are accepted".into());
     }
     let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
     if authority.is_empty() || authority.contains('@') || authority.contains(':') {
         return Err("URL must not contain credentials or a port".into());
     }
     let host = authority.to_ascii_lowercase();
-    let path = rest.find('/').map(|index| &rest[index..]).unwrap_or("/");
-    let path = path.split(['?', '#']).next().unwrap_or("/");
+    let url_path = rest.find('/').map(|index| &rest[index..]).unwrap_or("/");
+    let route = url_path.split('#').next().unwrap_or(url_path);
+    let (path, query) = route.split_once('?').unwrap_or((route, ""));
     let (site, id) = match host.as_str() {
         "wallhaven.cc" | "www.wallhaven.cc" if path.starts_with("/w/") => {
             (Site::Wallhaven, &path[3..])
@@ -366,7 +679,19 @@ fn parse_url(input: &str) -> Result<ParsedItem, String> {
         "danbooru.donmai.us" if path.starts_with("/posts/") => {
             (Site::Danbooru, &path["/posts/".len()..])
         }
-        _ => return Err("URL is not a supported Wallhaven or Danbooru post".into()),
+        "yande.re" if path.starts_with("/post/show/") => {
+            (Site::YandeRe, &path["/post/show/".len()..])
+        }
+        "safebooru.org" | "www.safebooru.org"
+            if path == "/index.php" && query_value(query, "page") == Some("post") =>
+        {
+            (
+                Site::Safebooru,
+                query_value(query, "id")
+                    .ok_or_else(|| "Safebooru URL has no post ID".to_string())?,
+            )
+        }
+        _ => return Err("URL is not a supported image-site post".into()),
     };
     if id.contains('/') || id.is_empty() {
         return Err("URL must point to one post".into());
@@ -381,7 +706,7 @@ fn parse_url(input: &str) -> Result<ParsedItem, String> {
 fn validate_id(site: Site, id: &str) -> Result<(), String> {
     let valid = match site {
         Site::Wallhaven => id.len() == 6 && id.chars().all(|c| c.is_ascii_alphanumeric()),
-        Site::Danbooru => {
+        Site::Danbooru | Site::YandeRe | Site::Safebooru => {
             !id.is_empty()
                 && id.len() <= 12
                 && id.chars().all(|c| c.is_ascii_digit())
@@ -396,6 +721,194 @@ fn validate_id(site: Site, id: &str) -> Result<(), String> {
     }
 }
 
+fn supported_fetch_site(site: Site) -> bool {
+    matches!(
+        site,
+        Site::Wallhaven | Site::Danbooru | Site::YandeRe | Site::Safebooru
+    )
+}
+
+fn search_url(
+    site: Site,
+    query: &str,
+    page: u32,
+    settings: &Settings,
+    endpoints: &SiteEndpoints,
+) -> String {
+    let encoded = encode_query(query);
+    match site {
+        Site::Wallhaven => {
+            let purity = match settings.wallhaven_purity.as_str() {
+                "sfw" => "100",
+                "sketchy" => "110",
+                "nsfw" => "111",
+                _ => "100",
+            };
+            let query = if query.is_empty() {
+                String::new()
+            } else {
+                format!("&q={encoded}")
+            };
+            format!(
+                "{}/search?categories=111&purity={purity}&page={page}{query}",
+                endpoints.wallhaven_api
+            )
+        }
+        Site::Danbooru => format!(
+            "{}/posts.json?limit={SEARCH_PAGE_SIZE}&page={page}&tags={encoded}",
+            endpoints.danbooru_api
+        ),
+        Site::YandeRe => format!(
+            "{}/post.json?limit={SEARCH_PAGE_SIZE}&page={page}&tags={encoded}",
+            endpoints.yandere_api
+        ),
+        Site::Safebooru => format!(
+            "{}/index.php?page=dapi&s=post&q=index&limit={SEARCH_PAGE_SIZE}&pid={}&tags={encoded}&json=1",
+            endpoints.safebooru_api,
+            page.saturating_sub(1)
+        ),
+        _ => unreachable!("only supported sites are searched"),
+    }
+}
+
+fn encode_query(query: &str) -> String {
+    query
+        .bytes()
+        .map(|byte| {
+            if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+                char::from(byte).to_string()
+            } else if byte == b' ' {
+                "+".into()
+            } else {
+                format!("%{byte:02X}")
+            }
+        })
+        .collect()
+}
+
+fn parse_search_response(
+    site: Site,
+    value: &Value,
+    page: u32,
+    settings: &Settings,
+) -> Result<(Vec<SearchCandidate>, bool), String> {
+    let (posts, has_more) = match site {
+        Site::Wallhaven => {
+            let posts = value["data"]
+                .as_array()
+                .ok_or_else(|| "Wallhaven search response has no results list".to_string())?;
+            let last_page = value["meta"]["last_page"].as_u64().unwrap_or(page as u64);
+            (posts, (page as u64) < last_page)
+        }
+        Site::Danbooru | Site::YandeRe | Site::Safebooru => {
+            let posts = value
+                .as_array()
+                .ok_or_else(|| format!("{} search response is not a results list", site.label()))?;
+            (posts, posts.len() == SEARCH_PAGE_SIZE && page < 100)
+        }
+        _ => return Err("unsupported search site".into()),
+    };
+
+    let mut candidates = Vec::new();
+    for post in posts.iter().take(SEARCH_PAGE_SIZE) {
+        let id = match site {
+            Site::Wallhaven => post["id"].as_str().map(str::to_string),
+            Site::Danbooru | Site::YandeRe | Site::Safebooru => post["id"]
+                .as_u64()
+                .map(|id| id.to_string())
+                .or_else(|| post["id"].as_str().map(str::to_string)),
+            _ => None,
+        };
+        let Some(id) = id.filter(|id| validate_id(site, id).is_ok()) else {
+            continue;
+        };
+        let rating = match site {
+            Site::Wallhaven => post["purity"].as_str(),
+            Site::Danbooru | Site::YandeRe | Site::Safebooru => post["rating"].as_str(),
+            _ => None,
+        };
+        let Some(rating) = rating else {
+            continue;
+        };
+        if check_rating(
+            site,
+            rating,
+            &settings.danbooru_rating,
+            &settings.wallhaven_purity,
+            &settings.yandere_rating,
+            &settings.safebooru_rating,
+        )
+        .is_err()
+        {
+            continue;
+        }
+        let preview_url = match site {
+            Site::Wallhaven => post["thumbs"]["small"].as_str(),
+            Site::Danbooru => post["preview_file_url"].as_str(),
+            Site::YandeRe | Site::Safebooru => post["preview_url"].as_str(),
+            _ => None,
+        };
+        let Some(preview_url) = preview_url.filter(|url| !url.is_empty()) else {
+            continue;
+        };
+        let tags = match site {
+            Site::Wallhaven => post["tags"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|tag| tag["name"].as_str())
+                .take(100)
+                .map(str::to_string)
+                .collect(),
+            Site::Danbooru => unique_tags(
+                [
+                    post["tag_string_character"].as_str().unwrap_or_default(),
+                    post["tag_string_copyright"].as_str().unwrap_or_default(),
+                ]
+                .into_iter()
+                .flat_map(str::split_whitespace)
+                .take(100)
+                .flat_map(danbooru_hints),
+            ),
+            Site::YandeRe | Site::Safebooru => unique_tags(
+                post["tags"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .take(100)
+                    .map(|tag| tag.replace('_', " ")),
+            ),
+            _ => Vec::new(),
+        };
+        candidates.push(SearchCandidate {
+            id,
+            preview_url: preview_url.to_string(),
+            rating: rating.to_string(),
+            tags,
+        });
+    }
+    Ok((candidates, has_more))
+}
+
+fn post_url(site: Site, id: &str) -> String {
+    match site {
+        Site::Wallhaven => format!("https://wallhaven.cc/w/{id}"),
+        Site::Danbooru => format!("https://danbooru.donmai.us/posts/{id}"),
+        Site::YandeRe => format!("https://yande.re/post/show/{id}"),
+        Site::Safebooru => {
+            format!("https://safebooru.org/index.php?page=post&s=view&id={id}")
+        }
+        _ => unreachable!("only supported sites are searched"),
+    }
+}
+
+fn query_value<'a>(query: &'a str, key: &str) -> Option<&'a str> {
+    query.split('&').find_map(|part| {
+        let (name, value) = part.split_once('=')?;
+        (name == key).then_some(value)
+    })
+}
+
 fn url_authority(url: &str) -> Option<String> {
     let (_, rest) = url.split_once("://")?;
     let authority = rest.split('/').next()?;
@@ -403,10 +916,12 @@ fn url_authority(url: &str) -> Option<String> {
 }
 
 struct FetchData {
-    image_url: String,
-    extension: String,
+    image_url: Option<String>,
+    extension: Option<String>,
     rating: String,
     tags: Vec<String>,
+    artist: Option<String>,
+    artist_id: Option<String>,
     character_suggestions: Vec<CharacterSuggestion>,
 }
 
@@ -438,8 +953,32 @@ fn process_one(
         &data.rating,
         &settings.danbooru_rating,
         &settings.wallhaven_purity,
+        &settings.yandere_rating,
+        &settings.safebooru_rating,
     )?;
-    let extension = normalize_extension(&data.extension)
+    let image_url = match data.image_url.as_deref() {
+        Some(url) => url,
+        None => {
+            return Err(match item.site {
+                Site::Wallhaven => "Wallhaven response has no downloadable image",
+                Site::Danbooru => "Danbooru post has no downloadable image",
+                _ => "site has no downloadable image",
+            }
+            .into())
+        }
+    };
+    let reported_extension = match data.extension.as_deref() {
+        Some(extension) => extension,
+        None => {
+            return Err(match item.site {
+                Site::Wallhaven => "Wallhaven response has an unsupported image type",
+                Site::Danbooru => "Danbooru response is missing file type",
+                _ => "site response is missing file type",
+            }
+            .into())
+        }
+    };
+    let extension = normalize_extension(reported_extension)
         .ok_or_else(|| "site returned an unsupported image type".to_string())?;
     if !settings
         .image_extensions
@@ -459,13 +998,7 @@ fn process_one(
         .open(&part_path)
         .map_err(|_| "cannot create a temporary download file".to_string())?;
     let downloaded = download_image(
-        item.site,
-        &data.image_url,
-        endpoints,
-        agent,
-        limiter,
-        &secrets,
-        file,
+        item.site, image_url, endpoints, agent, limiter, &secrets, file,
     );
     if let Err(error) = downloaded {
         match fs::remove_file(&part_path) {
@@ -506,7 +1039,9 @@ fn process_one(
     sync_directory(&temp_dir).map_err(|_| "cannot sync the fetch staging folder".to_string())?;
     let hash = hash_file(&completed).map_err(|_| "cannot hash the downloaded image".to_string())?;
     let temp_relative = relative_to(&root, &completed)?;
-    let source = Source::manual(item.site, &item.id);
+    let mut source = Source::manual(item.site, &item.id);
+    source.artist = data.artist.clone();
+    source.artist_id = data.artist_id.clone();
 
     let mut pipeline = shared.lock();
     pipeline
@@ -571,13 +1106,12 @@ fn fetch_metadata(
                 .to_string();
             let image_url = data["path"]
                 .as_str()
-                .ok_or_else(|| "Wallhaven response has no downloadable image".to_string())?
-                .to_string();
+                .filter(|url| !url.is_empty())
+                .map(str::to_string);
             let extension = data["file_type"]
                 .as_str()
                 .and_then(extension_from_mime)
-                .ok_or_else(|| "Wallhaven response has an unsupported image type".to_string())?
-                .to_string();
+                .map(str::to_string);
             let tags = unique_tags(
                 data["tags"]
                     .as_array()
@@ -593,6 +1127,8 @@ fn fetch_metadata(
                 extension,
                 rating,
                 tags,
+                artist: None,
+                artist_id: None,
                 character_suggestions: Vec::new(),
             })
         }
@@ -607,12 +1143,8 @@ fn fetch_metadata(
             let image_url = value["file_url"]
                 .as_str()
                 .filter(|url| !url.is_empty())
-                .ok_or_else(|| "Danbooru post has no downloadable image".to_string())?
-                .to_string();
-            let extension = value["file_ext"]
-                .as_str()
-                .ok_or_else(|| "Danbooru response is missing file type".to_string())?
-                .to_string();
+                .map(str::to_string);
+            let extension = value["file_ext"].as_str().map(str::to_string);
             let tags = unique_tags(
                 [
                     value["tag_string_character"].as_str().unwrap_or_default(),
@@ -627,16 +1159,71 @@ fn fetch_metadata(
             let character_suggestions = danbooru_character_suggestions(
                 value["tag_string_character"].as_str().unwrap_or_default(),
             );
+            let artist = value["tag_string_artist"]
+                .as_str()
+                .and_then(|artists| artists.split_whitespace().next())
+                .map(|artist| artist.replace('_', " "));
             Ok(FetchData {
                 image_url,
                 extension,
                 rating,
                 tags,
+                artist,
+                artist_id: None,
                 character_suggestions,
+            })
+        }
+        Site::YandeRe | Site::Safebooru => {
+            let post = value
+                .as_array()
+                .and_then(|posts| {
+                    posts
+                        .iter()
+                        .find(|post| json_id_matches(&post["id"], &item.id))
+                })
+                .ok_or_else(|| format!("{} returned no post for this ID", item.site.label()))?;
+            let rating = post["rating"]
+                .as_str()
+                .ok_or_else(|| format!("{} response is missing rating", item.site.label()))?
+                .to_string();
+            let image_url = post["file_url"]
+                .as_str()
+                .filter(|url| !url.is_empty())
+                .map(str::to_string);
+            let extension = post["file_ext"]
+                .as_str()
+                .or_else(|| {
+                    post["image"]
+                        .as_str()
+                        .and_then(|name| name.rsplit('.').next())
+                })
+                .map(str::to_string);
+            let tags = unique_tags(
+                post["tags"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .take(256)
+                    .filter(|tag| tag.len() <= 120)
+                    .map(|tag| tag.replace('_', " ")),
+            );
+            Ok(FetchData {
+                image_url,
+                extension,
+                rating,
+                tags,
+                artist: None,
+                artist_id: None,
+                character_suggestions: Vec::new(),
             })
         }
         _ => Err("unsupported fetch site".into()),
     }
+}
+
+fn json_id_matches(value: &Value, id: &str) -> bool {
+    value.as_str() == Some(id)
+        || value.as_u64().map(|value| value.to_string()).as_deref() == Some(id)
 }
 
 fn danbooru_hints(tag: &str) -> Vec<String> {
@@ -705,6 +1292,8 @@ fn check_rating(
     rating: &str,
     danbooru_max: &str,
     wallhaven_max: &str,
+    yandere_max: &str,
+    safebooru_max: &str,
 ) -> Result<(), String> {
     let (rank, maximum, setting) = match site {
         Site::Danbooru => (
@@ -719,6 +1308,20 @@ fn check_rating(
                 .position(|v| *v == wallhaven_max),
             "Wallhaven purity",
         ),
+        Site::YandeRe => (
+            ["s", "q", "e"].iter().position(|v| *v == rating),
+            ["s", "q", "e"].iter().position(|v| *v == yandere_max),
+            "yande.re rating",
+        ),
+        Site::Safebooru => (
+            ["general", "safe", "questionable", "explicit"]
+                .iter()
+                .position(|v| *v == rating),
+            ["general", "safe", "questionable", "explicit"]
+                .iter()
+                .position(|v| *v == safebooru_max),
+            "Safebooru rating",
+        ),
         _ => return Err("unsupported fetch site".into()),
     };
     let rank = rank.ok_or_else(|| format!("{setting} returned an unknown value"))?;
@@ -728,8 +1331,12 @@ fn check_rating(
             "blocked by the {setting} setting (item: {rating}; maximum: {})",
             if site == Site::Danbooru {
                 ["g", "s", "q", "e"][maximum]
-            } else {
+            } else if site == Site::Wallhaven {
                 ["sfw", "sketchy", "nsfw"][maximum]
+            } else if site == Site::YandeRe {
+                ["s", "q", "e"][maximum]
+            } else {
+                ["general", "safe", "questionable", "explicit"][maximum]
             }
         ));
     }
@@ -804,7 +1411,7 @@ fn get_follow(
         let parsed = parse_remote_url(&current, allowed_authorities, allow_http)?;
         limiter.wait(site);
         let mut request = agent.get(&current);
-        let user_agent = user_agent(site, secrets);
+        let user_agent = user_agent(site, secrets)?;
         request = request.set("User-Agent", &user_agent);
         if api_request
             && allowed_authorities
@@ -934,14 +1541,20 @@ fn parse_retry_after(value: &str) -> Option<Duration> {
     )
 }
 
-fn user_agent(site: Site, secrets: &ApiSecrets) -> String {
+fn user_agent(site: Site, secrets: &ApiSecrets) -> Result<String, String> {
     let version = env!("CARGO_PKG_VERSION");
     if site == Site::Danbooru {
-        if let Some(id) = secrets.danbooru_user_id.as_deref() {
-            return format!("wallpaper-sorter/{version} (user #{id})");
-        }
+        let id = secrets
+            .danbooru_user_id
+            .as_deref()
+            .filter(|id| !id.is_empty() && id.chars().all(|character| character.is_ascii_digit()))
+            .ok_or_else(|| {
+                "Danbooru requires a numeric user ID in the User-Agent; add it in Settings"
+                    .to_string()
+            })?;
+        return Ok(format!("wallpaper-sorter/{version} (user #{id})"));
     }
-    format!("wallpaper-sorter/{version} (local desktop client)")
+    Ok(format!("wallpaper-sorter/{version} (local desktop client)"))
 }
 
 fn require_json(response: &Response) -> Result<(), String> {
@@ -1163,10 +1776,12 @@ fn result_from_outcome(
 mod tests {
     use super::{
         check_rating, danbooru_character_suggestions, danbooru_hints, get_follow, parse_input,
-        parse_retry_after, process_one, FetchState, RateLimiter, SiteEndpoints,
+        parse_remote_url, parse_retry_after, process_one, user_agent, FetchManager, FetchState,
+        ParsedItem, RateLimiter, SiteEndpoints,
     };
     use crate::daemon::{Daemon, Options};
     use crate::secrets::ApiSecrets;
+    use crate::thumbs::Thumbs;
     use image::ImageFormat;
     use sorter_core::{Config, Site};
     use std::fs;
@@ -1175,6 +1790,7 @@ mod tests {
     use std::os::unix::fs::symlink;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
     use std::thread::JoinHandle;
     use std::time::Duration;
     use ureq::AgentBuilder;
@@ -1299,8 +1915,12 @@ mod tests {
         SiteEndpoints {
             wallhaven_api: format!("http://{address}/api/v1"),
             danbooru_api: format!("http://{address}"),
+            yandere_api: format!("http://{address}"),
+            safebooru_api: format!("http://{address}"),
             wallhaven_image_hosts: vec![address.to_string()],
             danbooru_image_hosts: vec![address.to_string()],
+            yandere_image_hosts: vec![address.to_string()],
+            safebooru_image_hosts: vec![address.to_string()],
             allow_http: true,
         }
     }
@@ -1317,14 +1937,176 @@ mod tests {
                 .id,
             "123456"
         );
+        assert_eq!(
+            parse_input(None, "https://yande.re/post/show/1268369")
+                .unwrap()
+                .site,
+            Site::YandeRe
+        );
+        assert_eq!(
+            parse_input(
+                None,
+                "https://safebooru.org/index.php?page=post&s=view&id=7132423"
+            )
+            .unwrap()
+            .id,
+            "7132423"
+        );
         assert!(parse_input(Some("Wallhaven"), "1234").is_err());
         assert!(parse_input(None, "https://example.com/posts/123").is_err());
+        assert!(parse_input(None, "https://safebooru.org/index.php?page=post&id=x").is_err());
         assert_eq!(
             parse_input(Some("Danbooru"), "https://wallhaven.cc/w/abc123")
                 .unwrap()
                 .site,
             Site::Wallhaven
         );
+    }
+
+    #[test]
+    fn search_uses_site_fixtures_and_previews_are_local_hash_cached() {
+        let root = temp_dir("site-search");
+        let config_path = root.join("config.toml");
+        fs::write(
+            &config_path,
+            "[[tag]]\nkeywords = [\"chisa\"]\ndest = \"Chisa\"\n",
+        )
+        .unwrap();
+        let daemon = Daemon::start_with(
+            root.clone(),
+            config(),
+            Options::default(),
+            Some(config_path),
+        )
+        .unwrap();
+        let shared = daemon.handle();
+        let secret_path = root.join("secrets.toml");
+        fs::write(&secret_path, "danbooru_user_id = \"123\"\n").unwrap();
+        let thumbs = Thumbs::new(root.join("preview-cache"));
+        let image = png();
+        let sites = [
+            (
+                "Wallhaven",
+                include_str!("fixtures/wallhaven-search.json"),
+                "abc123",
+                "anime girls",
+                true,
+                "GET /api/v1/search?categories=111&purity=100&page=1&q=anime+girls",
+            ),
+            (
+                "Danbooru",
+                include_str!("fixtures/danbooru-search.json"),
+                "123456",
+                "anime girls",
+                false,
+                "GET /posts.json?limit=20&page=1&tags=anime+girls",
+            ),
+            (
+                "yande.re",
+                include_str!("fixtures/yande-search.json"),
+                "1268369",
+                "anime girls",
+                false,
+                "GET /post.json?limit=20&page=1&tags=anime+girls",
+            ),
+            (
+                "Safebooru",
+                include_str!("fixtures/safebooru-search.json"),
+                "7132423",
+                "anime girls",
+                false,
+                "GET /index.php?page=dapi&s=post&q=index&limit=20&pid=0&tags=anime+girls&json=1",
+            ),
+        ];
+        for (site, fixture, expected_id, query, has_more, expected_path) in sites {
+            let (address, worker) = fake_server(vec![
+                response(200, "application/json", fixture.as_bytes().to_vec()),
+                response(200, "image/png", image.clone()),
+            ]);
+            let mut manager = FetchManager::new(endpoints(&address));
+            manager.limiter = Arc::new(RateLimiter::without_delay());
+            let result = manager
+                .search(shared.clone(), &secret_path, site, query, 1)
+                .unwrap();
+            assert_eq!(result.has_more, has_more, "{site}");
+            assert_eq!(result.items.len(), 1, "{site}");
+            assert_eq!(result.items[0].id, expected_id, "{site}");
+            assert!(!result.items[0].url.starts_with("http://127.0.0.1"));
+            assert!(result.items[0].preview.starts_with("/api/search/preview/"));
+            if site == "yande.re" || site == "Safebooru" {
+                assert!(result.items[0].tags.contains(&"anime girls".to_string()));
+            }
+            let token = result.items[0]
+                .preview
+                .rsplit('/')
+                .next()
+                .expect("preview key");
+            let preview = manager
+                .preview(token, &secret_path, &thumbs)
+                .unwrap()
+                .expect("cached preview");
+            assert!(preview.starts_with(&[0xff, 0xd8]));
+            assert_eq!(
+                manager
+                    .preview(token, &secret_path, &thumbs)
+                    .unwrap()
+                    .unwrap(),
+                preview
+            );
+            let requests = worker.join().unwrap();
+            assert!(
+                requests[0].starts_with(expected_path),
+                "{site}: {}",
+                requests[0]
+            );
+            if site == "Danbooru" {
+                assert!(requests[0].contains("wallpaper-sorter/"));
+                assert!(requests[0].contains("(user #123)"));
+            }
+            assert_eq!(requests.len(), 2, "{site}");
+        }
+        drop(daemon);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn danbooru_user_agent_requires_a_numeric_user_id() {
+        let error = user_agent(Site::Danbooru, &ApiSecrets::default()).unwrap_err();
+        assert!(error.contains("requires a numeric user ID"));
+        let secrets = ApiSecrets {
+            danbooru_user_id: Some("12x".into()),
+            ..ApiSecrets::default()
+        };
+        assert!(user_agent(Site::Danbooru, &secrets).is_err());
+    }
+
+    #[test]
+    fn new_site_download_hosts_are_exactly_allowlisted() {
+        let endpoints = SiteEndpoints::production();
+        assert!(parse_remote_url(
+            "https://files.yande.re/image.png",
+            endpoints.image_hosts(Site::YandeRe),
+            false,
+        )
+        .is_ok());
+        assert!(parse_remote_url(
+            "https://safebooru.org/images/1/image.png",
+            endpoints.image_hosts(Site::Safebooru),
+            false,
+        )
+        .is_ok());
+        assert!(parse_remote_url(
+            "https://evil.example/image.png",
+            endpoints.image_hosts(Site::YandeRe),
+            false,
+        )
+        .is_err());
+        assert!(parse_remote_url(
+            "https://evil.example/image.png",
+            endpoints.image_hosts(Site::Safebooru),
+            false,
+        )
+        .is_err());
     }
 
     #[test]
@@ -1348,10 +2130,15 @@ mod tests {
 
     #[test]
     fn default_rating_guards_reject_wider_content() {
-        assert!(check_rating(Site::Danbooru, "g", "g", "sfw").is_ok());
-        assert!(check_rating(Site::Danbooru, "q", "g", "sfw").is_err());
-        assert!(check_rating(Site::Wallhaven, "sketchy", "g", "sfw").is_err());
-        assert!(check_rating(Site::Wallhaven, "nsfw", "g", "nsfw").is_ok());
+        assert!(check_rating(Site::Danbooru, "g", "g", "sfw", "s", "general").is_ok());
+        assert!(check_rating(Site::Danbooru, "q", "g", "sfw", "s", "general").is_err());
+        assert!(check_rating(Site::Wallhaven, "sketchy", "g", "sfw", "s", "general").is_err());
+        assert!(check_rating(Site::Wallhaven, "nsfw", "g", "nsfw", "s", "general").is_ok());
+        assert!(check_rating(Site::YandeRe, "q", "g", "sfw", "s", "general").is_err());
+        assert!(check_rating(Site::YandeRe, "q", "g", "sfw", "q", "general").is_ok());
+        assert!(check_rating(Site::Safebooru, "general", "g", "sfw", "s", "general").is_ok());
+        assert!(check_rating(Site::Safebooru, "questionable", "g", "sfw", "s", "general").is_err());
+        assert!(check_rating(Site::Safebooru, "unsafe", "g", "sfw", "s", "general").is_err());
     }
 
     #[test]
@@ -1483,6 +2270,86 @@ mod tests {
     }
 
     #[test]
+    fn fake_yande_and_safebooru_fetches_use_site_fixtures_and_safe_defaults() {
+        let fixtures = [
+            (
+                "yande",
+                Site::YandeRe,
+                "1268369",
+                include_str!("fixtures/yande.json"),
+                "yande.re 1268369.jpg",
+                "s",
+            ),
+            (
+                "safebooru",
+                Site::Safebooru,
+                "7132423",
+                include_str!("fixtures/safebooru.json"),
+                "safebooru-7132423.jpg",
+                "general",
+            ),
+        ];
+        for (label, site, id, fixture, filename, rating) in fixtures {
+            let (address, server) = fake_server(vec![
+                response(200, "application/json", fixture.as_bytes().to_vec()),
+                response(200, "image/png", png()),
+            ]);
+            let root = temp_dir(&format!("{label}-fetch"));
+            let config_path = root.join("config.toml");
+            fs::write(&config_path, "").unwrap();
+            let daemon = Daemon::start_with(
+                root.clone(),
+                config(),
+                Options::default(),
+                Some(config_path),
+            )
+            .unwrap();
+            let shared = daemon.handle();
+            let secret_path = root.join("secrets.toml");
+            fs::write(&secret_path, "").unwrap();
+            let endpoints = endpoints(&address);
+            let agent = AgentBuilder::new().redirects(0).build();
+            let item = ParsedItem {
+                site,
+                id: id.into(),
+            };
+            let result = process_one(
+                &item,
+                &shared,
+                &secret_path,
+                &endpoints,
+                &agent,
+                &RateLimiter::without_delay(),
+                1,
+                0,
+            )
+            .unwrap();
+            let requests = server.join().unwrap();
+
+            assert!(matches!(result.state, FetchState::Sorted), "{label}");
+            assert_eq!(result.location.as_deref(), Some("Chisa/Chisa 1.png"));
+            assert!(requests[0].contains(if site == Site::YandeRe {
+                "/post.json?id=1268369"
+            } else {
+                "page=dapi&s=post&q=index&id=7132423&json=1"
+            }));
+            assert!(requests[1]
+                .to_ascii_lowercase()
+                .contains("user-agent: wallpaper-sorter/"));
+            assert!(root.join("Chisa/Chisa 1.png").is_file(), "{filename}");
+            let origin = shared.lock().origins.all().next().unwrap().clone();
+            assert_eq!(
+                origin.tags,
+                ["chisa (wuthering waves)", "wuthering waves", "landscape"]
+            );
+            assert_eq!(origin.rating.as_deref(), Some(rating));
+            assert_eq!(origin.sources[0].site, site);
+            assert_eq!(origin.sources[0].id, id);
+            fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
     fn image_redirect_or_url_to_an_unallowlisted_host_is_not_requested() {
         let (address, server) = fake_server(vec![response(
             200,
@@ -1539,5 +2406,57 @@ mod tests {
         .unwrap();
         assert_eq!(response.status(), 200);
         assert_eq!(server.join().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn metadata_lookup_updates_an_inbox_origin_and_sorts_without_downloading() {
+        let root = temp_dir("metadata-lookup");
+        fs::write(root.join("wallhaven-abc123.jpg"), png()).unwrap();
+        let config_path = root.join("config.toml");
+        fs::write(
+            &config_path,
+            "[[tag]]\nkeywords = [\"chisa\"]\ndest = \"Chisa\"\n",
+        )
+        .unwrap();
+        fs::write(root.join("secrets.toml"), "").unwrap();
+        let daemon = Daemon::start_with(
+            root.clone(),
+            config(),
+            Options::default(),
+            Some(config_path),
+        )
+        .unwrap();
+        let shared = daemon.handle();
+        let hash = shared.lock().origins.all().next().unwrap().hash.clone();
+        let (address, server) = fake_server(vec![response(
+            200,
+            "application/json",
+            br#"{"data":{"id":"abc123","purity":"sfw","tags":[{"name":"chisa"}]}}"#.to_vec(),
+        )]);
+        let mut manager = FetchManager::new(endpoints(&address));
+        manager.limiter = std::sync::Arc::new(RateLimiter::without_delay());
+
+        let result = manager
+            .lookup_origin(
+                shared.clone(),
+                root.join("secrets.toml"),
+                &hash,
+                "Wallhaven",
+                "abc123",
+            )
+            .unwrap();
+        let requests = server.join().unwrap();
+
+        assert_eq!(requests.len(), 1, "lookup must not request the image");
+        assert_eq!(result.tags_updated, 1);
+        assert_eq!(result.sorted_to.as_deref(), Some("Chisa"));
+        assert!(result.batch.is_some());
+        assert!(root.join("Chisa/Chisa 1.jpg").is_file());
+        let origin = shared.lock().origins.get(&hash).unwrap().clone();
+        assert_eq!(origin.tags, ["chisa"]);
+        assert_eq!(origin.rating.as_deref(), Some("sfw"));
+        assert_eq!(origin.sources[0].site, Site::Wallhaven);
+        assert_eq!(origin.sources[0].id, "abc123");
+        fs::remove_dir_all(root).unwrap();
     }
 }

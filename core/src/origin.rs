@@ -9,6 +9,7 @@ pub enum Site {
     Wallhaven,
     Zerochan,
     Konachan,
+    #[serde(rename = "yande.re", alias = "YandeRe")]
     YandeRe,
     Danbooru,
     Safebooru,

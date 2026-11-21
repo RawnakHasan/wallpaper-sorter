@@ -50,6 +50,20 @@ export const saveOriginResponseSchema = z.object({
   ok: z.boolean(),
 }).passthrough();
 
+export const originLookupRequestSchema = z.object({
+  hash: z.string().min(1),
+  site: siteSchema,
+  id: z.string().min(1),
+}).strict();
+
+export const originLookupResponseSchema = z.object({
+  tags_updated: z.number().int().nonnegative(),
+  sorted_to: z.string().nullable(),
+  batch: z.number().int().nonnegative().nullable(),
+}).passthrough();
+
 export type Origin = z.infer<typeof originSchema>;
 export type OriginSource = z.infer<typeof originSourceSchema>;
 export type Site = z.infer<typeof siteSchema>;
+export type OriginLookupRequest = z.infer<typeof originLookupRequestSchema>;
+export type OriginLookupResponse = z.infer<typeof originLookupResponseSchema>;

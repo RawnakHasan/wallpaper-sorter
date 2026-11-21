@@ -9,6 +9,8 @@ export const settingsUpdateSchema = z.object({
   setup_complete: z.boolean().optional(),
   danbooru_rating: z.enum(['g', 's', 'q', 'e']).optional(),
   wallhaven_purity: z.enum(['sfw', 'sketchy', 'nsfw']).optional(),
+  yandere_rating: z.enum(['s', 'q', 'e']).optional(),
+  safebooru_rating: z.enum(['general', 'safe', 'questionable', 'explicit']).optional(),
 }).strict();
 
 const rescanRequestSchema = z.object({}).strict();

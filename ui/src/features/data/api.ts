@@ -1,9 +1,12 @@
 import { getJson, sendJson } from '../../lib/api-client';
 import {
   dataResponseSchema,
+  originLookupRequestSchema,
+  originLookupResponseSchema,
   saveOriginRequestSchema,
   saveOriginResponseSchema,
   type Site,
+  type OriginLookupRequest,
 } from './schemas';
 
 export interface DataFilters {
@@ -31,4 +34,8 @@ export function getData(filters: DataFilters, limit: number) {
 
 export function saveOrigin(body: { hash: string; site: Site; id: string }) {
   return sendJson('PUT', '/api/origins', body, saveOriginRequestSchema, saveOriginResponseSchema);
+}
+
+export function lookupOrigin(body: OriginLookupRequest) {
+  return sendJson('POST', '/api/origins/lookup', body, originLookupRequestSchema, originLookupResponseSchema);
 }

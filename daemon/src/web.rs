@@ -2,7 +2,7 @@
 //! It listens on 127.0.0.1 only, and refuses requests that did not come from a page served by itself.
 
 use crate::daemon::{ConfigUndoKind, Shared};
-use crate::fetch::{FetchJob, FetchManager, FetchRequest};
+use crate::fetch::{validate_lookup_source, FetchJob, FetchManager, FetchRequest};
 use crate::secrets::{self, SecretsUpdate};
 use crate::thumbs::Thumbs;
 use serde::de::DeserializeOwned;
@@ -15,7 +15,7 @@ use sorter_engine::cfgedit::{
     remove_intake, rename_folder as edit_rename_folder, set_fetch_ratings, set_folder_prefix,
     set_gap_mode, set_setup_complete, update_intake, update_tag_checked, validate_tag, TagSpec,
 };
-use sorter_engine::{Origin, Outcome, UndoError};
+use sorter_engine::{Kind, Origin, Outcome, UndoError};
 use std::collections::HashMap;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -340,6 +340,12 @@ struct OriginBody {
     id: String,
 }
 #[derive(Deserialize)]
+struct OriginLookupBody {
+    hash: String,
+    site: String,
+    id: String,
+}
+#[derive(Deserialize)]
 struct SettingsBody {
     #[serde(default)]
     gap_mode: Option<String>,
@@ -349,6 +355,10 @@ struct SettingsBody {
     danbooru_rating: Option<String>,
     #[serde(default)]
     wallhaven_purity: Option<String>,
+    #[serde(default)]
+    yandere_rating: Option<String>,
+    #[serde(default)]
+    safebooru_rating: Option<String>,
 }
 #[derive(Deserialize)]
 struct FetchBody {
@@ -445,6 +455,54 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
         (Method::Get, ["api", "activity"]) => activity(ctx, &query),
         (Method::Get, ["api", "tags"]) => Ok(Resp::json(200, &tags_json(ctx))),
         (Method::Get, ["api", "settings"]) => Ok(Resp::json(200, &ctx.shared.lock().cfg.settings)),
+        (Method::Get, ["api", "search"]) => {
+            let secrets_path = ctx
+                .secrets_path
+                .as_deref()
+                .ok_or_else(|| ApiError::new(503, "site search requires a saved config file"))?;
+            let site = query
+                .get("site")
+                .ok_or_else(|| ApiError::new(400, "site is required"))?;
+            if !matches!(
+                site.as_str(),
+                "Wallhaven" | "Danbooru" | "yande.re" | "Safebooru"
+            ) {
+                return Err(ApiError::new(400, "choose a supported site"));
+            }
+            let search_query = query.get("q").map(String::as_str).unwrap_or_default();
+            let page = query
+                .get("page")
+                .map(|page| page.parse::<u32>())
+                .transpose()
+                .map_err(|_| ApiError::new(400, "page must be a positive number"))?
+                .unwrap_or(1);
+            if !(1..=100).contains(&page) {
+                return Err(ApiError::new(400, "page must be between 1 and 100"));
+            }
+            if search_query.len() > 300 {
+                return Err(ApiError::new(
+                    400,
+                    "search query must be 300 characters or fewer",
+                ));
+            }
+            let result = ctx
+                .fetch
+                .search(ctx.shared.clone(), secrets_path, site, search_query, page)
+                .map_err(|error| ApiError::new(502, error))?;
+            Ok(Resp::json(200, &result))
+        }
+        (Method::Get, ["api", "search", "preview", token]) => {
+            let secrets_path = ctx
+                .secrets_path
+                .as_deref()
+                .ok_or_else(|| ApiError::new(503, "site previews require a saved config file"))?;
+            let bytes = ctx
+                .fetch
+                .preview(token, secrets_path, &ctx.thumbs)
+                .map_err(|error| ApiError::new(502, error))?
+                .ok_or_else(|| ApiError::new(404, "search preview not found"))?;
+            Ok(Resp::image("image/jpeg", bytes))
+        }
         (Method::Get, ["api", "secrets"]) => {
             let path = ctx
                 .secrets_path
@@ -561,13 +619,49 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 let files = resolve_all(&p, &b.paths)?;
                 p.assign(&files, &b.folder)?
             };
+            let mut response = outcome_json(&out);
             if let Some(spec) = b.tag {
                 ctx.shared
                     .edit_config(|t| add_tag(t, &spec))
                     .map_err(|e| ApiError::new(400, e))?;
+                let additional = {
+                    let mut pipeline = ctx.shared.lock();
+                    match pipeline.inbox() {
+                        Ok(items) => {
+                            let ready: Vec<PathBuf> = items
+                                .into_iter()
+                                .filter(|item| item.reason == "ready")
+                                .map(|item| PathBuf::from(item.path))
+                                .collect();
+                            if ready.is_empty() {
+                                Ok(None)
+                            } else {
+                                pipeline.process(&ready).map(Some)
+                            }
+                        }
+                        Err(error) => Err(error),
+                    }
+                };
+                let (sorted, batch, error) = match additional {
+                    Ok(Some(result)) => (
+                        result
+                            .report
+                            .done
+                            .iter()
+                            .filter(|entry| entry.kind == Kind::Move)
+                            .count(),
+                        (!result.report.done.is_empty()).then_some(result.report.batch),
+                        result.report.error.map(|error| error.to_string()),
+                    ),
+                    Ok(None) => (0, None, None),
+                    Err(error) => (0, None, Some(error.to_string())),
+                };
+                response["additional_sorted"] = json!(sorted);
+                response["additional_batch"] = json!(batch);
+                response["additional_error"] = json!(error);
                 ctx.shared.request_rescan();
             }
-            Ok(Resp::json(200, &outcome_json(&out)))
+            Ok(Resp::json(200, &response))
         }
         (Method::Post, ["api", "delete"]) => {
             let b: PathsBody = read_json(req)?;
@@ -807,6 +901,21 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             }
             Ok(Resp::json(200, &json!({ "ok": true })))
         }
+        (Method::Post, ["api", "origins", "lookup"]) => {
+            let b: OriginLookupBody = read_json(req)?;
+            if b.hash.len() != 64 || !b.hash.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err(ApiError::new(400, "not a content hash"));
+            }
+            validate_lookup_source(&b.site, &b.id).map_err(|error| ApiError::new(400, error))?;
+            let path = ctx.secrets_path.clone().ok_or_else(|| {
+                ApiError::new(503, "metadata lookup requires a saved config file")
+            })?;
+            let result = ctx
+                .fetch
+                .lookup_origin(ctx.shared.clone(), path, &b.hash, &b.site, &b.id)
+                .map_err(|error| ApiError::new(502, error))?;
+            Ok(Resp::json(200, &result))
+        }
         (Method::Put, ["api", "settings"]) => {
             let b: SettingsBody = read_json(req)?;
             let current_settings = ctx.shared.lock().cfg.settings.clone();
@@ -814,6 +923,8 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 || b.setup_complete.is_some()
                 || b.danbooru_rating.is_some()
                 || b.wallhaven_purity.is_some()
+                || b.yandere_rating.is_some()
+                || b.safebooru_rating.is_some()
             {
                 ctx.shared
                     .edit_config(|text| {
@@ -822,7 +933,11 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                         } else {
                             text.to_string()
                         };
-                        let text = if b.danbooru_rating.is_some() || b.wallhaven_purity.is_some() {
+                        let text = if b.danbooru_rating.is_some()
+                            || b.wallhaven_purity.is_some()
+                            || b.yandere_rating.is_some()
+                            || b.safebooru_rating.is_some()
+                        {
                             set_fetch_ratings(
                                 &text,
                                 b.danbooru_rating
@@ -831,6 +946,12 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                                 b.wallhaven_purity
                                     .as_deref()
                                     .unwrap_or(&current_settings.wallhaven_purity),
+                                b.yandere_rating
+                                    .as_deref()
+                                    .unwrap_or(&current_settings.yandere_rating),
+                                b.safebooru_rating
+                                    .as_deref()
+                                    .unwrap_or(&current_settings.safebooru_rating),
                             )?
                         } else {
                             text

@@ -28,6 +28,9 @@ export const fileActionResponseSchema = z.object({
     to: z.string(),
   }).passthrough()),
   error: z.string().nullable(),
+  additional_sorted: z.number().int().nonnegative().optional().default(0),
+  additional_batch: idSchema.nullable().optional(),
+  additional_error: z.string().nullable().optional(),
 }).passthrough();
 
 export type AssignFilesRequest = z.infer<typeof assignFilesRequestSchema>;

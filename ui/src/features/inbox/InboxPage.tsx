@@ -1,7 +1,6 @@
 import { ImageGrid, type GridItem } from '../../components/ImageGrid';
 import { SelectionBar } from '../../components/SelectionBar';
 import { useSelectionStore } from '../../stores/selection';
-import { TagEditor } from '../tags/components/TagEditor';
 import { AssignSheet } from './components/AssignSheet';
 import { InboxDetail } from './components/InboxDetail';
 import { useInboxActions } from './hooks/useInboxActions';
@@ -20,9 +19,8 @@ export function InboxPage() {
   });
   const {
     selectedItem, setSelectedItem, assignFiles, setAssignFiles, assignError, setAssignError,
-    thumbVersions, assignData, assignMutation, deleteMutation,
-    tagEditorKeywords, tagEditorFolders, tagEditorLoading, tagError, tagMutation,
-    openAssign, openTagEditor, closeTagEditor, saveInboxTag,
+    assignTagSeed, setAssignTagSeed, thumbVersions, assignData, assignMutation, deleteMutation,
+    sourceMutation, lookupMutation, openAssign,
     deleteFiles, selectedFiles, rebuildThumbnails,
   } = actions;
   const gridItems: GridItem[] = items.map((item) => ({
@@ -106,31 +104,37 @@ export function InboxPage() {
           pending={deleteMutation.isPending || assignMutation.isPending}
           onClose={() => setSelectedItem(null)}
           onAssign={() => {
-            const file = { path: selectedItem.path, name: selectedItem.name };
+            const file = {
+              path: selectedItem.path,
+              name: selectedItem.name,
+              tags: selectedItem.origin?.tags ?? [],
+            };
             setSelectedItem(null);
             void openAssign([file]);
           }}
+          onAssignCandidate={(folder) => {
+            const path = selectedItem.path;
+            setSelectedItem(null);
+            assignMutation.mutate({ paths: [path], folder });
+          }}
           onDelete={() => {
-            const file = { path: selectedItem.path, name: selectedItem.name };
+            const file = { path: selectedItem.path, name: selectedItem.name, tags: [] };
             setSelectedItem(null);
             void deleteFiles([file]);
           }}
           onRebuild={(hash) => { void rebuildThumbnails([hash]); }}
-          onCreateTag={(keywords) => { void openTagEditor(keywords); }}
-          creatingTag={tagEditorLoading}
-        />
-      ) : null}
-      {tagEditorKeywords ? (
-        <TagEditor
-          key={`inbox-${JSON.stringify(tagEditorKeywords)}`}
-          tag={null}
-          initialKeywords={tagEditorKeywords}
-          folders={tagEditorFolders}
-          duplicateFolder={statusQuery.data.settings.duplicates_folder}
-          pending={tagMutation.isPending}
-          error={tagError}
-          onClose={closeTagEditor}
-          onSave={saveInboxTag}
+          onCreateTag={(keywords) => {
+            const file = {
+              path: selectedItem.path,
+              name: selectedItem.name,
+              tags: selectedItem.origin?.tags ?? [],
+            };
+            setSelectedItem(null);
+            void openAssign([file], keywords);
+          }}
+          sourcePending={sourceMutation.isPending || lookupMutation.isPending}
+          onSaveSource={(request) => sourceMutation.mutate(request)}
+          onLookupSource={(request) => lookupMutation.mutate(request)}
         />
       ) : null}
       {assignFiles && assignData.current ? (
@@ -141,9 +145,11 @@ export function InboxPage() {
           duplicateFolder={assignData.current.duplicateFolder}
           pending={assignMutation.isPending}
           error={assignError}
+          initialTagKeywords={assignTagSeed}
           onClose={() => {
             if (assignMutation.isPending) return;
             setAssignFiles(null);
+            setAssignTagSeed([]);
             setAssignError(null);
           }}
           onSubmit={(request) => {

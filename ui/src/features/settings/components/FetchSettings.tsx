@@ -85,6 +85,37 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
           <option value="nsfw">Include NSFW</option>
         </select>
       </div>
+      <div className="field">
+        <label htmlFor="yandere-rating">Maximum yande.re rating</label>
+        <select
+          id="yandere-rating"
+          className="select"
+          aria-label="Maximum yande.re rating"
+          value={settings.yandere_rating}
+          disabled={ratingsMutation.isPending}
+          onChange={(event) => ratingsMutation.mutate({ yandere_rating: event.currentTarget.value as Status['settings']['yandere_rating'] })}
+        >
+          <option value="s">Safe only (safest)</option>
+          <option value="q">Include questionable</option>
+          <option value="e">Include explicit</option>
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor="safebooru-rating">Maximum Safebooru rating</label>
+        <select
+          id="safebooru-rating"
+          className="select"
+          aria-label="Maximum Safebooru rating"
+          value={settings.safebooru_rating}
+          disabled={ratingsMutation.isPending}
+          onChange={(event) => ratingsMutation.mutate({ safebooru_rating: event.currentTarget.value as Status['settings']['safebooru_rating'] })}
+        >
+          <option value="general">General only (safest)</option>
+          <option value="safe">Include safe</option>
+          <option value="questionable">Include questionable</option>
+          <option value="explicit">Include explicit</option>
+        </select>
+      </div>
       {secretsQuery.error ? (
         <p className="error" role="alert">
           {secretsQuery.error instanceof Error ? secretsQuery.error.message : String(secretsQuery.error)}
@@ -92,7 +123,8 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
       ) : null}
       <p className="muted">
         API keys are stored in secrets.toml with owner-only permissions and are never returned to the page.
-        Leave a key blank to keep the saved value.
+        Leave a key blank to keep the saved value. Danbooru requires your numeric user ID in the request User-Agent;
+        username and API key are only needed for authenticated requests.
       </p>
       <div className="field">
         <label htmlFor="wallhaven-api-key">Wallhaven API key</label>
@@ -140,7 +172,7 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
         />
       </div>
       <div className="field">
-        <label htmlFor="danbooru-user-id">Danbooru numeric user ID (for the request User-Agent)</label>
+        <label htmlFor="danbooru-user-id">Danbooru numeric user ID (required for Danbooru API requests)</label>
         <input
           id="danbooru-user-id"
           className="input wide"

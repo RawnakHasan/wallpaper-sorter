@@ -9,6 +9,7 @@ import type { AssignFilesRequest, FileActionResponse } from '../../files/schemas
 import { statusQueryKey } from '../../status/api';
 import { getTags, tagsQueryKey } from '../../tags/api';
 import type { Tag } from '../../tags/schemas';
+import { lookupOrigin, saveOrigin } from '../../data/api';
 import { refreshThumbnail } from '../../thumbnails/api';
 import { useSelectionStore } from '../../../stores/selection';
 import { useToastStore } from '../../../stores/toast';
@@ -16,6 +17,7 @@ import {
   applyFolderChange,
   createLibraryFolder,
   fillLibraryGaps,
+  libraryImagesQueryKey,
   libraryFoldersQueryKey,
   libraryImagesQueryOptions,
 } from '../api';
@@ -127,6 +129,34 @@ export function useLibraryActions({ currentFolder, images, duplicateFolder }: Us
       useSelectionStore.getState().clear();
       showToast(`Deleted ${plural(result.done.length, 'image')}`, { undo: undoBatch(result.batch) });
       await refreshAfterAction();
+    },
+    onError: (error) => showToast(messageOf(error), { error: true }),
+  });
+  const refreshSelectedImage = (hash: string) => {
+    const refreshed = queryClient
+      .getQueryData<LibraryImage[]>(libraryImagesQueryKey(currentFolder))
+      ?.find((image) => image.hash === hash);
+    if (refreshed) setSelectedImage(refreshed);
+  };
+  const sourceMutation = useMutation({
+    mutationFn: saveOrigin,
+    onSuccess: async (_, request) => {
+      showToast('Source saved');
+      await refreshAfterAction();
+      refreshSelectedImage(request.hash);
+    },
+    onError: (error) => showToast(messageOf(error), { error: true }),
+  });
+  const lookupMutation = useMutation({
+    mutationFn: lookupOrigin,
+    onSuccess: async (result, request) => {
+      await refreshAfterAction();
+      refreshSelectedImage(request.hash);
+      if (result.sorted_to) {
+        showToast(`Tags looked up and sorted to ${result.sorted_to}`, { undo: undoBatch(result.batch) });
+      } else {
+        showToast(`Looked up ${plural(result.tags_updated, 'tag')}`);
+      }
     },
     onError: (error) => showToast(messageOf(error), { error: true }),
   });
@@ -255,6 +285,7 @@ export function useLibraryActions({ currentFolder, images, duplicateFolder }: Us
     managementKey, setManagementKey, managementError, setManagementError, gapFolder, setGapFolder,
     gapError, setGapError, dropTarget, setDropTarget, thumbVersions, draggedFiles,
     createMutation, moveMutation, deleteMutation, folderChangeMutation, gapMutation,
+    sourceMutation, lookupMutation,
     navigateToFolder, prefetchFolder, selectedFiles, openMove, deleteSelected, rebuildThumbnails,
     openDeleteImage, openMoveImage, startImageDrag, dropImagesOnFolder, folderChangeDone, fillGaps,
   };

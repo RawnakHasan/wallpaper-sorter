@@ -172,12 +172,16 @@ fn starter_paths_are_escaped_structurally() {
 #[test]
 fn fetch_ratings_are_set_only_to_supported_values() {
     let text = "library = \"/tmp/library\"\n";
-    let updated = set_fetch_ratings(text, "s", "sketchy").unwrap();
+    let updated = set_fetch_ratings(text, "s", "sketchy", "q", "safe").unwrap();
     let cfg = Config::from_toml(&updated).unwrap();
     assert_eq!(cfg.settings.danbooru_rating, "s");
     assert_eq!(cfg.settings.wallhaven_purity, "sketchy");
-    assert!(set_fetch_ratings(text, "unsafe", "sfw").is_err());
-    assert!(set_fetch_ratings(text, "g", "unsafe").is_err());
+    assert_eq!(cfg.settings.yandere_rating, "q");
+    assert_eq!(cfg.settings.safebooru_rating, "safe");
+    assert!(set_fetch_ratings(text, "unsafe", "sfw", "s", "general").is_err());
+    assert!(set_fetch_ratings(text, "g", "unsafe", "s", "general").is_err());
+    assert!(set_fetch_ratings(text, "g", "sfw", "unsafe", "general").is_err());
+    assert!(set_fetch_ratings(text, "g", "sfw", "s", "unsafe").is_err());
 }
 
 #[cfg(unix)]

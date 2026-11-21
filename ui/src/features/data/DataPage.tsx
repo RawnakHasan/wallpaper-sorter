@@ -25,6 +25,8 @@ export function DataPage() {
     batchSheetOpen,
     setBatchSheetOpen,
     batchSaveMutation,
+    lookupableRecords,
+    bulkLookupMutation,
   } = useDataPage();
   const error = dataQuery.error ?? unknownCountQuery.error;
   if (error) {
@@ -117,6 +119,19 @@ export function DataPage() {
             <button className="btn small primary" onClick={() => setBatchSheetOpen(true)}>
               Set sources ({selectedRecords.length})
             </button>
+            <button
+              className="btn small"
+              type="button"
+              disabled={!lookupableRecords.length || bulkLookupMutation.isPending}
+              onClick={() => bulkLookupMutation.mutate(lookupableRecords)}
+            >
+              {bulkLookupMutation.isPending ? 'Looking up…' : `Look up tags (${lookupableRecords.length})`}
+            </button>
+            {lookupableRecords.length < selectedRecords.length ? (
+              <span className="muted">
+                {selectedRecords.length - lookupableRecords.length} selected {selectedRecords.length - lookupableRecords.length === 1 ? 'record has' : 'records have'} no supported site ID
+              </span>
+            ) : null}
             <button className="btn small" onClick={clearSelectedRecords}>Clear</button>
           </>
         ) : null}

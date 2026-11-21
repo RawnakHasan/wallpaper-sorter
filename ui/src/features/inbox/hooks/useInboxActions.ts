@@ -9,8 +9,8 @@ import { useSelectionStore } from '../../../stores/selection';
 import { useToastStore } from '../../../stores/toast';
 import { assignFiles as assignFilePaths, deleteFiles as deleteFilePaths } from '../../files/api';
 import type { AssignFilesRequest } from '../../files/schemas';
-import { getTagFolders, getTags, saveTag, tagFoldersQueryKey, tagsQueryKey } from '../../tags/api';
-import type { Tag, TagRequest } from '../../tags/schemas';
+import { getTags, tagsQueryKey } from '../../tags/api';
+import { lookupOrigin, saveOrigin } from '../../data/api';
 import { statusQueryKey } from '../../status/api';
 import type { Status } from '../../status/schemas';
 import { assignFoldersQueryKey, getAssignFolders, inboxQueryKey } from '../api';
@@ -31,14 +31,11 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
   const [selectedItem, setSelectedItem] = useState<InboxItem | null>(null);
   const [assignFiles, setAssignFiles] = useState<AssignFile[] | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
+  const [assignTagSeed, setAssignTagSeed] = useState<string[]>([]);
   const [thumbVersions, setThumbVersions] = useState<Record<string, number>>({});
-  const [tagEditorKeywords, setTagEditorKeywords] = useState<string[] | null>(null);
-  const [tagEditorFolders, setTagEditorFolders] = useState<Array<{ path: string }>>([]);
-  const [tagEditorLoading, setTagEditorLoading] = useState(false);
-  const [tagError, setTagError] = useState<string | null>(null);
   const assignData = useRef<{
     folders: AssignFolder[];
-    tags: Tag[];
+    tags: Awaited<ReturnType<typeof getTags>>;
     duplicateFolder: string;
   } | null>(null);
 
@@ -52,14 +49,21 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
       queryClient.invalidateQueries({ queryKey: assignFoldersQueryKey }),
     ]);
   };
-  const undoBatch = (batch: number | null) => batch === null ? undefined : async () => {
-    await undoActivity({ batch });
-    await refreshQueries();
+  const undoBatches = (batches: Array<number | null | undefined>) => {
+    const valid = [...new Set(batches.filter((batch): batch is number => batch !== null && batch !== undefined))];
+    return valid.length
+      ? async () => {
+        for (const batch of valid.reverse()) await undoActivity({ batch });
+        await refreshQueries();
+      }
+      : undefined;
   };
+  const undoBatch = (batch: number | null) => undoBatches([batch]);
   const assignMutation = useMutation({
     mutationFn: assignFilePaths,
     onSuccess: async (result, request) => {
       setAssignFiles(null);
+      setAssignTagSeed([]);
       setAssignError(null);
       useSelectionStore.getState().clear();
       if (result.error) {
@@ -69,7 +73,15 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
         const duplicates = result.done.filter((item) => item.kind === 'duplicate').length;
         let message = `Moved ${plural(moved, 'image')} to ${request.folder}`;
         if (duplicates) message += `; ${plural(duplicates, 'duplicate')} sent to ${status?.settings.duplicates_folder ?? 'Duplicates'}`;
-        showToast(message, { undo: undoBatch(result.batch) });
+        if (result.additional_sorted) {
+          message += `; sorted ${plural(result.additional_sorted, 'additional image')} using the new tag`;
+        }
+        const undo = undoBatches([result.batch, result.additional_batch]);
+        if (result.additional_error) {
+          showToast(`${message}; additional sorting stopped: ${result.additional_error}`, { error: true, undo });
+        } else {
+          showToast(message, { undo });
+        }
       }
       await refreshQueries();
     },
@@ -84,18 +96,33 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
     },
     onError: (error) => showToast(messageOf(error), { error: true }),
   });
-  const tagMutation = useMutation({
-    mutationFn: (request: TagRequest) => saveTag(null, request),
-    onSuccess: async () => {
-      setTagEditorKeywords(null);
-      setTagError(null);
-      showToast('Tag saved. Waiting images that match are sorted now.');
+  const sourceMutation = useMutation({
+    mutationFn: saveOrigin,
+    onSuccess: async (_, request) => {
+      showToast('Source saved');
       await refreshQueries();
+      const current = queryClient.getQueryData<InboxItem[]>(inboxQueryKey);
+      setSelectedItem(current?.find((item) => item.origin?.hash === request.hash) ?? null);
     },
-    onError: (error) => setTagError(messageOf(error)),
+    onError: (error) => showToast(messageOf(error), { error: true }),
+  });
+  const lookupMutation = useMutation({
+    mutationFn: lookupOrigin,
+    onSuccess: async (result, request) => {
+      await refreshQueries();
+      if (result.sorted_to) {
+        setSelectedItem(null);
+        showToast(`Tags looked up and sorted to ${result.sorted_to}`, { undo: undoBatch(result.batch) });
+      } else {
+        const current = queryClient.getQueryData<InboxItem[]>(inboxQueryKey);
+        setSelectedItem(current?.find((item) => item.origin?.hash === request.hash) ?? null);
+        showToast(`Looked up ${plural(result.tags_updated, 'tag')}; image remains in the Inbox.`);
+      }
+    },
+    onError: (error) => showToast(messageOf(error), { error: true }),
   });
 
-  const openAssign = async (files: AssignFile[]) => {
+  const openAssign = async (files: AssignFile[], initialTagKeywords: string[] = []) => {
     if (!files.length) return;
     try {
       const [folders, tags] = await Promise.all([
@@ -105,36 +132,11 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
       if (!status) return;
       setAssignError(null);
       assignData.current = { folders, tags, duplicateFolder: status.settings.duplicates_folder };
+      setAssignTagSeed(initialTagKeywords);
       setAssignFiles(files);
     } catch (error) {
       showToast(messageOf(error), { error: true });
     }
-  };
-  const openTagEditor = async (keywords: string[]) => {
-    if (!keywords.length) return;
-    setTagEditorLoading(true);
-    try {
-      const folders = await queryClient.fetchQuery({
-        queryKey: tagFoldersQueryKey,
-        queryFn: getTagFolders,
-      });
-      setTagError(null);
-      setTagEditorFolders(folders);
-      setTagEditorKeywords(keywords);
-    } catch (error) {
-      showToast(`Could not load folders for the tag editor: ${messageOf(error)}`, { error: true });
-    } finally {
-      setTagEditorLoading(false);
-    }
-  };
-  const closeTagEditor = () => {
-    if (tagMutation.isPending) return;
-    setTagEditorKeywords(null);
-    setTagError(null);
-  };
-  const saveInboxTag = (request: TagRequest) => {
-    setTagError(null);
-    tagMutation.mutate(request);
   };
   const deleteFiles = async (files: AssignFile[]) => {
     if (!files.length) return;
@@ -150,7 +152,7 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
     const selected = useSelectionStore.getState().keys;
     return items
       .filter((item) => selected.has(item.path))
-      .map(({ path, name }) => ({ path, name }));
+      .map((item) => ({ path: item.path, name: item.name, tags: item.origin?.tags ?? [] }));
   };
   const rebuildThumbnails = async (hashes: Array<string | null | undefined>) => {
     const unique = [...new Set(hashes.filter((hash): hash is string => Boolean(hash)))];
@@ -209,9 +211,8 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
 
   return {
     selectedItem, setSelectedItem, assignFiles, setAssignFiles, assignError, setAssignError,
-    thumbVersions, assignData, assignMutation, deleteMutation,
-    tagEditorKeywords, tagEditorFolders, tagEditorLoading, tagError, tagMutation,
-    openAssign, openTagEditor, closeTagEditor, saveInboxTag,
+    assignTagSeed, setAssignTagSeed, thumbVersions, assignData, assignMutation, deleteMutation,
+    sourceMutation, lookupMutation, openAssign,
     deleteFiles, selectedFiles, rebuildThumbnails,
   };
 }

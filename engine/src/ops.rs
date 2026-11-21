@@ -11,8 +11,8 @@ use crate::util::unix_now;
 use serde::Serialize;
 use sorter_core::numbering::{gaps, next_number, parse_numbered};
 use sorter_core::{
-    classify, expand_home, plan_gap_fill, plan_new_file, Action, Config, Dest, GapMode, Plan,
-    PlanOptions, Rename, Rule, Site, Source,
+    classify, classify_with_hints, expand_home, plan_gap_fill, plan_new_file, Action, Config, Dest,
+    GapMode, MatchCandidate, Plan, PlanOptions, Rename, Rule, Site, Source,
 };
 use std::collections::{BTreeSet, HashMap};
 use std::fs;
@@ -37,6 +37,7 @@ pub struct InboxItem {
     /// "no_match", "conflict", or "ready" (a tag now matches; the next scan will sort it).
     pub reason: String,
     pub matched: Vec<String>,
+    pub candidates: Vec<MatchCandidate>,
     /// "library" for a loose file in the library folder, else the intake folder it is in.
     pub intake: String,
     pub size: u64,
@@ -167,12 +168,6 @@ impl Pipeline {
             if name.starts_with('.') || !self.is_image(&name) {
                 continue;
             }
-            let d = classify(&name, &self.cfg);
-            let reason = match (&d.dest, d.rule) {
-                (Dest::Folder(_), _) => "ready",
-                (_, Rule::Conflict) => "conflict",
-                _ => "no_match",
-            };
             let origin = match rel_inside(&self.root, &path) {
                 Some(rel) => self
                     .index
@@ -181,12 +176,23 @@ impl Pipeline {
                     .cloned(),
                 None => self.origins.get_by_path(&path.to_string_lossy()).cloned(),
             };
+            let hints = origin
+                .as_ref()
+                .map(|record| record.tags.as_slice())
+                .unwrap_or_default();
+            let d = classify_with_hints(&name, &self.cfg, hints);
+            let reason = match (&d.dest, d.rule) {
+                (Dest::Folder(_), _) => "ready",
+                (_, Rule::Conflict) => "conflict",
+                _ => "no_match",
+            };
             let meta = fs::metadata(&path).ok();
             items.push(InboxItem {
                 path: path.to_string_lossy().to_string(),
                 name,
                 reason: reason.to_string(),
                 matched: d.matched,
+                candidates: d.candidates,
                 intake,
                 size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
                 modified: meta.as_ref().map(mtime_secs).unwrap_or(0),
@@ -726,6 +732,35 @@ impl Pipeline {
         self.origins.upsert(o);
         self.origins.save()?;
         Ok(true)
+    }
+
+    /// Updates source metadata fetched for an existing origin and returns its current path.
+    pub fn update_origin_metadata(
+        &mut self,
+        hash: &str,
+        source: Source,
+        tags: Vec<String>,
+        rating: String,
+    ) -> io::Result<Option<PathBuf>> {
+        let Some(mut origin) = self.origins.get(hash).cloned() else {
+            return Ok(None);
+        };
+        if origin.sources.is_empty() {
+            origin.sources.push(source);
+        } else {
+            origin.sources[0] = source;
+        }
+        origin.tags = tags;
+        origin.rating = Some(rating);
+        let path = Path::new(&origin.path);
+        let path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            self.root.join(path)
+        };
+        self.origins.upsert(origin);
+        self.origins.save()?;
+        Ok(Some(path))
     }
 
     /// Saves metadata before a fetched file is handed to the normal planning pipeline.
