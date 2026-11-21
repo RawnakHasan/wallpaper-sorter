@@ -96,7 +96,7 @@ export function SearchPage() {
               onChange={(event) => setSite(event.currentTarget.value as SearchSite)}
             >
               {sites.map((entry) => <option key={entry} value={entry}>{entry}</option>)}
-              <option value="" disabled>Zerochan (image host not approved)</option>
+              <option value="" disabled>Zerochan (browsing unavailable)</option>
             </select>
           </label>
           <label className="field search-query">
@@ -115,7 +115,7 @@ export function SearchPage() {
           </button>
         </div>
         <p className="muted">Leave the query blank to browse recent posts. Results respect the rating limits in Settings.</p>
-        <p className="muted">Zerochan image browsing is unavailable until its full-size image host is documented and approved.</p>
+        <p className="muted">Zerochan browsing is not implemented. You can still fetch Zerochan posts from the Fetch box.</p>
       </form>
 
       {resultsQuery.isError ? <p className="error" role="alert">{messageOf(resultsQuery.error)}</p> : null}

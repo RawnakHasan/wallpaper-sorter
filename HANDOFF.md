@@ -281,8 +281,8 @@ tables are the real specification; do not regenerate them from the code.
   link identifies its site. Settings stores Wallhaven and Danbooru credentials, Konachan.net's maximum rating, the
   Zerochan username, and the unrated-site warning preference.
 - Saved non-secret identities are displayed with Edit controls. API keys remain write-only and show saved/replacement
-  state rather than their value. Browse includes Konachan.net; Zerochan browsing stays unavailable until a documented
-  full-size image host is approved.
+  state rather than their value. Browse includes Konachan.net; Zerochan browsing is not implemented, though Fetch
+  downloads from the owner-approved `static.zerochan.net` host.
 - When a fetched Danbooru character has no matching tag, the Overview offers to create one and assign that image
   into the new destination; the suggestion defaults under a matching series tag when one exists.
 - Because of the CSP, never set `style="..."` attributes or use inline handlers. Setting `el.style.x = ...` from
@@ -377,7 +377,8 @@ owner-approved `static.zerochan.net` host; Zerochan image browsing remains disab
 - Verify Zerochan terms; the checked `/terms` URL redirected to an ordinary page rather than terms. The owner approved
   only `static.zerochan.net` for downloads; `s1.zerochan.net` and `s3.zerochan.net` remain blocked because the official
   docs do not identify a permitted full-size image host.
-- Zerochan search and image browsing remain disabled until an exact full-size image host is documented and approved.
+- Zerochan browsing is not implemented; Fetch/download is separate and uses only the owner-approved
+  `static.zerochan.net` host.
 - Add a thumbnail-cache size limit and a `log.jsonl` size limit; keep origin records permanent.
 - Videos remain parked.
 - Pixiv API fetching remains parked.

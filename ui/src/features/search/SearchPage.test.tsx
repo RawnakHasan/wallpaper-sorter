@@ -87,7 +87,7 @@ it('searches and browses paged results with daemon-served previews', async () =>
   expect(screen.getByRole('link', { name: 'Open post' }).getAttribute('href'))
     .toBe('https://wallhaven.cc/w/abc123');
   expect(screen.getByRole('option', { name: 'Konachan.net' })).toBeTruthy();
-  expect(screen.getByRole('option', { name: /Zerochan.*not approved/ })).toBeTruthy();
+  expect(screen.getByRole('option', { name: /Zerochan.*browsing unavailable/ })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Next' }));
   await waitFor(() => expect(pages).toEqual(['1', '2']));
   fireEvent.click(screen.getByRole('button', { name: 'View image and tags' }));
