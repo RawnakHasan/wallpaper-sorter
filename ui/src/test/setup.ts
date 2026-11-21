@@ -15,6 +15,12 @@ if (!window.matchMedia) {
   });
 }
 
+Object.defineProperty(window, 'scrollTo', {
+  configurable: true,
+  writable: true,
+  value: () => {},
+});
+
 beforeAll(() => server.listen());
 afterEach(() => {
   cleanup();
