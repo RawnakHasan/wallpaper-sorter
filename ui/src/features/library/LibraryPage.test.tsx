@@ -130,10 +130,25 @@ it('opens full-resolution Library images from the grid and navigates the current
     { path: 'Nature/Nature 1.png', name: 'Nature 1.png', number: 1, size: 120, hash: 'image-hash-1', origin: null },
     { path: 'Nature/Nature 2.png', name: 'Nature 2.png', number: 2, size: 240, hash: 'image-hash-2', origin: null },
   ];
+  const archiveImage = {
+    path: 'Archive/Archive 1.png',
+    name: 'Archive 1.png',
+    number: 1,
+    size: 300,
+    hash: 'archive-hash',
+    origin: null,
+  };
+  const galleryFolders = [
+    { path: 'Nature', name: 'Nature', prefix: 'Nature', count: 2, next_number: 3, gaps: [] },
+    { path: 'Archive', name: 'Archive', prefix: 'Archive', count: 1, next_number: 2, gaps: [] },
+  ];
   server.use(
-    http.get('http://127.0.0.1/api/folders', () => HttpResponse.json(folders)),
+    http.get('http://127.0.0.1/api/folders', () => HttpResponse.json(galleryFolders)),
     http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
-    http.get('http://127.0.0.1/api/images', () => HttpResponse.json(images)),
+    http.get('http://127.0.0.1/api/images', ({ request }) => {
+      const folder = new URL(request.url).searchParams.get('folder');
+      return HttpResponse.json(folder === 'Nature' ? images : folder === 'Archive' ? [archiveImage] : []);
+    }),
     http.get('http://127.0.0.1/api/tags', () => HttpResponse.json([])),
   );
   const { client } = renderLibrary();
@@ -147,7 +162,7 @@ it('opens full-resolution Library images from the grid and navigates the current
 
   expect(image.getAttribute('src')).toBe('/api/image/image-hash-1');
   expect(previous.hasAttribute('disabled')).toBe(true);
-  expect(next.hasAttribute('disabled')).toBe(false);
+  await waitFor(() => expect(next.hasAttribute('disabled')).toBe(false));
   for (const button of [previous, next, close]) {
     expect(button.textContent).toBe('');
     expect(button.querySelector('svg')).toBeTruthy();
@@ -157,8 +172,17 @@ it('opens full-resolution Library images from the grid and navigates the current
   expect(await screen.findByRole('dialog', { name: 'Full-screen image Nature 2.png' })).toBeTruthy();
   expect(within(viewer).getByRole('img', { name: 'Nature 2.png' }).getAttribute('src'))
     .toBe('/api/image/image-hash-2');
-  expect(next.hasAttribute('disabled')).toBe(true);
+  expect(next.hasAttribute('disabled')).toBe(false);
   expect(previous.hasAttribute('disabled')).toBe(false);
+  fireEvent.click(next);
+  expect(await screen.findByRole('dialog', { name: 'Full-screen image Archive 1.png' })).toBeTruthy();
+  expect(within(viewer).getByRole('img', { name: 'Archive 1.png' }).getAttribute('src'))
+    .toBe('/api/image/archive-hash');
+  expect(next.hasAttribute('disabled')).toBe(true);
+  fireEvent.click(previous);
+  expect(await screen.findByRole('dialog', { name: 'Full-screen image Nature 2.png' })).toBeTruthy();
+  fireEvent.click(previous);
+  expect(await screen.findByRole('dialog', { name: 'Full-screen image Nature 1.png' })).toBeTruthy();
   fireEvent.click(close);
   await waitFor(() => expect(screen.queryByRole('dialog', { name: /Full-screen image/ })).toBeNull());
   expect(viewer.isConnected).toBe(false);
@@ -177,7 +201,10 @@ it('opens the full-screen viewer from the image details sidebar', async () => {
   server.use(
     http.get('http://127.0.0.1/api/folders', () => HttpResponse.json(folders)),
     http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
-    http.get('http://127.0.0.1/api/images', () => HttpResponse.json([image])),
+    http.get('http://127.0.0.1/api/images', ({ request }) => {
+      const folder = new URL(request.url).searchParams.get('folder');
+      return HttpResponse.json(folder === 'Nature' ? [image] : []);
+    }),
     http.get('http://127.0.0.1/api/tags', () => HttpResponse.json([])),
   );
   const { client } = renderLibrary();

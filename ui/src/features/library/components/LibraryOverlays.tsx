@@ -13,6 +13,8 @@ import type { OriginLookupRequest, Site } from '../../data/schemas';
 interface LibraryOverlaysProps {
   viewerImages: Array<LibraryImage & { hash: string }>;
   fullscreenPath: string | null;
+  viewerLoading: boolean;
+  viewerError: string | null;
   onOpenFullscreen: () => void;
   onCloseFullscreen: (image: LibraryImage & { hash: string }) => void;
   selectedImage: LibraryImage | null;
@@ -55,6 +57,8 @@ interface LibraryOverlaysProps {
 export function LibraryOverlays({
   viewerImages,
   fullscreenPath,
+  viewerLoading,
+  viewerError,
   onOpenFullscreen,
   onCloseFullscreen,
   selectedImage,
@@ -115,6 +119,8 @@ export function LibraryOverlays({
         <LibraryImageViewer
           images={viewerImages}
           imagePath={fullscreenPath}
+          navigationPending={viewerLoading}
+          navigationError={viewerError}
           onClose={onCloseFullscreen}
         />
       ) : null}

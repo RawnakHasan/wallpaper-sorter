@@ -8,10 +8,18 @@ type ViewableImage = LibraryImage & { hash: string };
 interface LibraryImageViewerProps {
   images: ViewableImage[];
   imagePath: string;
+  navigationPending: boolean;
+  navigationError: string | null;
   onClose: (image: ViewableImage) => void;
 }
 
-export function LibraryImageViewer({ images, imagePath, onClose }: LibraryImageViewerProps) {
+export function LibraryImageViewer({
+  images,
+  imagePath,
+  navigationPending,
+  navigationError,
+  onClose,
+}: LibraryImageViewerProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [currentPath, setCurrentPath] = useState(imagePath);
   const index = Math.max(0, images.findIndex((image) => image.path === currentPath));
@@ -47,7 +55,7 @@ export function LibraryImageViewer({ images, imagePath, onClose }: LibraryImageV
           type="button"
           aria-label="Previous image"
           title="Previous image"
-          disabled={index === 0}
+          disabled={navigationPending || index === 0}
           onClick={() => goTo(-1)}
         >
           <Icon name="previous" />
@@ -58,7 +66,7 @@ export function LibraryImageViewer({ images, imagePath, onClose }: LibraryImageV
           type="button"
           aria-label="Next image"
           title="Next image"
-          disabled={index >= images.length - 1}
+          disabled={navigationPending || index >= images.length - 1}
           onClick={() => goTo(1)}
         >
           <Icon name="next" />
@@ -68,6 +76,12 @@ export function LibraryImageViewer({ images, imagePath, onClose }: LibraryImageV
         </button>
       </header>
       <div className="library-viewer-content">
+        {navigationPending ? <p className="muted" role="status">Loading the full Library gallery…</p> : null}
+        {navigationError ? (
+          <p className="error" role="alert">
+            Could not load the full Library gallery. {navigationError}
+          </p>
+        ) : null}
         <img className="library-viewer-image" src={`/api/image/${image.hash}`} alt={image.name} />
       </div>
     </dialog>

@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getStatus, statusQueryKey } from '../../status/api';
 import { getLibraryFolders, libraryFoldersQueryKey, libraryImagesQueryOptions } from '../api';
 
-export function useLibraryQueries(requestedFolder?: string) {
+export function useLibraryQueries(requestedFolder?: string, loadGallery = false) {
+  const queryClient = useQueryClient();
   const foldersQuery = useQuery({
     queryKey: libraryFoldersQueryKey,
     queryFn: getLibraryFolders,
@@ -25,6 +26,27 @@ export function useLibraryQueries(requestedFolder?: string) {
     refetchIntervalInBackground: true,
   });
   const images = imagesQuery.data ?? [];
+  const folderPaths = folders.map((entry) => entry.path);
+  const galleryImagesQuery = useQuery({
+    queryKey: ['library-gallery-images', folderPaths],
+    queryFn: async () => {
+      const lists = await Promise.all(folderPaths.map((folder) =>
+        queryClient.fetchQuery(libraryImagesQueryOptions(folder))
+      ));
+      return lists.flat();
+    },
+    enabled: loadGallery && folderPaths.length > 0,
+    staleTime: 0,
+  });
 
-  return { foldersQuery, statusQuery, folders, currentFolder, currentInfo, imagesQuery, images };
+  return {
+    foldersQuery,
+    statusQuery,
+    folders,
+    currentFolder,
+    currentInfo,
+    imagesQuery,
+    images,
+    galleryImagesQuery,
+  };
 }

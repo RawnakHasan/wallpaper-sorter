@@ -15,9 +15,18 @@ import type { LibraryImage } from './schemas';
 
 export function LibraryPage() {
   const routeSearch = useSearch({ from: '/library' });
+  const [fullscreenPath, setFullscreenPath] = useState<string | null>(null);
   const selectionKeys = useSelectionStore((state) => state.keys);
-  const { foldersQuery, statusQuery, folders, currentFolder, currentInfo, imagesQuery, images } =
-    useLibraryQueries(routeSearch.folder);
+  const {
+    foldersQuery,
+    statusQuery,
+    folders,
+    currentFolder,
+    currentInfo,
+    imagesQuery,
+    images,
+    galleryImagesQuery,
+  } = useLibraryQueries(routeSearch.folder, fullscreenPath !== null);
   const actions = useLibraryActions({
     currentFolder,
     images,
@@ -33,10 +42,12 @@ export function LibraryPage() {
     navigateToFolder, prefetchFolder, selectedFiles, openMove, deleteSelected, rebuildThumbnails,
     openDeleteImage, openMoveImage, startImageDrag, dropImagesOnFolder, folderChangeDone, fillGaps,
   } = actions;
-  const [fullscreenPath, setFullscreenPath] = useState<string | null>(null);
 
   const allKeys = images.map((image) => image.path);
-  const fullscreenImages = images.filter((image): image is LibraryImage & { hash: string } => image.hash !== null);
+  const viewerImageSource = galleryImagesQuery.data ?? images;
+  const fullscreenImages = viewerImageSource.filter(
+    (image): image is LibraryImage & { hash: string } => image.hash !== null
+  );
   const gridItems: GridItem[] = images.map((image) => ({
     key: image.path,
     hash: image.hash,
@@ -172,6 +183,8 @@ export function LibraryPage() {
       <LibraryOverlays
         viewerImages={fullscreenImages}
         fullscreenPath={fullscreenPath}
+        viewerLoading={galleryImagesQuery.isFetching}
+        viewerError={galleryImagesQuery.error ? messageOf(galleryImagesQuery.error) : null}
         onOpenFullscreen={() => {
           if (selectedImage?.hash) setFullscreenPath(selectedImage.path);
         }}
