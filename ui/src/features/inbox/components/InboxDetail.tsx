@@ -1,8 +1,13 @@
-import { Fragment, useRef } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { Icon } from '../../../components/Icon';
 import { useNativeDialog } from '../../../components/useNativeDialog';
 import type { InboxItem } from '../schemas';
 import { formatDateTime, reasonLabels, safeUrl } from '../utils';
+
+function artistNameFromTag(tag: string) {
+  const match = /^(.*?)\s+\(artist\)$/i.exec(tag);
+  return match?.[1].trim() || null;
+}
 
 interface InboxDetailProps {
   item: InboxItem;
@@ -11,11 +16,34 @@ interface InboxDetailProps {
   onAssign: () => void;
   onDelete: () => void;
   onRebuild: (hash: string) => void;
+  onCreateTag: (keywords: string[]) => void;
+  creatingTag: boolean;
 }
 
-export function InboxDetail({ item, pending, onClose, onAssign, onDelete, onRebuild }: InboxDetailProps) {
+export function InboxDetail({
+  item,
+  pending,
+  onClose,
+  onAssign,
+  onDelete,
+  onRebuild,
+  onCreateTag,
+  creatingTag,
+}: InboxDetailProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const origin = item.origin;
+  const sourceArtists = origin?.sources.flatMap((source) => source.artist
+    ? [{ name: source.artist, id: source.artist_id ?? null, site: source.site }]
+    : []) ?? [];
+  const taggedArtists = (origin?.tags ?? [])
+    .map(artistNameFromTag)
+    .filter((name): name is string => name !== null)
+    .map((name) => ({ name, id: null, site: null }));
+  const artists = [...new Map(
+    [...sourceArtists, ...taggedArtists].map((artist) => [artist.name.toLowerCase(), artist]),
+  ).values()];
+  const siteTags = [...new Set(origin?.tags ?? [])].filter((tag) => !artistNameFromTag(tag));
   useNativeDialog(dialogRef);
 
   const rows: Array<[string, string]> = [
@@ -29,8 +57,13 @@ export function InboxDetail({ item, pending, onClose, onAssign, onDelete, onRebu
     rows.push(['Added', formatDateTime(origin.added)]);
     if (origin.note) rows.push(['Why here', origin.note]);
     if (origin.rating) rows.push(['Content rating', origin.rating]);
-    if (origin.tags.length) rows.push(['Site tags', origin.tags.join(', ')]);
   }
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((current) => current.includes(tag)
+      ? current.filter((value) => value !== tag)
+      : [...current, tag]);
+  };
 
   return (
     <dialog
@@ -71,15 +104,62 @@ export function InboxDetail({ item, pending, onClose, onAssign, onDelete, onRebu
                 <span className="badge">{source.site}</span>
                 {source.id ? <> <span className="m">{source.id}</span></> : null}
                 {url ? <> <a href={url} target="_blank" rel="noopener noreferrer">open page</a></> : null}
-                {source.artist ? (
-                  <div className="muted">
-                    Artist: {source.artist}{source.artist_id ? ` (${source.artist_id})` : ''}
-                  </div>
-                ) : null}
               </div>
             </div>
           );
         })}
+        {artists.length ? (
+          <section className="metadata-section">
+            <h3>Artist</h3>
+            <div className="metadata-artists">
+              {artists.map((source, index) => (
+                <div className="metadata-artist" key={`${source.site ?? 'tag'}-${source.id ?? source.name}-${index}`}>
+                  <button
+                    className={`tagchip site-tag-chip${selectedTags.includes(source.name) ? ' selected' : ''}`}
+                    type="button"
+                    aria-pressed={selectedTags.includes(source.name)}
+                    onClick={() => toggleTag(source.name)}
+                  >
+                    {source.name}
+                  </button>
+                  {source.id ? <span className="m muted">({source.id})</span> : null}
+                  {source.site ? <span className="badge">{source.site}</span> : null}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        {siteTags.length ? (
+          <section className="metadata-section">
+            <h3>Site tags</h3>
+            <div className="site-tags">
+              {siteTags.map((tag) => {
+                const selected = selectedTags.includes(tag);
+                return (
+                  <button
+                    className={`tagchip site-tag-chip${selected ? ' selected' : ''}`}
+                    type="button"
+                    key={tag}
+                    aria-pressed={selected}
+                    onClick={() => toggleTag(tag)}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+        {selectedTags.length ? (
+          <button
+            className="btn small primary"
+            type="button"
+            disabled={creatingTag}
+            onClick={() => onCreateTag(selectedTags)}
+          >
+            {creatingTag ? 'Loading tag editor…' : `Create tag from selected (${selectedTags.length})`}
+          </button>
+        ) : null}
       </div>
       <footer>
         {origin?.hash ? <button className="btn" type="button" onClick={() => onRebuild(origin.hash)}>Rebuild thumbnail</button> : null}

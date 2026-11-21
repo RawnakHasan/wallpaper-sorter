@@ -9,8 +9,8 @@ import { useSelectionStore } from '../../../stores/selection';
 import { useToastStore } from '../../../stores/toast';
 import { assignFiles as assignFilePaths, deleteFiles as deleteFilePaths } from '../../files/api';
 import type { AssignFilesRequest } from '../../files/schemas';
-import { getTags, tagsQueryKey } from '../../tags/api';
-import type { Tag } from '../../tags/schemas';
+import { getTagFolders, getTags, saveTag, tagFoldersQueryKey, tagsQueryKey } from '../../tags/api';
+import type { Tag, TagRequest } from '../../tags/schemas';
 import { statusQueryKey } from '../../status/api';
 import type { Status } from '../../status/schemas';
 import { assignFoldersQueryKey, getAssignFolders, inboxQueryKey } from '../api';
@@ -32,6 +32,10 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
   const [assignFiles, setAssignFiles] = useState<AssignFile[] | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [thumbVersions, setThumbVersions] = useState<Record<string, number>>({});
+  const [tagEditorKeywords, setTagEditorKeywords] = useState<string[] | null>(null);
+  const [tagEditorFolders, setTagEditorFolders] = useState<Array<{ path: string }>>([]);
+  const [tagEditorLoading, setTagEditorLoading] = useState(false);
+  const [tagError, setTagError] = useState<string | null>(null);
   const assignData = useRef<{
     folders: AssignFolder[];
     tags: Tag[];
@@ -80,6 +84,16 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
     },
     onError: (error) => showToast(messageOf(error), { error: true }),
   });
+  const tagMutation = useMutation({
+    mutationFn: (request: TagRequest) => saveTag(null, request),
+    onSuccess: async () => {
+      setTagEditorKeywords(null);
+      setTagError(null);
+      showToast('Tag saved. Waiting images that match are sorted now.');
+      await refreshQueries();
+    },
+    onError: (error) => setTagError(messageOf(error)),
+  });
 
   const openAssign = async (files: AssignFile[]) => {
     if (!files.length) return;
@@ -95,6 +109,32 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
     } catch (error) {
       showToast(messageOf(error), { error: true });
     }
+  };
+  const openTagEditor = async (keywords: string[]) => {
+    if (!keywords.length) return;
+    setTagEditorLoading(true);
+    try {
+      const folders = await queryClient.fetchQuery({
+        queryKey: tagFoldersQueryKey,
+        queryFn: getTagFolders,
+      });
+      setTagError(null);
+      setTagEditorFolders(folders);
+      setTagEditorKeywords(keywords);
+    } catch (error) {
+      showToast(`Could not load folders for the tag editor: ${messageOf(error)}`, { error: true });
+    } finally {
+      setTagEditorLoading(false);
+    }
+  };
+  const closeTagEditor = () => {
+    if (tagMutation.isPending) return;
+    setTagEditorKeywords(null);
+    setTagError(null);
+  };
+  const saveInboxTag = (request: TagRequest) => {
+    setTagError(null);
+    tagMutation.mutate(request);
   };
   const deleteFiles = async (files: AssignFile[]) => {
     if (!files.length) return;
@@ -170,6 +210,8 @@ export function useInboxActions({ items, allKeys, hasInboxData, status }: UseInb
   return {
     selectedItem, setSelectedItem, assignFiles, setAssignFiles, assignError, setAssignError,
     thumbVersions, assignData, assignMutation, deleteMutation,
-    openAssign, deleteFiles, selectedFiles, rebuildThumbnails,
+    tagEditorKeywords, tagEditorFolders, tagEditorLoading, tagError, tagMutation,
+    openAssign, openTagEditor, closeTagEditor, saveInboxTag,
+    deleteFiles, selectedFiles, rebuildThumbnails,
   };
 }

@@ -1,6 +1,7 @@
 import { ImageGrid, type GridItem } from '../../components/ImageGrid';
 import { SelectionBar } from '../../components/SelectionBar';
 import { useSelectionStore } from '../../stores/selection';
+import { TagEditor } from '../tags/components/TagEditor';
 import { AssignSheet } from './components/AssignSheet';
 import { InboxDetail } from './components/InboxDetail';
 import { useInboxActions } from './hooks/useInboxActions';
@@ -20,7 +21,9 @@ export function InboxPage() {
   const {
     selectedItem, setSelectedItem, assignFiles, setAssignFiles, assignError, setAssignError,
     thumbVersions, assignData, assignMutation, deleteMutation,
-    openAssign, deleteFiles, selectedFiles, rebuildThumbnails,
+    tagEditorKeywords, tagEditorFolders, tagEditorLoading, tagError, tagMutation,
+    openAssign, openTagEditor, closeTagEditor, saveInboxTag,
+    deleteFiles, selectedFiles, rebuildThumbnails,
   } = actions;
   const gridItems: GridItem[] = items.map((item) => ({
     key: item.path,
@@ -113,6 +116,21 @@ export function InboxPage() {
             void deleteFiles([file]);
           }}
           onRebuild={(hash) => { void rebuildThumbnails([hash]); }}
+          onCreateTag={(keywords) => { void openTagEditor(keywords); }}
+          creatingTag={tagEditorLoading}
+        />
+      ) : null}
+      {tagEditorKeywords ? (
+        <TagEditor
+          key={`inbox-${JSON.stringify(tagEditorKeywords)}`}
+          tag={null}
+          initialKeywords={tagEditorKeywords}
+          folders={tagEditorFolders}
+          duplicateFolder={statusQuery.data.settings.duplicates_folder}
+          pending={tagMutation.isPending}
+          error={tagError}
+          onClose={closeTagEditor}
+          onSave={saveInboxTag}
         />
       ) : null}
       {assignFiles && assignData.current ? (

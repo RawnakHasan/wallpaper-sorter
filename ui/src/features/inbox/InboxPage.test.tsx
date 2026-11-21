@@ -23,6 +23,34 @@ const items = [
   { path: 'library/clash.png', name: 'clash.png', reason: 'conflict', matched: ['fox', 'art'], intake: 'library', size: 240, modified: 2, origin: null },
 ];
 
+const sourcedItem = {
+  path: 'library/sky.png',
+  name: 'sky.png',
+  reason: 'no_match',
+  matched: [],
+  intake: 'library',
+  size: 300,
+  modified: 3,
+  origin: {
+    hash: 'sky-hash',
+    path: 'library/sky.png',
+    original_name: 'sky.png',
+    sources: [{
+      site: 'Danbooru',
+      id: '123',
+      url: 'https://danbooru.donmai.us/posts/123',
+      artist: 'Example Artist',
+      artist_id: '456',
+    }],
+    added: 1,
+    note: '',
+    width: 1920,
+    height: 1080,
+    tags: ['Tag Artist (artist)', 'blue sky', 'clouds', 'grass'],
+    rating: 's',
+  },
+};
+
 function renderInbox() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const router = createRouter({
@@ -87,5 +115,53 @@ it('shows a recoverable error when the inbox cannot be loaded', async () => {
 
   expect((await screen.findByRole('alert')).textContent).toContain('Inbox unavailable');
   expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+  client.clear();
+});
+
+it('shows artist metadata and creates one tag from multiple selected site tags', async () => {
+  let saveRequest: unknown;
+  server.use(
+    http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
+    http.get('http://127.0.0.1/api/inbox', () => HttpResponse.json([sourcedItem])),
+    http.get('http://127.0.0.1/api/folders', () => HttpResponse.json([{ path: 'Nature' }])),
+    http.post('http://127.0.0.1/api/tags', async ({ request }) => {
+      saveRequest = await request.json();
+      return HttpResponse.json([]);
+    }),
+  );
+  const { client } = renderInbox();
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Details of sky.png' }));
+  expect(screen.getByRole('heading', { name: 'Artist' })).toBeTruthy();
+  expect(screen.getByText('Example Artist')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Tag Artist' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Tag Artist (artist)' })).toBeNull();
+  expect(screen.getByRole('heading', { name: 'Site tags' })).toBeTruthy();
+
+  const skyTag = screen.getByRole('button', { name: 'blue sky' });
+  const cloudTag = screen.getByRole('button', { name: 'clouds' });
+  const grassTag = screen.getByRole('button', { name: 'grass' });
+  fireEvent.click(grassTag);
+  fireEvent.click(grassTag);
+  expect(grassTag.getAttribute('aria-pressed')).toBe('false');
+  fireEvent.click(skyTag);
+  fireEvent.click(cloudTag);
+  expect(skyTag.getAttribute('aria-pressed')).toBe('true');
+  expect(cloudTag.getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(screen.getByRole('button', { name: 'Create tag from selected (2)' }));
+
+  expect(await screen.findByRole('heading', { name: 'Add tag' })).toBeTruthy();
+  fireEvent.change(screen.getByRole('textbox', { name: 'Folder' }), { target: { value: 'Nature' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+  await waitFor(() => expect(saveRequest).toEqual({
+    keywords: ['blue sky', 'clouds'],
+    dest: 'Nature',
+    prefix: null,
+    match: 'word',
+    strict_words: [],
+    generic: false,
+  }));
+  await waitFor(() => expect(client.isMutating()).toBe(0));
   client.clear();
 });
