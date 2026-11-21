@@ -19,7 +19,7 @@ export function SearchPage() {
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState<{ site: SearchSite; query: string; page: number } | null>(null);
   const [searchVersion, setSearchVersion] = useState(0);
-  const [selectedItem, setSelectedItem] = useState<SearchResults['items'][number] | null>(null);
+  const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [downloadJobId, setDownloadJobId] = useState<number | null>(null);
   const reportedJobId = useRef<number | null>(null);
   const downloadMutation = useMutation({
@@ -75,6 +75,7 @@ export function SearchPage() {
 
   const search = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setSelectedItemIndex(null);
     setSubmitted({ site, query: query.trim(), page: 1 });
     setSearchVersion((version) => version + 1);
   };
@@ -146,13 +147,13 @@ export function SearchPage() {
           </div>
           {resultsQuery.data.items.length ? (
             <div className="search-grid">
-              {resultsQuery.data.items.map((item) => (
+              {resultsQuery.data.items.map((item, index) => (
                 <article className="search-card" key={`${resultsQuery.data!.site}:${item.id}`}>
                   <button
                     className="search-preview-button"
                     type="button"
                     aria-label={`View image ${item.id}`}
-                    onClick={() => setSelectedItem(item)}
+                    onClick={() => setSelectedItemIndex(index)}
                   >
                     <img
                       className="search-preview"
@@ -169,7 +170,7 @@ export function SearchPage() {
                       <a className="btn small" href={item.url} target="_blank" rel="noreferrer">Open post</a>
                     </div>
                     <div className="row">
-                      <button className="btn small" type="button" onClick={() => setSelectedItem(item)}>
+                      <button className="btn small" type="button" onClick={() => setSelectedItemIndex(index)}>
                         View image and tags
                       </button>
                       <button
@@ -198,11 +199,12 @@ export function SearchPage() {
           ) : <div className="empty"><b>No matching posts</b>Try different tags or widen the rating limit in Settings.</div>}
         </>
       ) : null}
-      {selectedItem && submitted ? (
+      {selectedItemIndex !== null && submitted && resultsQuery.data?.items[selectedItemIndex] ? (
         <SearchImageSheet
           site={submitted.site}
-          item={selectedItem}
-          onClose={() => setSelectedItem(null)}
+          items={resultsQuery.data.items}
+          initialIndex={selectedItemIndex}
+          onClose={() => setSelectedItemIndex(null)}
         />
       ) : null}
     </div>

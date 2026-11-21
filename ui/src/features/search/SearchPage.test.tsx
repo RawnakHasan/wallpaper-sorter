@@ -94,12 +94,56 @@ it('searches and browses paged results with daemon-served previews', async () =>
   expect(await screen.findByText('anime girls')).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Open full-size image' }).getAttribute('href'))
     .toBe('https://w.wallhaven.cc/full/94/wallhaven-abc123.jpg');
-  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }));
   fireEvent.click(screen.getByRole('button', { name: 'Download' }));
   await waitFor(() => expect(downloadRequest).toEqual({
     items: [{ site: 'Wallhaven', input: 'abc123' }],
   }));
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Download' })).toBeTruthy());
+  client.clear();
+});
+
+it('opens a full-screen viewer with icon-only previous, next, and close controls', async () => {
+  server.use(
+    http.get('http://127.0.0.1/api/search', () => HttpResponse.json({
+      site: 'Wallhaven',
+      page: 1,
+      has_more: false,
+      items: ['abc123', 'def456'].map((id) => ({
+        id,
+        url: `https://wallhaven.cc/w/${id}`,
+        rating: 'sfw',
+        tags: [],
+        preview: `/api/search/preview/${id === 'abc123' ? 'a' : 'b'}${'0'.repeat(63)}`,
+        image_url: null,
+      })),
+    })),
+    http.get('http://127.0.0.1/api/search/details', () => HttpResponse.json({ tags: [] })),
+  );
+  const { client } = renderSearch();
+  fireEvent.click(await screen.findByRole('button', { name: 'Search' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'View image abc123' }));
+
+  const viewer = await screen.findByRole('dialog', { name: 'Wallhaven image viewer' });
+  const previous = screen.getByRole('button', { name: 'Previous image' });
+  const next = screen.getByRole('button', { name: 'Next image' });
+  const close = screen.getByRole('button', { name: 'Close viewer' });
+  expect(viewer.classList.contains('search-detail-sheet')).toBe(true);
+  expect(previous.hasAttribute('disabled')).toBe(true);
+  expect(next.hasAttribute('disabled')).toBe(false);
+  for (const button of [previous, next, close]) {
+    expect(button.textContent).toBe('');
+    expect(button.querySelector('svg')).toBeTruthy();
+  }
+
+  fireEvent.click(next);
+  expect(await screen.findByRole('heading', { name: 'Wallhaven post def456' })).toBeTruthy();
+  expect(next.hasAttribute('disabled')).toBe(true);
+  expect(previous.hasAttribute('disabled')).toBe(false);
+  fireEvent.click(previous);
+  expect(await screen.findByRole('heading', { name: 'Wallhaven post abc123' })).toBeTruthy();
+  fireEvent.click(close);
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Wallhaven image viewer' })).toBeNull());
   client.clear();
 });
 

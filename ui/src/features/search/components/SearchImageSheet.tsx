@@ -1,26 +1,23 @@
-import { useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Icon } from '../../../components/Icon';
 import { useNativeDialog } from '../../../components/useNativeDialog';
 import { searchPostDetails } from '../api';
-import type { SearchSite } from '../schemas';
+import type { SearchResults, SearchSite } from '../schemas';
 
-type SearchItem = {
-  id: string;
-  url: string;
-  rating: string;
-  tags: string[];
-  preview: string;
-  image_url: string | null;
-};
+type SearchItem = SearchResults['items'][number];
 
 interface SearchImageSheetProps {
   site: SearchSite;
-  item: SearchItem;
+  items: SearchItem[];
+  initialIndex: number;
   onClose: () => void;
 }
 
-export function SearchImageSheet({ site, item, onClose }: SearchImageSheetProps) {
+export function SearchImageSheet({ site, items, initialIndex, onClose }: SearchImageSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [index, setIndex] = useState(initialIndex);
+  const item = items[index];
   useNativeDialog(dialogRef);
   const detailsQuery = useQuery({
     queryKey: ['site-search-details', site, item.id],
@@ -34,19 +31,45 @@ export function SearchImageSheet({ site, item, onClose }: SearchImageSheetProps)
     <dialog
       ref={dialogRef}
       className="sheet search-detail-sheet"
-      aria-label={`Post ${item.id}`}
+      aria-label={`${site} image viewer`}
       aria-modal="true"
       onCancel={(event) => {
         event.preventDefault();
         onClose();
       }}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft' && index > 0) setIndex(index - 1);
+        if (event.key === 'ArrowRight' && index < items.length - 1) setIndex(index + 1);
+      }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <header>
+      <header className="search-viewer-header">
+        <button
+          className="btn icon-btn"
+          type="button"
+          aria-label="Previous image"
+          title="Previous image"
+          disabled={index === 0}
+          onClick={() => setIndex(index - 1)}
+        >
+          <Icon name="previous" />
+        </button>
         <h2>{site} post {item.id}</h2>
-        <button className="btn small icon-btn" type="button" aria-label="Close" onClick={onClose}>×</button>
+        <button
+          className="btn icon-btn"
+          type="button"
+          aria-label="Next image"
+          title="Next image"
+          disabled={index >= items.length - 1}
+          onClick={() => setIndex(index + 1)}
+        >
+          <Icon name="next" />
+        </button>
+        <button className="btn icon-btn" type="button" aria-label="Close viewer" title="Close" onClick={onClose}>
+          <Icon name="close" />
+        </button>
       </header>
       <div className="content">
         <img className="search-detail-image" src={item.preview} alt={`${site} post ${item.id}`} />
