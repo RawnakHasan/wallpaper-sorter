@@ -130,7 +130,9 @@ folder is not a logged file action.
 Fetching accepts supported Wallhaven and Danbooru IDs or post-page links, not arbitrary URLs. The UI accepts one
 entry per line and reports each result separately. By default, Wallhaven is limited to SFW and Danbooru to
 General-rated posts; these safeguards can be widened in Settings. Credentials are stored in `secrets.toml` beside
-the active config file with owner-only permissions. The API returns only whether credentials are saved.
+the active config file with owner-only permissions. The API returns only whether credentials are saved. If a
+Danbooru character has no matching tag, the Overview offers to create one; confirming suggests its series folder
+and sorts the fetched image there, while “Not now” dismisses the suggestion.
 
 ## Run the tests
 

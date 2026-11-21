@@ -8,6 +8,10 @@ export const assignFilesRequestSchema = z.object({
   tag: z.object({
     keywords: z.array(z.string()).min(1),
     dest: z.string().min(1),
+    prefix: z.string().nullable().optional(),
+    match: z.enum(['word', 'substring']).optional(),
+    strict_words: z.array(z.string()).optional(),
+    generic: z.boolean().optional(),
   }).strict().optional(),
 }).strict();
 

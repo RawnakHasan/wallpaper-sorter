@@ -33,7 +33,7 @@ about each image's origin, the activity log with undo, and settings.
 | Web UI (`ui/`) | All nine routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. Overview supports Phase 1 fetching from Wallhaven and Danbooru. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
-Fetch-phase verification: `npm --prefix ui run typecheck`, `npm --prefix ui test` (35 Vitest tests),
+Fetch-phase verification: `npm --prefix ui run typecheck`, `npm --prefix ui test` (36 Vitest tests),
 `npm --prefix ui run build`, `cargo fmt --check`, `cargo build`, and `cargo test --workspace` (132 Rust tests) passed.
 The real-binary jsdom run passed 26 of 27 tests; the folder-rename preview test timed out in the full run, although
 it passed once when run alone after a short settle delay. Treat that integration test as unresolved. Live-site fetching
@@ -255,6 +255,8 @@ tables are the real specification; do not regenerate them from the code.
 - The Library folder header shows source counts; each image counts under its first known source, or Unknown if none.
 - The Overview fetch panel accepts one ID or post-page link per line. Bare IDs use the selected site; a supported
   link identifies its site. Settings stores Wallhaven and Danbooru credentials and the maximum accepted ratings.
+- When a fetched Danbooru character has no matching tag, the Overview offers to create one and assign that image
+  into the new destination; the suggestion defaults under a matching series tag when one exists.
 - Because of the CSP, never set `style="..."` attributes or use inline handlers. Setting `el.style.x = ...` from
   script is fine.
 - `npm --prefix ui test` runs the Vitest component/store tests in one worker because the MSW server is shared across
@@ -289,7 +291,7 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 4.1 UI automated tests
 
-The 27 jsdom integration tests load the built app against the real binary and API. The 35 Vitest tests cover shared
+The 27 jsdom integration tests load the built app against the real binary and API. The 36 Vitest tests cover shared
 components, feature components, and stores. Neither suite validates visual layout or real image loading.
 
 ### 4.2 Check the UI in a real browser

@@ -11,6 +11,8 @@ interface Folder {
 
 interface TagEditorProps {
   tag: Tag | null;
+  initialKeywords?: string[];
+  initialDestination?: string;
   folders: Folder[];
   duplicateFolder: string;
   pending: boolean;
@@ -21,6 +23,8 @@ interface TagEditorProps {
 
 export function TagEditor({
   tag,
+  initialKeywords = [],
+  initialDestination = '',
   folders,
   duplicateFolder,
   pending,
@@ -28,9 +32,9 @@ export function TagEditor({
   onClose,
   onSave,
 }: TagEditorProps) {
-  const keywords = useRef(tag?.keywords ?? []);
+  const keywords = useRef(tag?.keywords ?? initialKeywords);
   const strictWords = useRef(tag?.strict_words ?? []);
-  const [destination, setDestination] = useState(tag?.dest ?? '');
+  const [destination, setDestination] = useState(tag?.dest ?? initialDestination);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const prefixRef = useRef<HTMLInputElement>(null);

@@ -70,6 +70,7 @@ button:focus-visible,.input:focus-visible,.select:focus-visible,a:focus-visible,
 .fetch-textarea{width:100%;height:auto;min-height:72px;padding:8px;resize:vertical}
 .fetch-results{display:grid;gap:8px;list-style:none;padding:0}
 .fetch-results li{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fetch-tag-prompt{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
 .check-row{display:flex;align-items:center;gap:8px}
 .seg{display:inline-flex;border:1px solid var(--bd);border-radius:6px;padding:2px;gap:2px}
 .seg button{border:0;background:transparent;height:24px;padding:0 10px;border-radius:4px;cursor:pointer;color:var(--t2);font-size:12px}

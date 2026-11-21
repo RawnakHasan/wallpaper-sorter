@@ -1,4 +1,5 @@
 import { messageOf } from '../../inbox/utils';
+import { TagEditor } from '../../tags/components/TagEditor';
 import { useFetchPanel } from '../hooks/useFetchPanel';
 
 const stateLabels = {
@@ -20,6 +21,17 @@ export function FetchPanel() {
     busy,
     submitMutation,
     jobQuery,
+    tagsQuery,
+    foldersQuery,
+    statusQuery,
+    suggestions,
+    creatingTag,
+    openTagEditor,
+    closeTagEditor,
+    tagError,
+    createTagPending,
+    dismissSuggestion,
+    saveSuggestedTag,
   } = useFetchPanel();
 
   return (
@@ -81,6 +93,42 @@ export function FetchPanel() {
             </li>
           ))}
         </ul>
+      ) : null}
+      {tagsQuery.error ? (
+        <p className="error" role="alert">
+          Could not check character tags: {messageOf(tagsQuery.error)}
+        </p>
+      ) : null}
+      {suggestions.map((suggestion) => (
+        <div className="fetch-tag-prompt" key={suggestion.key}>
+          <span>
+            New character found: <strong>{suggestion.keyword}</strong>. Create a tag and sort this image?
+          </span>
+          <button className="btn small primary" type="button" onClick={() => openTagEditor(suggestion)}>
+            Create tag
+          </button>
+          <button className="btn small" type="button" onClick={() => dismissSuggestion(suggestion.key)}>
+            Not now
+          </button>
+        </div>
+      ))}
+      {creatingTag ? (
+        <TagEditor
+          key={creatingTag.key}
+          tag={null}
+          initialKeywords={[creatingTag.keyword]}
+          initialDestination={creatingTag.initialDestination}
+          folders={foldersQuery.data ?? []}
+          duplicateFolder={statusQuery.data?.settings.duplicates_folder ?? 'Duplicates'}
+          pending={createTagPending}
+          error={tagError ?? (foldersQuery.error || statusQuery.error
+            ? messageOf(foldersQuery.error ?? statusQuery.error)
+            : null)}
+          onClose={() => {
+            closeTagEditor();
+          }}
+          onSave={saveSuggestedTag}
+        />
       ) : null}
     </section>
   );

@@ -17,6 +17,10 @@ export const fetchJobSchema = z.object({
     state: z.enum(['queued', 'downloading', 'sorted', 'inbox', 'duplicate', 'error']),
     location: z.string().nullable(),
     message: z.string().nullable(),
+    character_suggestions: z.array(z.object({
+      keyword: z.string(),
+      series: z.string().nullable(),
+    }).strict()).default([]),
   }).strict()),
 }).strict();
 

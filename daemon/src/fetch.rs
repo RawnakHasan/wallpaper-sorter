@@ -47,6 +47,13 @@ pub(crate) struct FetchJobItem {
     state: FetchState,
     location: Option<String>,
     message: Option<String>,
+    character_suggestions: Vec<CharacterSuggestion>,
+}
+
+#[derive(Clone, Serialize)]
+struct CharacterSuggestion {
+    keyword: String,
+    series: Option<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -208,6 +215,7 @@ impl FetchManager {
                         state: FetchState::Queued,
                         location: None,
                         message: None,
+                        character_suggestions: Vec::new(),
                     });
                     work.push((index, parsed));
                 }
@@ -218,6 +226,7 @@ impl FetchManager {
                     state: FetchState::Error,
                     location: None,
                     message: Some(message),
+                    character_suggestions: Vec::new(),
                 }),
             }
         }
@@ -257,6 +266,7 @@ impl FetchManager {
                             entry.state = result.state;
                             entry.location = result.location;
                             entry.message = Some(result.message);
+                            entry.character_suggestions = result.character_suggestions;
                         }
                         Err(message) => {
                             entry.state = FetchState::Error;
@@ -397,12 +407,14 @@ struct FetchData {
     extension: String,
     rating: String,
     tags: Vec<String>,
+    character_suggestions: Vec<CharacterSuggestion>,
 }
 
 struct ItemResult {
     state: FetchState,
     location: Option<String>,
     message: String,
+    character_suggestions: Vec<CharacterSuggestion>,
 }
 
 fn process_one(
@@ -519,7 +531,11 @@ fn process_one(
     let outcome = pipeline
         .process(std::slice::from_ref(&root_target))
         .map_err(|_| "cannot plan or sort the fetched image".to_string())?;
-    Ok(result_from_outcome(&outcome, &root_target))
+    Ok(result_from_outcome(
+        &outcome,
+        &root_target,
+        data.character_suggestions,
+    ))
 }
 
 fn fetch_metadata(
@@ -577,6 +593,7 @@ fn fetch_metadata(
                 extension,
                 rating,
                 tags,
+                character_suggestions: Vec::new(),
             })
         }
         Site::Danbooru => {
@@ -607,11 +624,15 @@ fn fetch_metadata(
                 .filter(|tag| tag.len() <= 120)
                 .flat_map(danbooru_hints),
             );
+            let character_suggestions = danbooru_character_suggestions(
+                value["tag_string_character"].as_str().unwrap_or_default(),
+            );
             Ok(FetchData {
                 image_url,
                 extension,
                 rating,
                 tags,
+                character_suggestions,
             })
         }
         _ => Err("unsupported fetch site".into()),
@@ -632,6 +653,38 @@ fn danbooru_hints(tag: &str) -> Vec<String> {
         }
     }
     vec![tag.replace('_', " ")]
+}
+
+fn danbooru_character_suggestions(tags: &str) -> Vec<CharacterSuggestion> {
+    let mut suggestions = Vec::new();
+    for tag in tags
+        .split_whitespace()
+        .take(256)
+        .filter(|tag| tag.len() <= 120)
+    {
+        let (keyword, series) = match tag.split_once("_(") {
+            Some((keyword, tail)) => match tail.strip_suffix(')') {
+                Some(series) => (keyword, Some(series)),
+                None => (tag, None),
+            },
+            None => (tag, None),
+        };
+        let keyword = keyword.replace('_', " ");
+        if keyword.is_empty() {
+            continue;
+        }
+        let series = series
+            .filter(|value| !value.is_empty())
+            .map(|value| value.replace('_', " "));
+        if !suggestions.iter().any(|existing: &CharacterSuggestion| {
+            existing.keyword.eq_ignore_ascii_case(&keyword)
+                && existing.series.as_deref().map(str::to_ascii_lowercase)
+                    == series.as_deref().map(str::to_ascii_lowercase)
+        }) {
+            suggestions.push(CharacterSuggestion { keyword, series });
+        }
+    }
+    suggestions
 }
 
 fn unique_tags(tags: impl IntoIterator<Item = String>) -> Vec<String> {
@@ -1045,12 +1098,17 @@ fn remove_partial(path: &Path) -> Result<(), String> {
     fs::remove_file(path).map_err(|_| "cannot remove an invalid partial download".into())
 }
 
-fn result_from_outcome(outcome: &Outcome, source: &Path) -> ItemResult {
+fn result_from_outcome(
+    outcome: &Outcome,
+    source: &Path,
+    character_suggestions: Vec<CharacterSuggestion>,
+) -> ItemResult {
     if let Some(error) = &outcome.report.error {
         return ItemResult {
             state: FetchState::Error,
             location: None,
             message: format!("sorting stopped: {error}"),
+            character_suggestions,
         };
     }
     for action in &outcome.plan.actions {
@@ -1071,6 +1129,7 @@ fn result_from_outcome(outcome: &Outcome, source: &Path) -> ItemResult {
                     } else {
                         format!("sorted into {to}")
                     },
+                    character_suggestions,
                 };
             }
             Action::Leave { path, reason } if Path::new(path) == source => {
@@ -1078,6 +1137,7 @@ fn result_from_outcome(outcome: &Outcome, source: &Path) -> ItemResult {
                     state: FetchState::Inbox,
                     location: Some(path.clone()),
                     message: format!("left in the Inbox ({reason:?})"),
+                    character_suggestions,
                 };
             }
             Action::ToDuplicates { from, to, .. } if Path::new(from) == source => {
@@ -1085,6 +1145,7 @@ fn result_from_outcome(outcome: &Outcome, source: &Path) -> ItemResult {
                     state: FetchState::Duplicate,
                     location: Some(to.clone()),
                     message: format!("duplicate sent to {to}"),
+                    character_suggestions,
                 };
             }
             _ => {}
@@ -1094,14 +1155,15 @@ fn result_from_outcome(outcome: &Outcome, source: &Path) -> ItemResult {
         state: FetchState::Error,
         location: None,
         message: "sorter did not report a result for the downloaded image".into(),
+        character_suggestions,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        check_rating, danbooru_hints, get_follow, parse_input, parse_retry_after, process_one,
-        FetchState, RateLimiter, SiteEndpoints,
+        check_rating, danbooru_character_suggestions, danbooru_hints, get_follow, parse_input,
+        parse_retry_after, process_one, FetchState, RateLimiter, SiteEndpoints,
     };
     use crate::daemon::{Daemon, Options};
     use crate::secrets::ApiSecrets;
@@ -1275,6 +1337,16 @@ mod tests {
     }
 
     #[test]
+    fn danbooru_character_suggestions_separate_character_and_series() {
+        let suggestions =
+            danbooru_character_suggestions("lucielle_(wuthering_waves) chisa_(wuthering_waves)");
+
+        assert_eq!(suggestions.len(), 2);
+        assert_eq!(suggestions[0].keyword, "lucielle");
+        assert_eq!(suggestions[0].series.as_deref(), Some("wuthering waves"));
+    }
+
+    #[test]
     fn default_rating_guards_reject_wider_content() {
         assert!(check_rating(Site::Danbooru, "g", "g", "sfw").is_ok());
         assert!(check_rating(Site::Danbooru, "q", "g", "sfw").is_err());
@@ -1358,7 +1430,7 @@ mod tests {
             response(
                 200,
                 "application/json",
-                br#"{"id":123456,"rating":"g","file_url":"__BASE__/danbooru.png","file_ext":"png","tag_string_character":"chisa_(wuthering_waves)","tag_string_copyright":"wuthering_waves","tag_string_artist":"skadi"}"#
+                br#"{"id":123456,"rating":"g","file_url":"__BASE__/danbooru.png","file_ext":"png","tag_string_character":"chisa_(wuthering_waves) lucielle_(wuthering_waves)","tag_string_copyright":"wuthering_waves","tag_string_artist":"skadi"}"#
                     .to_vec(),
             ),
             response(200, "image/png", image),
@@ -1395,8 +1467,12 @@ mod tests {
         let requests = server.join().unwrap();
 
         assert!(matches!(result.state, FetchState::Sorted));
+        assert!(result.character_suggestions.iter().any(|suggestion| {
+            suggestion.keyword == "lucielle"
+                && suggestion.series.as_deref() == Some("wuthering waves")
+        }));
         let origin = shared.lock().origins.all().next().unwrap().clone();
-        assert_eq!(origin.tags, ["chisa", "wuthering waves"]);
+        assert_eq!(origin.tags, ["chisa", "wuthering waves", "lucielle"]);
         assert!(requests[0]
             .to_ascii_lowercase()
             .contains("authorization: basic"));
