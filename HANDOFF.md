@@ -30,7 +30,7 @@ about each image's origin, the activity log with undo, and settings.
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. HTTP and thumbnail tests pass. |
-| Web UI (`ui/`) | All ten routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. Browse supports Wallhaven, Danbooru, yande.re, Safebooru, and Konachan.net; Zerochan Fetch/metadata lookup is implemented, while Zerochan image downloads/browsing remain disabled pending host approval. |
+| Web UI (`ui/`) | All ten routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. Browse supports Wallhaven, Danbooru, yande.re, Safebooru, and Konachan.net; Zerochan Fetch/metadata lookup and downloads from the owner-approved `static.zerochan.net` host are enabled, while Zerochan image browsing remains disabled. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
 Latest verification: `cargo test` (157 tests), `cargo fmt --all -- --check`,
@@ -258,8 +258,8 @@ tables are the real specification; do not regenerate them from the code.
 - Zerochan uses `GET /<id>?json`, requires `Wallpaper Sorter - <username>` in User-Agent, and documents 60 requests per
   minute; the client uses one request per second. It has no rating field, so records are `unrated` and never filtered.
   The API response included `s1.zerochan.net`, `s3.zerochan.net`, and `static.zerochan.net` image hosts, but the
-  documentation does not identify a permitted full-size image host; image downloads are refused pending exact-host
-  approval. Metadata-only lookup is available when a username is saved.
+  documentation does not identify a permitted full-size image host. The owner approved only
+  `static.zerochan.net` for downloads; metadata-only lookup is available when a username is saved.
 - The Library folder tree keeps `style={{ paddingLeft }}` for depth indentation. React applies this through the CSSOM,
   which the CSP allows; confirm in a real browser console before claiming it is CSP-clean.
 - Filenames are untrusted: React renders them as text; do not use `dangerouslySetInnerHTML` or `innerHTML`.
@@ -340,15 +340,15 @@ conflict candidates, explicit tag creation from Inbox, source editing, and metad
 and lookup support for yande.re and Safebooru. Phase 4 adds bulk metadata enrichment from selected Data records by
 their saved source site and ID. Phase 5 adds in-app search/browsing for Wallhaven, Danbooru, yande.re, Safebooru, and
 Konachan.net, with daemon-served, cached previews; Wallhaven post tags load on demand from its documented details API.
-Phase 6 adds Konachan.net and Zerochan Fetch plus metadata lookup; Zerochan full-size image downloads and browsing
-remain blocked because the official docs do not name a downloadable image host.
+Phase 6 adds Konachan.net and Zerochan Fetch plus metadata lookup. Zerochan downloads are restricted to the exact
+owner-approved `static.zerochan.net` host; Zerochan image browsing remains disabled.
 
 | Feature | Sketch |
 |---|---|
 | First-run welcome | Implemented: missing config plus `--library` creates a starter config; the Overview page tracks setup completion. |
 | Size caps | Thumbnail cache (delete oldest), `log.jsonl` (keep recent entries; origin records stay forever). |
 | Videos | The extension list is a setting; `Video/` files would need their own thumbnails. Parked by the owner ("later"). |
-| Additional site APIs | Phase 3: yande.re and Safebooru implemented. Phase 4: bulk origin enrichment implemented. Phase 5: in-app search/browsing for Wallhaven, Danbooru, yande.re, Safebooru, and Konachan.net, with daemon-local previews. Phase 6: Konachan.net and Zerochan Fetch/metadata lookup; Zerochan image download and browsing await host approval. Pixiv remains out of scope. |
+| Additional site APIs | Phase 3: yande.re and Safebooru implemented. Phase 4: bulk origin enrichment implemented. Phase 5: in-app search/browsing for Wallhaven, Danbooru, yande.re, Safebooru, and Konachan.net, with daemon-local previews. Phase 6: Konachan.net and Zerochan Fetch/metadata lookup; Zerochan downloads are limited to owner-approved `static.zerochan.net`, while browsing remains disabled. Pixiv remains out of scope. |
 
 ### 4.4 Smaller known limits
 
@@ -374,9 +374,9 @@ remain blocked because the official docs do not name a downloadable image host.
 - Verify Wallhaven and Danbooru fetching, metadata lookup, search, and previews against the live sites, including redirects and rating filters. Danbooru's official API documentation requires a unique User-Agent containing the user's ID; requests now stop with an actionable error unless the numeric ID is configured.
 - Review official terms and verify live API redirect/rate-limit behavior for yande.re and Safebooru. Their official API/rating docs do not specify a required User-Agent, numeric request limit, or redirect behavior; the client uses a descriptive User-Agent, one request per second, and strict allowlists. Safebooru documents General as a rating but does not define its semantics; the client uses it as the default most restrictive choice.
 - Verify Konachan.net's terms page; the checked `/terms` URL returned 404. Its API and rating documentation were accessible.
-- Verify Zerochan terms; the checked `/terms` URL redirected to an ordinary page rather than terms. Approve an exact Zerochan
-  full-size image hostname before enabling image downloads; current metadata samples included `s1.zerochan.net`,
-  `s3.zerochan.net`, and `static.zerochan.net`, none of which are allowlisted for downloads.
+- Verify Zerochan terms; the checked `/terms` URL redirected to an ordinary page rather than terms. The owner approved
+  only `static.zerochan.net` for downloads; `s1.zerochan.net` and `s3.zerochan.net` remain blocked because the official
+  docs do not identify a permitted full-size image host.
 - Zerochan search and image browsing remain disabled until an exact full-size image host is documented and approved.
 - Add a thumbnail-cache size limit and a `log.jsonl` size limit; keep origin records permanent.
 - Videos remain parked.
@@ -413,8 +413,8 @@ remain blocked because the official docs do not name a downloadable image host.
 - Zerochan documentation: [API](https://www.zerochan.net/api) requires a project name plus the user's Zerochan
   username in User-Agent and sets a 60-requests/minute limit. It does not document redirect behavior, rating semantics,
   or a permitted full-size image host. A live metadata response listed `s1.zerochan.net`, `s3.zerochan.net`, and
-  `static.zerochan.net`; downloads are refused until exact host approval. The checked `/terms` URL redirected to a
-  normal page, so terms were not verified.
+  `static.zerochan.net`; the owner explicitly approved only `static.zerochan.net`, which is the sole Zerochan download
+  host allowlisted by the client. The checked `/terms` URL redirected to a normal page, so terms were not verified.
 - Bulk metadata enrichment runs selected Data records sequentially through the metadata-only lookup API. It uses each record's first supported stored source with a nonempty ID, continues after per-record errors, refreshes the Data/Inbox/Library views, and offers undo for any Inbox files sorted during lookup.
 - yande.re API documentation: [API](https://yande.re/help/api), [ratings](https://yande.re/help/ratings). Safebooru documentation: [DAPI](https://safebooru.org/index.php?page=help&topic=dapi), [ratings](https://safebooru.org/index.php?page=help&topic=rating). The DAPI endpoint and JSON fields were also checked using a read-only sample response; automated tests use local fixtures only.
 - Search documentation reviewed: [Wallhaven API](https://wallhaven.cc/help/api) and [Terms of Service](https://wallhaven.cc/terms); [Danbooru API](https://danbooru.donmai.us/wiki_pages/help%3Aapi) and [Terms of Service](https://danbooru.donmai.us/terms_of_service). Wallhaven documents 24 results/page and 45 API requests/minute; the client spaces API calls at 1.35 seconds and applies its configured purity filter. Its search listing example omits tags, while the documented `/w/{id}` endpoint includes them. Thumbnail CDN requests are lazy/cached and do not consume that API budget. Danbooru requires a unique User-Agent containing the numeric user ID, allows 10 read requests/second globally, and recommends about 1/second for longer sessions; the client requires that ID and paces API requests at 1/second.

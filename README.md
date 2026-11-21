@@ -137,9 +137,9 @@ links, not arbitrary URLs. The UI accepts one entry per line and reports each re
 Wallhaven is limited to SFW, Danbooru to General, yande.re to Safe, Safebooru to General, and Konachan.net to Safe;
 these safeguards can be widened in Settings. Zerochan has no rating field, so it is persisted as `unrated`, is never
 rating-filtered, and triggers a configurable warning toast. Its API requires a saved Zerochan username in the
-User-Agent. The official docs do not identify a permitted full-size image host, so Zerochan image downloads are
-currently refused with an explicit error. The live metadata response named `s1.zerochan.net`, `s3.zerochan.net`, and
-`static.zerochan.net`; none are allowlisted for downloading.
+User-Agent. The official docs do not identify a permitted full-size image host. The owner has explicitly approved
+`static.zerochan.net`, so downloads are restricted to that exact hostname; the other observed hosts,
+`s1.zerochan.net` and `s3.zerochan.net`, remain blocked.
 Browse uses these same rating limits. Search previews are fetched by the daemon from allowlisted site hosts and served
 locally to remain compatible with the page's Content Security Policy. Preview CDN fetches are lazy and cached; they do
 not consume the API request budget. Wallhaven search listings do not include tags, so its documented post-details

@@ -117,7 +117,7 @@ impl SiteEndpoints {
             ],
             safebooru_image_hosts: vec!["safebooru.org".into()],
             konachan_image_hosts: vec!["konachan.net".into()],
-            zerochan_image_hosts: Vec::new(),
+            zerochan_image_hosts: vec!["static.zerochan.net".into()],
             allow_http: false,
         }
     }
@@ -1095,10 +1095,7 @@ fn process_one(
         &settings.konachan_rating,
     )?;
     if item.site == Site::Zerochan && endpoints.image_hosts(item.site).is_empty() {
-        return Err(
-            "Zerochan image host is not documented; refusing download (metadata returned static.zerochan.net)"
-                .into(),
-        );
+        return Err("Zerochan has no approved image host configured; refusing download".into());
     }
     let image_url = match data.image_url.as_deref() {
         Some(url) => url,
@@ -2586,7 +2583,7 @@ mod tests {
     }
 
     #[test]
-    fn zerochan_refuses_undocumented_image_host_but_keeps_metadata_lookup_available() {
+    fn zerochan_without_an_approved_image_host_is_refused() {
         let (address, server) = fake_server(vec![response(
             200,
             "application/json",
@@ -2609,11 +2606,10 @@ mod tests {
             1,
             0,
         ) {
-            Ok(_) => panic!("undocumented image host should be refused"),
+            Ok(_) => panic!("download should be refused when no image host is allowlisted"),
             Err(error) => error,
         };
-        assert!(result.contains("image host is not documented"));
-        assert!(result.contains("static.zerochan.net"));
+        assert!(result.contains("no approved image host"));
         assert_eq!(server.join().unwrap().len(), 1);
         drop(daemon);
         fs::remove_dir_all(root).unwrap();
@@ -3086,7 +3082,24 @@ mod tests {
             false,
         )
         .is_ok());
-        assert!(endpoints.image_hosts(Site::Zerochan).is_empty());
+        assert_eq!(
+            endpoints.image_hosts(Site::Zerochan),
+            ["static.zerochan.net"]
+        );
+        assert!(parse_remote_url(
+            "https://static.zerochan.net/3793685.jpg",
+            endpoints.image_hosts(Site::Zerochan),
+            false,
+        )
+        .is_ok());
+        for unapproved_host in ["s1.zerochan.net", "s3.zerochan.net"] {
+            assert!(parse_remote_url(
+                &format!("https://{unapproved_host}/3793685.jpg"),
+                endpoints.image_hosts(Site::Zerochan),
+                false,
+            )
+            .is_err());
+        }
         assert!(parse_remote_url(
             "https://files.yande.re/image.png",
             endpoints.image_hosts(Site::YandeRe),
