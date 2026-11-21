@@ -8,6 +8,7 @@ ROWS = [
  ("wallhaven",              "wallhaven-1q2le9.jpg", "", "Wallhaven", "1q2le9", "", "", "", WH + "1q2le9"),
  ("wallhaven with prefix",  "naive-wallhaven-212pky.png", "", "Wallhaven", "212pky", "", "", "", WH + "212pky"),
  ("wallhaven short id",     "wallhaven-ex.png", "", "Unknown", "", "", "", "", ""),
+ ("danbooru numeric post ID", "danbooru-123456.jpg", "", "Danbooru", "123456", "", "", "", "https://danbooru.donmai.us/posts/123456"),
  ("zerochan",               "Kuchiba.Chisa.full.4511113.png", "", "Zerochan", "4511113", "", "", "", "https://www.zerochan.net/4511113"),
  ("zerochan brackets",      "Hiyuki.(Wuthering.Waves).full.4698402.jpg", "", "Zerochan", "4698402", "", "", "", "https://www.zerochan.net/4698402"),
  ("zerochan skin name",     "Skadi.The.Corrupting.Heart.full.4621023.jpg", "", "Zerochan", "4621023", "", "", "", "https://www.zerochan.net/4621023"),

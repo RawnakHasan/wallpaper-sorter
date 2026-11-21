@@ -392,6 +392,27 @@ pub fn set_gap_mode(text: &str, mode: &str) -> Result<String, String> {
     Ok(doc.to_string())
 }
 
+/// Sets the maximum allowed rating for each fetch source.
+pub fn set_fetch_ratings(
+    text: &str,
+    danbooru_rating: &str,
+    wallhaven_purity: &str,
+) -> Result<String, String> {
+    if !["g", "s", "q", "e"].contains(&danbooru_rating) {
+        return Err("unknown Danbooru rating".to_string());
+    }
+    if !["sfw", "sketchy", "nsfw"].contains(&wallhaven_purity) {
+        return Err("unknown Wallhaven purity".to_string());
+    }
+    let mut doc = parse(text)?;
+    if doc.get("settings").is_none() {
+        doc["settings"] = Item::Table(Table::new());
+    }
+    doc["settings"]["danbooru_rating"] = value(danbooru_rating);
+    doc["settings"]["wallhaven_purity"] = value(wallhaven_purity);
+    Ok(doc.to_string())
+}
+
 pub fn undo_rename_folder(
     text: &str,
     before: &str,

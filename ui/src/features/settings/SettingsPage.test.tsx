@@ -99,3 +99,46 @@ it('shows a recoverable error when settings cannot be loaded', async () => {
   expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
   client.clear();
 });
+
+it('saves API credentials without reading them back and persists the rating safeguards', async () => {
+  let secretUpdate: unknown;
+  const settingUpdates: unknown[] = [];
+  let wallhavenSaved = false;
+  server.use(
+    http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
+    http.get('http://127.0.0.1/api/secrets', () => HttpResponse.json({
+      wallhaven_saved: wallhavenSaved,
+      danbooru_saved: false,
+    })),
+    http.put('http://127.0.0.1/api/settings', async ({ request }) => {
+      settingUpdates.push(await request.json());
+      return HttpResponse.json({
+        ...settings,
+        danbooru_rating: 'g',
+        wallhaven_purity: 'sketchy',
+      });
+    }),
+    http.put('http://127.0.0.1/api/secrets', async ({ request }) => {
+      secretUpdate = await request.json();
+      wallhavenSaved = true;
+      return HttpResponse.json({ wallhaven_saved: true, danbooru_saved: true });
+    }),
+  );
+  const { client } = renderSettings();
+
+  fireEvent.change(await screen.findByRole('combobox', { name: 'Maximum Wallhaven purity' }), {
+    target: { value: 'sketchy' },
+  });
+  await waitFor(() => expect(settingUpdates).toEqual([{ wallhaven_purity: 'sketchy' }]));
+
+  fireEvent.change(screen.getByLabelText('Wallhaven API key'), {
+    target: { value: 'wallhaven-secret-value' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save API credentials' }));
+
+  await waitFor(() => expect(secretUpdate).toEqual({
+    wallhaven_api_key: 'wallhaven-secret-value',
+  }));
+  expect(await screen.findByRole('button', { name: 'Remove Wallhaven key' })).toBeTruthy();
+  client.clear();
+});

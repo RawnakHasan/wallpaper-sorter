@@ -4,6 +4,7 @@ import { activityQueryKey, getActivity, undoActivity } from '../activity/api';
 import { getStatus, statusQueryKey, updateSettings } from '../status/api';
 import { useToastStore } from '../../stores/toast';
 import { ActivityRow } from '../activity/components/ActivityRow';
+import { FetchPanel } from '../fetch/components/FetchPanel';
 import { WatchedEntry } from './components/WatchedEntry';
 
 const RECENT_ACTIVITY_LIMIT = 8;
@@ -67,6 +68,7 @@ export function OverviewPage() {
         <Link className="stat" to="/duplicates"><div className="n">{status.counts.duplicates}</div><div className="l">in Duplicates</div></Link>
         <Link className="stat" to="/data"><div className="n">{status.counts.records}</div><div className="l">records of where images came from</div></Link>
       </div>
+      <FetchPanel />
       <h3>Recent activity</h3>
       {activity.length ? (
         <div className="batch">

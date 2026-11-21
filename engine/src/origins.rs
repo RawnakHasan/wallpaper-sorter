@@ -26,6 +26,12 @@ pub struct Origin {
     pub width: u32,
     #[serde(default)]
     pub height: u32,
+    /// Site tags retained for matching and display.
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// Site-provided content rating (for example `g` or `sfw`).
+    #[serde(default)]
+    pub rating: Option<String>,
 }
 
 pub struct OriginStore {

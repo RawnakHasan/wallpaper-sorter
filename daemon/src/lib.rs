@@ -2,9 +2,11 @@
 
 pub mod daemon;
 pub mod debounce;
+mod fetch;
+mod secrets;
 pub mod thumbs;
-pub mod web;
 pub mod watcher;
+pub mod web;
 
 pub use daemon::{describe, Daemon, Notice, Options, Shared};
 pub use debounce::Debouncer;

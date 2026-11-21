@@ -4,7 +4,9 @@ use crate::debounce::Debouncer;
 use crate::watcher::{wait_readable, DirWatcher, Event};
 use serde::{Deserialize, Serialize};
 use sorter_core::{expand_home, Config};
-use sorter_engine::{file_stat, write_atomic, Entry, Kind, Outcome, Pipeline, UndoError};
+use sorter_engine::{
+    file_stat, move_no_replace, write_atomic, Entry, ExecError, Kind, Outcome, Pipeline, UndoError,
+};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{self, Read, Write};
@@ -416,6 +418,7 @@ impl Daemon {
         opts: Options,
         config_path: Option<PathBuf>,
     ) -> io::Result<Daemon> {
+        recover_fetch_temp(&root)?;
         let intake: Vec<IntakeDir> = cfg
             .intake
             .iter()
@@ -720,6 +723,64 @@ impl Daemon {
     }
 }
 
+fn recover_fetch_temp(root: &Path) -> io::Result<()> {
+    let sorter_dir = root.join(".sorter");
+    if !is_real_directory(&sorter_dir)? {
+        return Ok(());
+    }
+    let temp_dir = sorter_dir.join("tmp");
+    if !is_real_directory(&temp_dir)? {
+        return Ok(());
+    }
+    let entries = fs::read_dir(&temp_dir)?;
+
+    for entry in entries {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.ends_with(".part") {
+            fs::remove_file(entry.path())?;
+            continue;
+        }
+
+        let base = root.join(name.as_ref());
+        let mut suffix = 1u64;
+        loop {
+            let target = if suffix == 1 {
+                base.clone()
+            } else {
+                let stem = base.file_stem().unwrap_or_default().to_string_lossy();
+                let extension = base
+                    .extension()
+                    .map(|value| format!(".{}", value.to_string_lossy()))
+                    .unwrap_or_default();
+                base.with_file_name(format!("{stem} ({suffix}){extension}"))
+            };
+            match move_no_replace(&entry.path(), &target) {
+                Ok(()) => break,
+                Err(ExecError::TargetExists(_)) => suffix += 1,
+                Err(error) => return Err(io::Error::new(io::ErrorKind::Other, error.to_string())),
+            }
+        }
+    }
+    Ok(())
+}
+
+fn is_real_directory(path: &Path) -> io::Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_dir() => Ok(true),
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "fetch staging path must be a real directory",
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
 fn collect_files(dir: &Path, recursive: bool, out: &mut Vec<PathBuf>) {
     let Ok(rd) = fs::read_dir(dir) else { return };
     for e in rd.flatten() {
@@ -788,4 +849,72 @@ pub fn describe(outcome: &Outcome, verbose: bool) -> Vec<String> {
         lines.push(format!("error: {e}"));
     }
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::recover_fetch_temp;
+    use std::fs;
+    use std::io;
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn recovers_completed_fetches_without_overwriting_and_removes_partials() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "sorter-fetch-recovery-{}-{nonce}",
+            std::process::id()
+        ));
+        let temp = root.join(".sorter/tmp");
+        fs::create_dir_all(&temp).unwrap();
+        fs::write(root.join("wallhaven-abc123.png"), "original").unwrap();
+        fs::write(temp.join("wallhaven-abc123.png"), "recovered").unwrap();
+        fs::write(temp.join("wallhaven-zzz999.png.part"), "partial").unwrap();
+
+        recover_fetch_temp(&root).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(root.join("wallhaven-abc123.png")).unwrap(),
+            "original"
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("wallhaven-abc123 (2).png")).unwrap(),
+            "recovered"
+        );
+        assert!(!temp.join("wallhaven-abc123.png").exists());
+        assert!(!temp.join("wallhaven-zzz999.png.part").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn refuses_symlinked_fetch_temp_directory() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "sorter-fetch-recovery-symlink-{}-{nonce}",
+            std::process::id()
+        ));
+        let outside = root.with_extension("outside");
+        fs::create_dir_all(root.join(".sorter")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("sentinel.part"), "untouched").unwrap();
+        symlink(&outside, root.join(".sorter/tmp")).unwrap();
+
+        assert_eq!(
+            recover_fetch_temp(&root).unwrap_err().kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            fs::read_to_string(outside.join("sentinel.part")).unwrap(),
+            "untouched"
+        );
+
+        fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(outside).unwrap();
+    }
 }

@@ -96,6 +96,8 @@ impl Pipeline {
                 note: "existing file".to_string(),
                 width: w,
                 height: h,
+                tags: Vec::new(),
+                rating: None,
             });
         }
 
@@ -143,10 +145,16 @@ impl Pipeline {
                 }
             }
             let library_path = rel_inside(&self.root, f);
+            let hints = hash
+                .as_deref()
+                .and_then(|h| self.origins.get(h))
+                .map(|origin| origin.tags.clone())
+                .unwrap_or_default();
             incoming.push(Incoming {
                 path,
                 library_path,
                 hash,
+                hints,
             });
         }
         (meta, incoming)
@@ -248,6 +256,8 @@ impl Pipeline {
                     note: format!("waiting in the Inbox ({})", leave_note(reason)),
                     width: m.dims.0,
                     height: m.dims.1,
+                    tags: Vec::new(),
+                    rating: None,
                 });
             }
         }
@@ -288,6 +298,8 @@ impl Pipeline {
                             note: e.note.clone(),
                             width: m.dims.0,
                             height: m.dims.1,
+                            tags: Vec::new(),
+                            rating: None,
                         }),
                     }
                 }

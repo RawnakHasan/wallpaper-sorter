@@ -40,7 +40,7 @@ export default defineConfig({
     },
   },
   test: {
-    maxWorkers: 2,
+    maxWorkers: 1,
     testTimeout: 15_000,
     environment: 'jsdom',
     environmentOptions: {

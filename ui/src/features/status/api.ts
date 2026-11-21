@@ -7,6 +7,8 @@ export const statusQueryKey = ['status'] as const;
 export const settingsUpdateSchema = z.object({
   gap_mode: z.enum(['keep', 'lowest', 'last', 'renumber']).optional(),
   setup_complete: z.boolean().optional(),
+  danbooru_rating: z.enum(['g', 's', 'q', 'e']).optional(),
+  wallhaven_purity: z.enum(['sfw', 'sketchy', 'nsfw']).optional(),
 }).strict();
 
 const rescanRequestSchema = z.object({}).strict();

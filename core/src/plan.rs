@@ -2,7 +2,7 @@
 //! that just arrived. Building a plan touches nothing on disk; the engine crate applies it.
 
 use crate::config::Config;
-use crate::matcher::{classify, Decision, Dest, Rule};
+use crate::matcher::{classify_with_hints, Decision, Dest, Rule};
 use crate::numbering::{parse_numbered, plan_new_file};
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -93,6 +93,8 @@ pub struct Incoming {
     pub library_path: Option<String>,
     /// Content hash, if known. Without it the file cannot be recognised as a duplicate.
     pub hash: Option<String>,
+    /// Metadata phrases used only as additional matcher input.
+    pub hints: Vec<String>,
 }
 
 fn file_name(path: &str) -> &str {
@@ -145,7 +147,7 @@ pub fn build_plan_with(
         let Some(library_path) = inc.library_path.as_deref() else {
             continue;
         };
-        let decision = classify(name, cfg);
+        let decision = classify_with_hints(name, cfg, &inc.hints);
         let Dest::Folder(dest) = &decision.dest else {
             continue;
         };
@@ -161,7 +163,7 @@ pub fn build_plan_with(
 
     for inc in incoming {
         let name = file_name(&inc.path);
-        let decision = classify(name, cfg);
+        let decision = classify_with_hints(name, cfg, &inc.hints);
         let exact_library_path = inc.library_path.as_deref().unwrap_or(&inc.path);
         if decision.dest == Dest::Ignore {
             actions.push(Action::Ignore {

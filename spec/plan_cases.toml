@@ -237,3 +237,39 @@ name = "nested folder with the destination tail is not in place"
 library = { "Wuthering-Waves/Chisa" = ["Chisa 1.png"] }
 incoming = ["Series/Wuthering-Waves/Chisa/Chisa 1.png"]
 expect = ["move: Series/Wuthering-Waves/Chisa/Chisa 1.png -> Wuthering-Waves/Chisa/Chisa 2.png"]
+
+[[case]]
+name = "API character hint sorts a nameless Wallhaven file"
+incoming = ["/lib/wallhaven-abc123.jpg"]
+incoming_hints = { "/lib/wallhaven-abc123.jpg" = ["chisa"] }
+expect = ["move: /lib/wallhaven-abc123.jpg -> Wuthering-Waves/Chisa/Chisa 1.jpg"]
+
+[[case]]
+name = "multiword API hint matches a whole phrase"
+incoming = ["/lib/wallhaven-abc123.png"]
+incoming_hints = { "/lib/wallhaven-abc123.png" = ["wuthering waves"] }
+expect = ["move: /lib/wallhaven-abc123.png -> Wuthering-Waves/Wuthering Waves 1.png"]
+
+[[case]]
+name = "conflicting API hints stay in the Inbox"
+incoming = ["/lib/wallhaven-abc123.png"]
+incoming_hints = { "/lib/wallhaven-abc123.png" = ["chisa", "skadi"] }
+expect = ["leave: /lib/wallhaven-abc123.png (conflict: chisa;skadi)"]
+
+[[case]]
+name = "API hints do not count toward the generic word limit"
+incoming = ["/lib/some long wallpaper name with six words.jpg"]
+incoming_hints = { "/lib/some long wallpaper name with six words.jpg" = ["waterfall"] }
+expect = ["leave: /lib/some long wallpaper name with six words.jpg (no match)"]
+
+[[case]]
+name = "generic category can match a short name from an API hint"
+incoming = ["/lib/wallhaven-abc123.jpg"]
+incoming_hints = { "/lib/wallhaven-abc123.jpg" = ["waterfall"] }
+expect = ["move: /lib/wallhaven-abc123.jpg -> Nature/Nature 1.jpg"]
+
+[[case]]
+name = "Danbooru character and copyright hints sort a numeric-ID download"
+incoming = ["/lib/danbooru-123456.jpg"]
+incoming_hints = { "/lib/danbooru-123456.jpg" = ["chisa", "wuthering waves"] }
+expect = ["move: /lib/danbooru-123456.jpg -> Wuthering-Waves/Chisa/Chisa 1.jpg"]

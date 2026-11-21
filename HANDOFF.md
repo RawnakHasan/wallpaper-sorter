@@ -30,12 +30,14 @@ about each image's origin, the activity log with undo, and settings.
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. HTTP and thumbnail tests pass. |
-| Web UI (`ui/`) | All nine routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. |
+| Web UI (`ui/`) | All nine routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. Overview supports Phase 1 fetching from Wallhaven and Danbooru. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
-Latest verification (2026-11-21): `npm --prefix ui run typecheck`, `npm --prefix ui test` (33 Vitest tests),
-`cargo build`, `cargo test` (116 Rust tests), and `SORTER_BIN=./target/debug/wallpaper-sorter node --test ui/test/ui.test.js`
-(27 real-binary UI tests) all passed. The real-browser checklist below has not yet been completed.
+Fetch-phase verification: `npm --prefix ui run typecheck`, `npm --prefix ui test` (35 Vitest tests),
+`npm --prefix ui run build`, `cargo fmt --check`, `cargo build`, and `cargo test --workspace` (132 Rust tests) passed.
+The real-binary jsdom run passed 26 of 27 tests; the folder-rename preview test timed out in the full run, although
+it passed once when run alone after a short settle delay. Treat that integration test as unresolved. Live-site fetching
+and real-browser checks have not been completed.
 
 ---
 
@@ -227,6 +229,13 @@ tables are the real specification; do not regenerate them from the code.
   intake folder, no `..`).
 - The web server listens on 127.0.0.1 only, rejects other `Host` headers, requires JSON for changing requests and
   checks `Origin`. The page is served with a CSP that forbids inline scripts and styles.
+- Fetching accepts supported Wallhaven and Danbooru post IDs or page links, never arbitrary URLs. Remote requests use
+  HTTPS, exact site host allowlists for image URLs and redirects, per-site pacing, and a 32 MiB image limit. API
+  credentials are sent only to the API host, stored beside the active config in `secrets.toml` with owner-only
+  permissions, and never returned by the API. Failed partial downloads are removed when possible; download staging
+  and startup recovery reject symlinked `.sorter` staging directories.
+- Fetch rating defaults are Wallhaven `sfw` and Danbooru `g`; Settings can widen either limit. Fetch jobs report
+  per-entry queued, downloading, and final states, and a 429 response is retried once when it supplies `Retry-After`.
 - The Library folder tree keeps `style={{ paddingLeft }}` for depth indentation. React applies this through the CSSOM,
   which the CSP allows; confirm in a real browser console before claiming it is CSP-clean.
 - Filenames are untrusted: React renders them as text; do not use `dangerouslySetInnerHTML` or `innerHTML`.
@@ -244,9 +253,12 @@ tables are the real specification; do not regenerate them from the code.
 - Styling uses CSS variables copied from the design mock-up (`ui/design-mock.html`); four font sizes, no shadows or
   gradients, dark first. Fonts are self-hosted from `ui/fonts/`.
 - The Library folder header shows source counts; each image counts under its first known source, or Unknown if none.
+- The Overview fetch panel accepts one ID or post-page link per line. Bare IDs use the selected site; a supported
+  link identifies its site. Settings stores Wallhaven and Danbooru credentials and the maximum accepted ratings.
 - Because of the CSP, never set `style="..."` attributes or use inline handlers. Setting `el.style.x = ...` from
   script is fine.
-- `npm --prefix ui test` runs the Vitest component/store tests. `ui/test/ui.test.js` starts the compiled binary on
+- `npm --prefix ui test` runs the Vitest component/store tests in one worker because the MSW server is shared across
+  test files. `ui/test/ui.test.js` starts the compiled binary on
   a temporary library and drives it in jsdom. jsdom has no layout or real image rendering, so use the browser
   checklist in section 2.5 for visual verification.
 
@@ -277,7 +289,7 @@ tables are the real specification; do not regenerate them from the code.
 
 ### 4.1 UI automated tests
 
-The 27 jsdom integration tests load the built app against the real binary and API. The 33 Vitest tests cover shared
+The 27 jsdom integration tests load the built app against the real binary and API. The 35 Vitest tests cover shared
 components, feature components, and stores. Neither suite validates visual layout or real image loading.
 
 ### 4.2 Check the UI in a real browser
@@ -292,6 +304,9 @@ console.
 Folder creation, rename, merge, and prefix changes are implemented in the Library page and JSON API. File changes are
 previewed and logged; rename pins an old effective prefix only when the new path would change it, and undo restores
 the original config text.
+
+Current update: Phase 1 fetching is implemented for Wallhaven and Danbooru. The older fetch row in the sketch below
+predates this work; live-site validation remains in the backlog.
 
 | Feature | Sketch |
 |---|---|
@@ -312,13 +327,16 @@ the original config text.
   of files, worth caching for tens of thousands. The pipeline sits behind one mutex, so API calls wait while a large
   batch is being hashed.
 - "Close gaps: move the last images into the gaps" fills **every** gap at once.
+- Fetching has only been exercised against local fake API/CDN servers; confirm current live response fields, CDN redirects,
+  and whether Danbooru expects a numeric user ID in the User-Agent before relying on live fetches.
 
 ### 4.5 Consolidated backlog
 
 - Complete the real-browser checklist in section 2.5 at wide and 390 px widths, in dark and light.
+- Verify Wallhaven and Danbooru fetching against the live sites, including redirects and rating filters.
 - Add a thumbnail-cache size limit and a `log.jsonl` size limit; keep origin records permanent.
 - Videos remain parked.
-- Fetching wallpapers from site APIs remains parked, especially a Pixiv API integration.
+- Pixiv API fetching remains parked.
 - Cache or reduce `/api/status` work if it becomes slow with tens of thousands of files.
 - Confirm the remaining Library tree indentation in a real browser console; React sets it through CSSOM, but jsdom
   cannot verify CSP behavior.

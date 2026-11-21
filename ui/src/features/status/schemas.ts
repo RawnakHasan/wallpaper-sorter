@@ -7,6 +7,8 @@ export const settingsSchema = z.object({
   image_extensions: z.array(z.string()),
   duplicates_folder: z.string(),
   generic_max_words: countSchema,
+  danbooru_rating: z.enum(['g', 's', 'q', 'e']).default('g'),
+  wallhaven_purity: z.enum(['sfw', 'sketchy', 'nsfw']).default('sfw'),
 }).passthrough();
 
 export const statusSchema = z.object({

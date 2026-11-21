@@ -1,5 +1,6 @@
 import { WatchedEntry } from './components/WatchedEntry';
 import { IntakeSheet } from './components/IntakeSheet';
+import { FetchSettings } from './components/FetchSettings';
 import { useSettingsPage } from './hooks/useSettingsPage';
 import { gapText, messageOf, themes } from './utils';
 
@@ -79,6 +80,7 @@ export function SettingsPage() {
         <div className="row">{status.settings.image_extensions.map((extension) => <span className="tagchip" key={extension}>{extension}</span>)}</div>
         <p className="faint">Copies of images you already have go to the “{status.settings.duplicates_folder}” folder.</p>
       </div>
+      <FetchSettings settings={status.settings} />
       <div className="panel">
         <h2>Appearance</h2>
         <div className="seg" role="group" aria-label="Theme">

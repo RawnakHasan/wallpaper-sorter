@@ -46,6 +46,17 @@ pub struct Settings {
     pub duplicates_folder: String,
     pub generic_max_words: usize,
     pub gap_mode: GapMode,
+    #[serde(default = "default_danbooru_rating")]
+    pub danbooru_rating: String,
+    #[serde(default = "default_wallhaven_purity")]
+    pub wallhaven_purity: String,
+}
+
+fn default_danbooru_rating() -> String {
+    "g".to_string()
+}
+fn default_wallhaven_purity() -> String {
+    "sfw".to_string()
 }
 
 impl Default for Settings {
@@ -58,6 +69,8 @@ impl Default for Settings {
             duplicates_folder: "Duplicates".to_string(),
             generic_max_words: 4,
             gap_mode: GapMode::Keep,
+            danbooru_rating: "g".to_string(),
+            wallhaven_purity: "sfw".to_string(),
         }
     }
 }
@@ -123,7 +136,18 @@ pub struct Config {
 
 impl Config {
     pub fn from_toml(text: &str) -> Result<Config, toml::de::Error> {
-        toml::from_str(text)
+        let cfg: Config = toml::from_str(text)?;
+        if !["g", "s", "q", "e"].contains(&cfg.settings.danbooru_rating.as_str()) {
+            return Err(<toml::de::Error as serde::de::Error>::custom(
+                "settings.danbooru_rating must be g, s, q, or e",
+            ));
+        }
+        if !["sfw", "sketchy", "nsfw"].contains(&cfg.settings.wallhaven_purity.as_str()) {
+            return Err(<toml::de::Error as serde::de::Error>::custom(
+                "settings.wallhaven_purity must be sfw, sketchy, or nsfw",
+            ));
+        }
+        Ok(cfg)
     }
 
     /// File prefix for a destination folder: an explicit folder prefix, then a tag prefix, else

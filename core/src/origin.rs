@@ -34,7 +34,7 @@ impl Site {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Source {
     pub site: Site,
-    /// The site's id for the image (for Danbooru, the md5 in the filename). Empty when unknown.
+    /// The site's id for the image (for older Danbooru names, the md5). Empty when unknown.
     pub id: String,
     /// Link to the page for this image. Empty when unknown.
     pub url: String,
@@ -109,6 +109,9 @@ pub fn url_for(site: Site, id: &str) -> String {
         Site::Zerochan => format!("https://www.zerochan.net/{id}"),
         Site::Konachan => format!("https://konachan.com/post/show/{id}"),
         Site::YandeRe => format!("https://yande.re/post/show/{id}"),
+        Site::Danbooru if id.chars().all(|c| c.is_ascii_digit()) => {
+            format!("https://danbooru.donmai.us/posts/{id}")
+        }
         Site::Danbooru => format!("https://danbooru.donmai.us/posts?tags=md5%3A{id}"),
         Site::Safebooru => format!("https://safebooru.org/index.php?page=post&s=view&id={id}"),
         Site::Pixiv => format!("https://www.pixiv.net/artworks/{id}"),
@@ -152,6 +155,21 @@ pub fn parse_source(file_name: &str, parent_folder: &str) -> Source {
         let id = leading_digits(rest);
         if !id.is_empty() {
             return simple(Site::YandeRe, id);
+        }
+    }
+    if let Some(rest) = strip_prefix_ci(s, "danbooru-") {
+        let id = leading_digits(rest);
+        let suffix = &rest[id.len()..];
+        if !id.is_empty()
+            && (suffix.is_empty()
+                || suffix
+                    .strip_prefix(" (")
+                    .and_then(|value| value.strip_suffix(')'))
+                    .is_some_and(|number| {
+                        !number.is_empty() && number.chars().all(|c| c.is_ascii_digit())
+                    }))
+        {
+            return simple(Site::Danbooru, id);
         }
     }
     // Zerochan: "<Name>.full.<id>"

@@ -728,6 +728,70 @@ impl Pipeline {
         Ok(true)
     }
 
+    /// Saves metadata before a fetched file is handed to the normal planning pipeline.
+    pub fn remember_fetch(
+        &mut self,
+        hash: &str,
+        path: &str,
+        name: &str,
+        source: Source,
+        tags: Vec<String>,
+        rating: String,
+    ) -> io::Result<()> {
+        if let Some(mut origin) = self.origins.get(hash).cloned() {
+            for tag in tags {
+                if !origin
+                    .tags
+                    .iter()
+                    .any(|existing| existing.eq_ignore_ascii_case(&tag))
+                {
+                    origin.tags.push(tag);
+                }
+            }
+            if origin.rating.is_none() {
+                origin.rating = Some(rating);
+            }
+            self.origins.upsert(origin);
+        } else {
+            let dims = imagesize::size(self.root.join(path)).ok();
+            self.origins.upsert(Origin {
+                hash: hash.to_string(),
+                path: path.to_string(),
+                original_name: name.to_string(),
+                sources: vec![source.clone()],
+                added: unix_now(),
+                note: format!("fetched from {}", source.site.label()),
+                width: dims.as_ref().map(|d| d.width as u32).unwrap_or(0),
+                height: dims.as_ref().map(|d| d.height as u32).unwrap_or(0),
+                tags,
+                rating: Some(rating),
+            });
+        }
+        self.origins.add_source(hash, source);
+        self.origins.save()
+    }
+
+    /// Updates a newly fetched record after its staged file is safely moved into the library.
+    pub fn relocate_fetch_origin(
+        &mut self,
+        hash: &str,
+        staged_path: &str,
+        library_path: &str,
+    ) -> io::Result<()> {
+        let Some(mut origin) = self.origins.get(hash).cloned() else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "fetched origin record is missing",
+            ));
+        };
+        if origin.path == staged_path {
+            origin.path = library_path.to_string();
+            self.origins.upsert(origin);
+            self.origins.save()?;
+        }
+        Ok(())
+    }
+
     /// Restore one duplicate as a new numbered image in a normal library folder.
     pub fn restore_duplicate(&mut self, file: &Path, folder: &str) -> io::Result<Outcome> {
         self.restore_duplicates(std::slice::from_ref(&file.to_path_buf()), folder)

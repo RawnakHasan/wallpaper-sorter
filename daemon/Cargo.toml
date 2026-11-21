@@ -21,4 +21,8 @@ libc = "0.2"
 tiny_http = "0.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+toml = "0.8"
+httpdate = "1"
+base64 = "0.22"
+ureq = { version = "2.12", default-features = false, features = ["json", "tls"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }

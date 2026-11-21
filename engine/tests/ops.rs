@@ -643,3 +643,35 @@ fn a_duplicate_can_be_restored_as_a_new_image_and_undone() {
     p.undo_batch(out.report.batch).unwrap();
     assert!(duplicate.exists());
 }
+
+#[test]
+fn fetching_duplicate_content_preserves_the_original_path_and_metadata() {
+    let d = Dirs::new();
+    put(&d.lib.join("Nature/Nature 1.png"), "same");
+    let temp = d.lib.join(".sorter/tmp/wallhaven-abc123.png");
+    put(&temp, "same");
+    let original = d.lib.join("Nature/Nature 1.png");
+    let hash = hash_file(&original).unwrap();
+    let mut p = Pipeline::open(&d.lib, d.cfg()).unwrap();
+
+    p.remember_fetch(
+        &hash,
+        ".sorter/tmp/wallhaven-abc123.png",
+        "wallhaven-abc123.png",
+        sorter_core::Source::manual(Site::Wallhaven, "abc123"),
+        vec!["chisa".to_string()],
+        "sfw".to_string(),
+    )
+    .unwrap();
+    let outcome = p.process(&[temp]).unwrap();
+
+    assert_eq!(outcome.report.done.len(), 1);
+    let origin = p.origins.get(&hash).unwrap();
+    assert_eq!(origin.path, "Nature/Nature 1.png");
+    assert_eq!(origin.tags, ["chisa"]);
+    assert_eq!(origin.rating.as_deref(), Some("sfw"));
+    assert!(origin
+        .sources
+        .iter()
+        .any(|source| source.site == Site::Wallhaven));
+}

@@ -1095,6 +1095,87 @@ fn a_source_can_be_set_by_hand_and_the_gap_mode_changed() {
 }
 
 #[test]
+fn fetch_settings_and_credentials_are_validated_and_write_only() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let e = setup(|_, _| {});
+    assert_eq!(e.get("/api/secrets").json()["wallhaven_saved"], false);
+    let saved = e.send(
+        "PUT",
+        "/api/secrets",
+        json!({
+            "wallhaven_api_key": "wallhaven-secret",
+            "danbooru_username": "alice",
+            "danbooru_api_key": "danbooru-secret",
+            "danbooru_user_id": "123"
+        }),
+    );
+    assert_eq!(saved.status, 200);
+    let response = String::from_utf8_lossy(&saved.body);
+    assert!(!response.contains("secret"));
+    assert_eq!(e.get("/api/secrets").json()["danbooru_saved"], true);
+    let secrets_path = e.cfg_path.parent().unwrap().join("secrets.toml");
+    assert_eq!(
+        fs::metadata(&secrets_path).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    assert_eq!(
+        e.send("PUT", "/api/secrets", json!({ "clear_danbooru": true }))
+            .json()["danbooru_saved"],
+        false
+    );
+    assert_eq!(
+        e.send("PUT", "/api/secrets", json!({ "danbooru_username": "bob" }))
+            .status,
+        400,
+        "partial credentials must not be persisted"
+    );
+    assert_eq!(
+        e.send(
+            "PUT",
+            "/api/settings",
+            json!({ "wallhaven_purity": "sketchy", "danbooru_rating": "s" })
+        )
+        .json()["wallhaven_purity"],
+        "sketchy"
+    );
+    assert_eq!(
+        e.send(
+            "PUT",
+            "/api/settings",
+            json!({ "danbooru_rating": "unrestricted" })
+        )
+        .status,
+        400
+    );
+}
+
+#[test]
+fn fetch_api_reports_bad_lines_per_item_without_network_access() {
+    let e = setup(|_, _| {});
+    let submitted = e.send(
+        "POST",
+        "/api/fetch",
+        json!({
+            "items": [
+                { "site": "Wallhaven", "input": "not-an-id" },
+                { "input": "https://example.com/posts/123" }
+            ]
+        }),
+    );
+    assert_eq!(submitted.status, 202);
+    let job = submitted.json();
+    assert_eq!(job["done"], true);
+    assert_eq!(job["items"].as_array().unwrap().len(), 2);
+    assert_eq!(job["items"][0]["state"], "error");
+    assert_eq!(job["items"][1]["state"], "error");
+    let polled = e.get(&format!("/api/fetch/{}", job["id"]));
+    assert_eq!(polled.status, 200);
+    assert_eq!(polled.json()["done"], true);
+    assert_eq!(e.get("/api/fetch/999999").status, 404);
+}
+
+#[test]
 fn the_page_and_its_files_are_served_with_a_strict_policy() {
     let e = setup(|_, _| {});
     let page = e.get("/");

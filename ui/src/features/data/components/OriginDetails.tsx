@@ -35,6 +35,8 @@ export function OriginDetails({ record, pending, onClose, onSave }: OriginDetail
   if (record.width) rows.push(['Resolution', `${record.width} × ${record.height ?? ''}`]);
   rows.push(['Added', formatDateTime(record.added)]);
   if (record.note) rows.push(['Why here', record.note]);
+  if (record.rating) rows.push(['Content rating', record.rating]);
+  if (record.tags.length) rows.push(['Site tags', record.tags.join(', ')]);
 
   return (
     <dialog

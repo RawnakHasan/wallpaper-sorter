@@ -1,7 +1,7 @@
 use sorter_core::{Config, MatchMode};
 use sorter_engine::cfgedit::{
-    add_folder, add_intake, add_tag, delete_tag, merge_folder, rename_folder, set_folder_prefix,
-    set_gap_mode, set_starter_paths, update_intake, update_tag, TagSpec,
+    add_folder, add_intake, add_tag, delete_tag, merge_folder, rename_folder, set_fetch_ratings,
+    set_folder_prefix, set_gap_mode, set_starter_paths, update_intake, update_tag, TagSpec,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -167,6 +167,17 @@ fn starter_paths_are_escaped_structurally() {
     let cfg = Config::from_toml(&out).unwrap();
     assert_eq!(cfg.library.as_deref(), Some(library));
     assert_eq!(cfg.intake.first().map(|i| i.path.as_str()), Some(intake));
+}
+
+#[test]
+fn fetch_ratings_are_set_only_to_supported_values() {
+    let text = "library = \"/tmp/library\"\n";
+    let updated = set_fetch_ratings(text, "s", "sketchy").unwrap();
+    let cfg = Config::from_toml(&updated).unwrap();
+    assert_eq!(cfg.settings.danbooru_rating, "s");
+    assert_eq!(cfg.settings.wallhaven_purity, "sketchy");
+    assert!(set_fetch_ratings(text, "unsafe", "sfw").is_err());
+    assert!(set_fetch_ratings(text, "g", "unsafe").is_err());
 }
 
 #[cfg(unix)]

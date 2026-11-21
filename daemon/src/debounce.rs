@@ -19,12 +19,22 @@ pub struct Debouncer {
 
 impl Debouncer {
     pub fn new(stable_for: Duration) -> Debouncer {
-        Debouncer { stable_for, pending: HashMap::new(), stable_now: Vec::new() }
+        Debouncer {
+            stable_for,
+            pending: HashMap::new(),
+            stable_now: Vec::new(),
+        }
     }
 
     /// Something happened to `path`; `size` is its size right now (None if it cannot be read).
     pub fn event(&mut self, path: PathBuf, now: Instant, size: Option<u64>) {
-        self.pending.insert(path, Pending { last_event: now, seen_size: size });
+        self.pending.insert(
+            path,
+            Pending {
+                last_event: now,
+                seen_size: size,
+            },
+        );
     }
 
     /// A file that is already complete: it comes out of the next `poll` without waiting.
@@ -53,7 +63,11 @@ impl Debouncer {
     /// Files that are finished: the startup ones, and those untouched for `stable_for` whose size is
     /// still what it was. A file that grew gets another window; one that vanished is forgotten.
     /// `stat` returns the current size, or None if the file is gone.
-    pub fn poll(&mut self, now: Instant, mut stat: impl FnMut(&Path) -> Option<u64>) -> Vec<PathBuf> {
+    pub fn poll(
+        &mut self,
+        now: Instant,
+        mut stat: impl FnMut(&Path) -> Option<u64>,
+    ) -> Vec<PathBuf> {
         let mut ready: Vec<PathBuf> = std::mem::take(&mut self.stable_now);
         let mut forget = Vec::new();
         for (path, p) in self.pending.iter_mut() {
@@ -91,8 +105,13 @@ mod tests {
         let t0 = Instant::now();
         let mut d = Debouncer::new(Duration::from_millis(1000));
         d.event(p("/a.png"), t0, Some(10));
-        assert!(d.poll(t0 + Duration::from_millis(900), |_| Some(10)).is_empty());
-        assert_eq!(d.poll(t0 + Duration::from_millis(1000), |_| Some(10)), [p("/a.png")]);
+        assert!(d
+            .poll(t0 + Duration::from_millis(900), |_| Some(10))
+            .is_empty());
+        assert_eq!(
+            d.poll(t0 + Duration::from_millis(1000), |_| Some(10)),
+            [p("/a.png")]
+        );
         assert!(d.is_empty());
     }
 
@@ -101,9 +120,16 @@ mod tests {
         let t0 = Instant::now();
         let mut d = Debouncer::new(Duration::from_millis(1000));
         d.event(p("/a.png"), t0, Some(10));
-        assert!(d.poll(t0 + Duration::from_millis(1000), |_| Some(50)).is_empty());
-        assert!(d.poll(t0 + Duration::from_millis(1500), |_| Some(50)).is_empty());
-        assert_eq!(d.poll(t0 + Duration::from_millis(2000), |_| Some(50)), [p("/a.png")]);
+        assert!(d
+            .poll(t0 + Duration::from_millis(1000), |_| Some(50))
+            .is_empty());
+        assert!(d
+            .poll(t0 + Duration::from_millis(1500), |_| Some(50))
+            .is_empty());
+        assert_eq!(
+            d.poll(t0 + Duration::from_millis(2000), |_| Some(50)),
+            [p("/a.png")]
+        );
     }
 
     #[test]
@@ -112,8 +138,13 @@ mod tests {
         let mut d = Debouncer::new(Duration::from_millis(1000));
         d.event(p("/a.png"), t0, Some(10));
         d.event(p("/a.png"), t0 + Duration::from_millis(800), Some(10));
-        assert!(d.poll(t0 + Duration::from_millis(1000), |_| Some(10)).is_empty());
-        assert_eq!(d.poll(t0 + Duration::from_millis(1800), |_| Some(10)), [p("/a.png")]);
+        assert!(d
+            .poll(t0 + Duration::from_millis(1000), |_| Some(10))
+            .is_empty());
+        assert_eq!(
+            d.poll(t0 + Duration::from_millis(1800), |_| Some(10)),
+            [p("/a.png")]
+        );
     }
 
     #[test]
@@ -141,7 +172,13 @@ mod tests {
         let mut d = Debouncer::new(Duration::from_millis(1000));
         assert_eq!(d.next_wait(t0), None);
         d.event(p("/a.png"), t0, Some(1));
-        assert_eq!(d.next_wait(t0 + Duration::from_millis(400)), Some(Duration::from_millis(600)));
-        assert_eq!(d.next_wait(t0 + Duration::from_millis(5000)), Some(Duration::ZERO));
+        assert_eq!(
+            d.next_wait(t0 + Duration::from_millis(400)),
+            Some(Duration::from_millis(600))
+        );
+        assert_eq!(
+            d.next_wait(t0 + Duration::from_millis(5000)),
+            Some(Duration::ZERO)
+        );
     }
 }

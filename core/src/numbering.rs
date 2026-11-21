@@ -84,7 +84,11 @@ fn numbered_files(existing: &[String], prefix: &str, exts: &[String]) -> Vec<Num
     existing
         .iter()
         .filter_map(|name| {
-            parse_numbered(name, prefix, exts).map(|(n, ext)| Numbered { name: name.clone(), n, ext })
+            parse_numbered(name, prefix, exts).map(|(n, ext)| Numbered {
+                name: name.clone(),
+                n,
+                ext,
+            })
         })
         .collect()
 }
@@ -102,7 +106,12 @@ pub fn gaps(existing: &[String], prefix: &str, exts: &[String]) -> Vec<u64> {
 
 /// Highest number plus one (1 for an empty folder).
 pub fn next_number(existing: &[String], prefix: &str, exts: &[String]) -> u64 {
-    numbered_files(existing, prefix, exts).iter().map(|f| f.n).max().unwrap_or(0) + 1
+    numbered_files(existing, prefix, exts)
+        .iter()
+        .map(|f| f.n)
+        .max()
+        .unwrap_or(0)
+        + 1
 }
 
 fn lowest_free(files: &[Numbered]) -> u64 {
@@ -129,7 +138,10 @@ fn fill_last_into_gaps(files: &mut [Numbered], prefix: &str) -> Vec<Rename> {
             .map(|(i, _)| i)
             .expect("files is not empty here");
         let to = format_name(prefix, gap, &files[idx].ext);
-        out.push(Rename { from: files[idx].name.clone(), to: to.clone() });
+        out.push(Rename {
+            from: files[idx].name.clone(),
+            to: to.clone(),
+        });
         files[idx].n = gap;
         files[idx].name = to;
     }
@@ -149,7 +161,10 @@ fn renumber_all(files: &mut [Numbered], prefix: &str) -> Result<Vec<Rename>, Num
         let n = (i + 1) as u64;
         let to = format_name(prefix, n, &f.ext);
         if to != f.name {
-            out.push(Rename { from: f.name.clone(), to: to.clone() });
+            out.push(Rename {
+                from: f.name.clone(),
+                to: to.clone(),
+            });
         }
         f.n = n;
         f.name = to;
@@ -191,5 +206,8 @@ pub fn plan_new_file(
         GapMode::LowestFree => lowest_free(&files),
         _ => files.iter().map(|f| f.n).max().unwrap_or(0) + 1,
     };
-    Ok(NewFilePlan { renames, name: format_name(prefix, n, ext) })
+    Ok(NewFilePlan {
+        renames,
+        name: format_name(prefix, n, ext),
+    })
 }

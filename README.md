@@ -2,7 +2,7 @@
 
 Start with `HANDOFF.md`: it is the single guide and todo list for the owner and AI agents. This README is only an overview and command reference.
 
-Rust core for the wallpaper sorter (design notes and the web UI mock-up live elsewhere).
+Local-first wallpaper sorter with a Rust core and a built-in React/TypeScript web UI.
 
 ## What is here so far
 
@@ -118,11 +118,19 @@ folder is not a logged file action.
 | `GET /api/folder-prefix?folder=&prefix=` / `PUT /api/folder-prefix` `{folder, prefix}` | preview and change a folder's numbering prefix |
 | `POST /api/undo` `{batch}` or `{id}` | undo a batch or one action |
 | `PUT /api/origins` `{hash, site, id}` | set an image's source by hand |
-| `GET/PUT /api/settings` | settings (`gap_mode`, `setup_complete`) |
+| `GET/PUT /api/settings` | settings, including `gap_mode`, `setup_complete`, `danbooru_rating` (`g`, `s`, `q`, `e`), and `wallhaven_purity` (`sfw`, `sketchy`, `nsfw`) |
+| `POST /api/fetch` `{items: [{site?, input}]}` | queue 1–100 Wallhaven or Danbooru IDs/post links; links identify their site |
+| `GET /api/fetch/{job_id}` | per-item fetch progress and outcome |
+| `GET /api/secrets`, `PUT /api/secrets` | read credential-presence flags or save/clear credentials; secret values are never returned |
 | `POST /api/rescan` | look at the library folder and intake folders again (also done after a tag is added or changed) |
 | `POST /api/intake` `{path, recursive, remove_empty_folders}` / `PUT /api/intake/N` / `DELETE /api/intake/N` | add, edit or remove an intake folder; watch state and errors are returned in `/api/status` |
 | `GET /api/thumb/<hash>`, `POST /api/thumb/<hash>/refresh`, `GET /api/image/<hash>` | cached thumbnail, regenerate a thumbnail, and full image, addressed by content hash |
 | `POST /api/duplicates/restore` | restore duplicate copies into a destination folder as new numbered images, undoable |
+
+Fetching accepts supported Wallhaven and Danbooru IDs or post-page links, not arbitrary URLs. The UI accepts one
+entry per line and reports each result separately. By default, Wallhaven is limited to SFW and Danbooru to
+General-rated posts; these safeguards can be widened in Settings. Credentials are stored in `secrets.toml` beside
+the active config file with owner-only permissions. The API returns only whether credentials are saved.
 
 ## Run the tests
 

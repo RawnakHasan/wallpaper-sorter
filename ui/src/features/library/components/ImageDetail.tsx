@@ -28,6 +28,8 @@ export function ImageDetail({ image, folder, pending, onClose, onMove, onDelete,
     if (origin.width) rows.push(['Resolution', `${origin.width} × ${origin.height}`]);
     rows.push(['Added', formatDateTime(origin.added)]);
     if (origin.note) rows.push(['Why here', origin.note]);
+    if (origin.rating) rows.push(['Content rating', origin.rating]);
+    if (origin.tags.length) rows.push(['Site tags', origin.tags.join(', ')]);
   }
 
   return (

@@ -24,6 +24,8 @@ struct Case {
     incoming: Vec<String>,
     #[serde(default)]
     incoming_hashes: HashMap<String, String>,
+    #[serde(default)]
+    incoming_hints: HashMap<String, Vec<String>>,
     expect: Vec<String>,
 }
 
@@ -52,6 +54,7 @@ fn plan_cases_toml() {
                 path: p.clone(),
                 library_path: None,
                 hash: c.incoming_hashes.get(p).cloned(),
+                hints: c.incoming_hints.get(p).cloned().unwrap_or_default(),
             })
             .collect();
         let opts = PlanOptions {

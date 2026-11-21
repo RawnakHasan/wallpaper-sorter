@@ -56,6 +56,7 @@ fn incoming(path: &Path, hash: Option<&str>) -> Incoming {
         path: path.to_string_lossy().to_string(),
         library_path: None,
         hash: hash.map(|h| h.to_string()),
+        hints: Vec::new(),
     }
 }
 

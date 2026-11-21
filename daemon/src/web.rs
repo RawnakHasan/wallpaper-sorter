@@ -2,6 +2,8 @@
 //! It listens on 127.0.0.1 only, and refuses requests that did not come from a page served by itself.
 
 use crate::daemon::{ConfigUndoKind, Shared};
+use crate::fetch::{FetchJob, FetchManager, FetchRequest};
+use crate::secrets::{self, SecretsUpdate};
 use crate::thumbs::Thumbs;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -10,8 +12,8 @@ use sorter_core::matcher::{split_name, tokens};
 use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site};
 use sorter_engine::cfgedit::{
     add_folder, add_intake, add_tag, delete_tag_checked, merge_folder as edit_merge_folder,
-    remove_intake, rename_folder as edit_rename_folder, set_folder_prefix, set_gap_mode,
-    set_setup_complete, update_intake, update_tag_checked, validate_tag, TagSpec,
+    remove_intake, rename_folder as edit_rename_folder, set_fetch_ratings, set_folder_prefix,
+    set_gap_mode, set_setup_complete, update_intake, update_tag_checked, validate_tag, TagSpec,
 };
 use sorter_engine::{Origin, Outcome, UndoError};
 use std::collections::HashMap;
@@ -37,6 +39,8 @@ struct Ctx {
     shared: Arc<Shared>,
     thumbs: Thumbs,
     port: u16,
+    fetch: FetchManager,
+    secrets_path: Option<PathBuf>,
 }
 
 /// Starts the server on 127.0.0.1:`port` (0 picks a free port) in background threads.
@@ -49,10 +53,17 @@ pub fn serve(shared: Arc<Shared>, port: u16, thumbs: Thumbs) -> io::Result<WebSe
         .map(|a| a.port())
         .unwrap_or(port);
     let server = Arc::new(server);
+    let secrets_path = shared
+        .config_path
+        .as_deref()
+        .and_then(Path::parent)
+        .map(|parent| parent.join("secrets.toml"));
     let ctx = Arc::new(Ctx {
         shared,
         thumbs,
         port,
+        fetch: FetchManager::default(),
+        secrets_path,
     });
     for _ in 0..6 {
         let (server, ctx) = (server.clone(), ctx.clone());
@@ -334,6 +345,14 @@ struct SettingsBody {
     gap_mode: Option<String>,
     #[serde(default)]
     setup_complete: Option<bool>,
+    #[serde(default)]
+    danbooru_rating: Option<String>,
+    #[serde(default)]
+    wallhaven_purity: Option<String>,
+}
+#[derive(Deserialize)]
+struct FetchBody {
+    items: Vec<FetchRequest>,
 }
 #[derive(Deserialize)]
 struct TestBody {
@@ -387,11 +406,9 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
             INDEX_HTML.as_bytes(),
             "no-cache",
         )),
-        (Method::Get, ["assets", "app.css"]) => Ok(Resp::asset(
-            "text/css; charset=utf-8",
-            APP_CSS,
-            "no-cache",
-        )),
+        (Method::Get, ["assets", "app.css"]) => {
+            Ok(Resp::asset("text/css; charset=utf-8", APP_CSS, "no-cache"))
+        }
         (Method::Get, ["assets", "app.js"]) => Ok(Resp::asset(
             "text/javascript; charset=utf-8",
             APP_JS,
@@ -428,6 +445,46 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
         (Method::Get, ["api", "activity"]) => activity(ctx, &query),
         (Method::Get, ["api", "tags"]) => Ok(Resp::json(200, &tags_json(ctx))),
         (Method::Get, ["api", "settings"]) => Ok(Resp::json(200, &ctx.shared.lock().cfg.settings)),
+        (Method::Get, ["api", "secrets"]) => {
+            let path = ctx
+                .secrets_path
+                .as_deref()
+                .ok_or_else(|| ApiError::new(503, "secrets require a saved config file"))?;
+            let status = secrets::status(path).map_err(|error| ApiError::new(500, error))?;
+            Ok(Resp::json(200, &status))
+        }
+        (Method::Put, ["api", "secrets"]) => {
+            let path = ctx
+                .secrets_path
+                .as_deref()
+                .ok_or_else(|| ApiError::new(503, "secrets require a saved config file"))?;
+            let update: SecretsUpdate = read_json(req)?;
+            let status =
+                secrets::update(path, update).map_err(|error| ApiError::new(400, error))?;
+            Ok(Resp::json(200, &status))
+        }
+        (Method::Post, ["api", "fetch"]) => {
+            let path = ctx
+                .secrets_path
+                .clone()
+                .ok_or_else(|| ApiError::new(503, "fetch requires a saved config file"))?;
+            let body: FetchBody = read_json(req)?;
+            let job = ctx
+                .fetch
+                .submit(ctx.shared.clone(), path, body.items)
+                .map_err(|error| ApiError::new(400, error))?;
+            Ok(Resp::json(202, &job))
+        }
+        (Method::Get, ["api", "fetch", job_id]) => {
+            let id = job_id
+                .parse::<u64>()
+                .map_err(|_| ApiError::new(400, "invalid fetch job ID"))?;
+            let job: FetchJob = ctx
+                .fetch
+                .get(id)
+                .ok_or_else(|| ApiError::new(404, "fetch job not found"))?;
+            Ok(Resp::json(200, &job))
+        }
         (Method::Get, ["api", "gap-fill"]) => {
             let folder = query
                 .get("folder")
@@ -752,13 +809,31 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
         }
         (Method::Put, ["api", "settings"]) => {
             let b: SettingsBody = read_json(req)?;
-            if b.gap_mode.is_some() || b.setup_complete.is_some() {
+            let current_settings = ctx.shared.lock().cfg.settings.clone();
+            if b.gap_mode.is_some()
+                || b.setup_complete.is_some()
+                || b.danbooru_rating.is_some()
+                || b.wallhaven_purity.is_some()
+            {
                 ctx.shared
                     .edit_config(|text| {
                         let text = if let Some(mode) = b.gap_mode.as_deref() {
                             set_gap_mode(text, mode)?
                         } else {
                             text.to_string()
+                        };
+                        let text = if b.danbooru_rating.is_some() || b.wallhaven_purity.is_some() {
+                            set_fetch_ratings(
+                                &text,
+                                b.danbooru_rating
+                                    .as_deref()
+                                    .unwrap_or(&current_settings.danbooru_rating),
+                                b.wallhaven_purity
+                                    .as_deref()
+                                    .unwrap_or(&current_settings.wallhaven_purity),
+                            )?
+                        } else {
+                            text
                         };
                         if let Some(complete) = b.setup_complete {
                             set_setup_complete(&text, complete)
@@ -1004,6 +1079,7 @@ fn origin_json(o: &Origin) -> Value {
         "hash": o.hash, "path": o.path, "folder": folder, "name": name,
         "original_name": o.original_name, "sources": o.sources, "added": o.added,
         "width": o.width, "height": o.height, "note": o.note,
+        "tags": o.tags, "rating": o.rating,
     })
 }
 

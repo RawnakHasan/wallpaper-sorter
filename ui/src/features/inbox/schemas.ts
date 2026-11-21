@@ -14,6 +14,8 @@ export const inboxOriginSchema = z.object({
   note: z.string(),
   width: z.number().int().nonnegative(),
   height: z.number().int().nonnegative(),
+  tags: z.array(z.string()).default([]),
+  rating: z.string().nullable().default(null),
 }).passthrough();
 
 export const inboxItemSchema = z.object({

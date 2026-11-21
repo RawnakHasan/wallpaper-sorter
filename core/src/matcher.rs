@@ -4,7 +4,17 @@ use crate::config::{Config, MatchMode, Tag};
 use std::collections::BTreeSet;
 
 const STOP: [&str; 11] = [
-    "and", "more", "by", "drawn", "full", "com", "konachan", "yande", "re", "wallhaven", "original",
+    "and",
+    "more",
+    "by",
+    "drawn",
+    "full",
+    "com",
+    "konachan",
+    "yande",
+    "re",
+    "wallhaven",
+    "original",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,7 +79,12 @@ pub struct Decision {
 }
 
 fn decision(dest: Dest, rule: Rule, matched: Vec<String>, ignored: String) -> Decision {
-    Decision { dest, rule, matched, ignored }
+    Decision {
+        dest,
+        rule,
+        matched,
+        ignored,
+    }
 }
 
 fn flush_hex(run: &mut String, out: &mut String) {
@@ -147,19 +162,26 @@ pub fn tokens(stem: &str) -> Vec<String> {
     let mut s = stem;
     // Wallhaven ids carry no words.
     if let (Some(head), Some(id)) = (s.get(..10), s.get(10..16)) {
-        if head.eq_ignore_ascii_case("wallhaven-") && id.chars().all(|c| c.is_ascii_alphanumeric()) {
+        if head.eq_ignore_ascii_case("wallhaven-") && id.chars().all(|c| c.is_ascii_alphanumeric())
+        {
             s = &s[16..];
         }
     }
     // Danbooru: everything from "drawn_by_" on is the artist and a hash.
     let lower = s.to_ascii_lowercase();
     if let Some(idx) = lower.find("drawn_by_") {
-        let cut = if idx > 0 && s.as_bytes()[idx - 1] == b'_' { idx - 1 } else { idx };
+        let cut = if idx > 0 && s.as_bytes()[idx - 1] == b'_' {
+            idx - 1
+        } else {
+            idx
+        };
         s = &s[..cut];
     }
     words(s)
         .into_iter()
-        .filter(|w| !(w.len() >= 5 && w.chars().all(|c| c.is_ascii_digit())) && !STOP.contains(&w.as_str()))
+        .filter(|w| {
+            !(w.len() >= 5 && w.chars().all(|c| c.is_ascii_digit())) && !STOP.contains(&w.as_str())
+        })
         .collect()
 }
 
@@ -182,20 +204,37 @@ fn hit(tk: &[String], keyword: &str, mode: MatchMode) -> bool {
 
 /// Decide what to do with one filename.
 pub fn classify(filename: &str, cfg: &Config) -> Decision {
+    classify_with_hints(filename, cfg, &[])
+}
+
+/// Decide what to do with a filename and metadata hint phrases. Hints participate in tag
+/// matching, but the generic-tag word limit is based only on filename words.
+pub fn classify_with_hints(filename: &str, cfg: &Config, hints: &[String]) -> Decision {
     let (stem, ext) = split_name(filename);
-    if !cfg.settings.image_extensions.iter().any(|e| e.eq_ignore_ascii_case(&ext)) {
+    if !cfg
+        .settings
+        .image_extensions
+        .iter()
+        .any(|e| e.eq_ignore_ascii_case(&ext))
+    {
         return decision(Dest::Ignore, Rule::NotAnImage, vec![], String::new());
     }
     let tk = tokens(stem);
+    let hint_tokens: Vec<Vec<String>> = hints.iter().map(|hint| words(hint)).collect();
+    let hits = |input: &[String], keyword: &str, mode: MatchMode| {
+        hit(input, keyword, mode) || hint_tokens.iter().any(|words| hit(words, keyword, mode))
+    };
 
     let mut specific: Vec<(&Tag, String)> = Vec::new();
     let mut generic: Vec<(&Tag, String)> = Vec::new();
     for t in &cfg.tags {
-        let kw = match t.keywords.iter().find(|kw| hit(&tk, kw, t.match_mode)) {
+        let kw = match t.keywords.iter().find(|kw| hits(&tk, kw, t.match_mode)) {
             Some(kw) => kw.clone(),
             None => continue,
         };
-        if !t.strict_words.is_empty() && !t.strict_words.iter().any(|w| hit(&tk, w, MatchMode::Word)) {
+        if !t.strict_words.is_empty()
+            && !t.strict_words.iter().any(|w| hits(&tk, w, MatchMode::Word))
+        {
             continue;
         }
         if t.generic {
@@ -205,7 +244,12 @@ pub fn classify(filename: &str, cfg: &Config) -> Decision {
         }
     }
 
-    let join = |v: &[(&Tag, String)]| v.iter().map(|(_, k)| k.as_str()).collect::<Vec<_>>().join(";");
+    let join = |v: &[(&Tag, String)]| {
+        v.iter()
+            .map(|(_, k)| k.as_str())
+            .collect::<Vec<_>>()
+            .join(";")
+    };
     let max_words = cfg.settings.generic_max_words;
     let mut ignored = String::new();
     let base: Vec<(&Tag, String)> = if !specific.is_empty() {
@@ -216,7 +260,12 @@ pub fn classify(filename: &str, cfg: &Config) -> Decision {
     } else if !generic.is_empty() && tk.len() <= max_words {
         generic
     } else if !generic.is_empty() {
-        let note = format!("generic ignored ({} words, limit {}): {}", tk.len(), max_words, join(&generic));
+        let note = format!(
+            "generic ignored ({} words, limit {}): {}",
+            tk.len(),
+            max_words,
+            join(&generic)
+        );
         return decision(Dest::Inbox, Rule::NoMatch, vec![], note);
     } else {
         return decision(Dest::Inbox, Rule::NoMatch, vec![], String::new());
@@ -252,7 +301,12 @@ pub fn classify(filename: &str, cfg: &Config) -> Decision {
     if common.is_empty() {
         decision(Dest::Inbox, Rule::Conflict, names, ignored)
     } else {
-        decision(Dest::Folder(common.join("/")), Rule::SharedParent, names, ignored)
+        decision(
+            Dest::Folder(common.join("/")),
+            Rule::SharedParent,
+            names,
+            ignored,
+        )
     }
 }
 
@@ -264,7 +318,10 @@ mod tests {
     fn words_split_digits_and_camel_case() {
         assert_eq!(words("Chisa1"), ["chisa", "1"]);
         assert_eq!(words("ChisaWallpaper"), ["chisa", "wallpaper"]);
-        assert_eq!(words("sparkle_(honkai:_star_rail)"), ["sparkle", "honkai", "star", "rail"]);
+        assert_eq!(
+            words("sparkle_(honkai:_star_rail)"),
+            ["sparkle", "honkai", "star", "rail"]
+        );
     }
 
     #[test]
@@ -274,14 +331,18 @@ mod tests {
 
     #[test]
     fn extension_rules() {
-        assert_eq!(split_name("a/b/Chisa 1.PNG"), ("Chisa 1", "png".to_string()));
+        assert_eq!(
+            split_name("a/b/Chisa 1.PNG"),
+            ("Chisa 1", "png".to_string())
+        );
         assert_eq!(split_name("x.png.part"), ("x.png", "part".to_string()));
         assert_eq!(split_name("noext").1, "");
     }
 
     #[test]
     fn danbooru_artist_is_cut() {
-        let t = tokens("__robin_honkai_and_1_more_drawn_by_chisa__66b60ada665db2ba13e3aec46e6b756a");
+        let t =
+            tokens("__robin_honkai_and_1_more_drawn_by_chisa__66b60ada665db2ba13e3aec46e6b756a");
         assert_eq!(t, ["robin", "honkai", "1"]);
     }
 }

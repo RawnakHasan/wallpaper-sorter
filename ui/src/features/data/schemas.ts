@@ -30,6 +30,8 @@ export const originSchema = z.object({
   width: z.number().int().nonnegative().nullable(),
   height: z.number().int().nonnegative().nullable(),
   note: z.string(),
+  tags: z.array(z.string()).default([]),
+  rating: z.string().nullable().default(null),
 }).passthrough();
 
 export const dataResponseSchema = z.object({
