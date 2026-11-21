@@ -2,6 +2,7 @@ import { CreateFolderSheet } from './CreateFolderSheet';
 import { FolderManagementSheet } from './FolderManagementSheet';
 import { GapFillSheet } from './GapFillSheet';
 import { ImageDetail } from './ImageDetail';
+import { LibraryImageViewer } from './LibraryImageViewer';
 import { MoveSheet } from './MoveSheet';
 import type { FolderChangeRequest, GapFillMode, LibraryFolder, LibraryImage } from '../schemas';
 import type { LibraryFile } from '../types';
@@ -10,6 +11,10 @@ import type { AssignFilesRequest, FileActionResponse } from '../../files/schemas
 import type { OriginLookupRequest, Site } from '../../data/schemas';
 
 interface LibraryOverlaysProps {
+  viewerImages: Array<LibraryImage & { hash: string }>;
+  fullscreenPath: string | null;
+  onOpenFullscreen: () => void;
+  onCloseFullscreen: (image: LibraryImage & { hash: string }) => void;
   selectedImage: LibraryImage | null;
   currentFolder: string;
   imagePending: boolean;
@@ -48,6 +53,10 @@ interface LibraryOverlaysProps {
 }
 
 export function LibraryOverlays({
+  viewerImages,
+  fullscreenPath,
+  onOpenFullscreen,
+  onCloseFullscreen,
   selectedImage,
   currentFolder,
   imagePending,
@@ -92,6 +101,7 @@ export function LibraryOverlays({
           image={selectedImage}
           folder={currentFolder}
           pending={imagePending}
+          onOpenFullscreen={onOpenFullscreen}
           onClose={onCloseImage}
           onMove={onMoveImage}
           onDelete={onDeleteImage}
@@ -99,6 +109,13 @@ export function LibraryOverlays({
           sourcePending={sourcePending}
           onSaveSource={onSaveSource}
           onLookupSource={onLookupSource}
+        />
+      ) : null}
+      {fullscreenPath ? (
+        <LibraryImageViewer
+          images={viewerImages}
+          imagePath={fullscreenPath}
+          onClose={onCloseFullscreen}
         />
       ) : null}
       {moveFiles ? (

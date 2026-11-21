@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useSearch } from '@tanstack/react-router';
 import { type GridItem } from '../../components/ImageGrid';
@@ -11,6 +11,7 @@ import { LibraryOverlays } from './components/LibraryOverlays';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useLibraryQueries } from './hooks/useLibraryQueries';
 import { imageSources, messageOf } from './utils';
+import type { LibraryImage } from './schemas';
 
 export function LibraryPage() {
   const routeSearch = useSearch({ from: '/library' });
@@ -32,8 +33,10 @@ export function LibraryPage() {
     navigateToFolder, prefetchFolder, selectedFiles, openMove, deleteSelected, rebuildThumbnails,
     openDeleteImage, openMoveImage, startImageDrag, dropImagesOnFolder, folderChangeDone, fillGaps,
   } = actions;
+  const [fullscreenPath, setFullscreenPath] = useState<string | null>(null);
 
   const allKeys = images.map((image) => image.path);
+  const fullscreenImages = images.filter((image): image is LibraryImage & { hash: string } => image.hash !== null);
   const gridItems: GridItem[] = images.map((image) => ({
     key: image.path,
     hash: image.hash,
@@ -41,6 +44,7 @@ export function LibraryPage() {
     name: image.name,
     sub: imageSources(image).map((source) => source.site).join(', '),
     onOpen: () => setSelectedImage(image),
+    onExpand: image.hash ? () => setFullscreenPath(image.path) : undefined,
   }));
   const sourceCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -166,6 +170,18 @@ export function LibraryPage() {
         />
       </div>
       <LibraryOverlays
+        viewerImages={fullscreenImages}
+        fullscreenPath={fullscreenPath}
+        onOpenFullscreen={() => {
+          if (selectedImage?.hash) setFullscreenPath(selectedImage.path);
+        }}
+        onCloseFullscreen={(image) => {
+          setFullscreenPath(null);
+          if (selectedImage) {
+            const latestImage = images.find((entry) => entry.path === image.path);
+            if (latestImage) setSelectedImage(latestImage);
+          }
+        }}
         selectedImage={selectedImage}
         currentFolder={currentFolder}
         imagePending={deleteMutation.isPending || moveMutation.isPending}

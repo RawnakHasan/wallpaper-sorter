@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Copy,
   Database,
+  Expand,
   Inbox,
   Info,
   LayoutDashboard,
@@ -31,6 +32,7 @@ const icons = {
   info: Info,
   previous: ChevronLeft,
   next: ChevronRight,
+  expand: Expand,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof icons;

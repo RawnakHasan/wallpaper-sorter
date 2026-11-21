@@ -14,6 +14,7 @@ export interface GridItem {
   labelClass?: string;
   title?: string;
   onOpen: () => void;
+  onExpand?: () => void;
 }
 
 interface ImageGridProps {
@@ -78,7 +79,7 @@ export function ImageGrid({ items, onSelectionChange, onDragStart, onDragEnd }: 
               {item.label ? <span className={`label ${item.labelClass ?? ''}`} title={item.title}>{item.label}</span> : null}
               <span className="check">✓</span>
               <button
-                className="open"
+                className="open details"
                 type="button"
                 aria-label={`Details of ${item.name}`}
                 title="Details"
@@ -89,6 +90,20 @@ export function ImageGrid({ items, onSelectionChange, onDragStart, onDragEnd }: 
               >
                 <Icon name="info" />
               </button>
+              {item.onExpand ? (
+                <button
+                  className="open expand"
+                  type="button"
+                  aria-label={`View ${item.name} full screen`}
+                  title="View full screen"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    item.onExpand?.();
+                  }}
+                >
+                  <Icon name="expand" />
+                </button>
+              ) : null}
               <div className="cap">
                 <span className="m">{item.name}</span>
                 {item.sub ? <span className="m">{item.sub}</span> : null}

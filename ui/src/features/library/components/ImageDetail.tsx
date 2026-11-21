@@ -10,6 +10,7 @@ interface ImageDetailProps {
   image: LibraryImage;
   folder: string;
   pending: boolean;
+  onOpenFullscreen: () => void;
   onClose: () => void;
   onMove: () => void;
   onDelete: () => void;
@@ -23,6 +24,7 @@ export function ImageDetail({
   image,
   folder,
   pending,
+  onOpenFullscreen,
   onClose,
   onMove,
   onDelete,
@@ -63,6 +65,17 @@ export function ImageDetail({
     >
       <header>
         <h2>{image.name}</h2>
+        {image.hash ? (
+          <button
+            className="btn small icon-btn"
+            type="button"
+            aria-label="View full screen"
+            title="View full screen"
+            onClick={onOpenFullscreen}
+          >
+            <Icon name="expand" />
+          </button>
+        ) : null}
         <button className="btn small icon-btn" type="button" aria-label="Close" title="Close" disabled={pending} onClick={onClose}>
           <Icon name="close" />
         </button>
