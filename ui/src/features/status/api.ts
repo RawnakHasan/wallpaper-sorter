@@ -14,6 +14,8 @@ export const settingsUpdateSchema = z.object({
   konachan_rating: z.enum(['s', 'q', 'e']).optional(),
   zerochan_username: z.string().max(80).optional(),
   warn_before_unrated_sites: z.boolean().optional(),
+  wallpaper_apply_script: z.string().max(4096).optional(),
+  wallpaper_apply_args: z.array(z.string().max(4096)).max(64).optional(),
 }).strict();
 
 const rescanRequestSchema = z.object({}).strict();

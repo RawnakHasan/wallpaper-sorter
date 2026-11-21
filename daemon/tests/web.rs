@@ -1159,7 +1159,9 @@ fn fetch_settings_and_credentials_are_validated_and_write_only() {
             "konachan_rating": "s",
             "zerochan_username_saved": false,
             "zerochan_username": "",
-            "warn_before_unrated_sites": true
+            "warn_before_unrated_sites": true,
+            "wallpaper_apply_script": "",
+            "wallpaper_apply_args": []
         })
     );
     assert_eq!(
@@ -1179,6 +1181,73 @@ fn fetch_settings_and_credentials_are_validated_and_write_only() {
         )
         .status,
         400
+    );
+}
+
+#[test]
+fn configured_wallpaper_script_receives_the_image_path_as_one_literal_argument() {
+    let mut hash = String::new();
+    let e = setup(|lib, _| {
+        let image = lib.join("Nature/Chisa $HOME; 1.png");
+        put(&image, "wallpaper");
+        hash = hash_file(&image).unwrap();
+    });
+    let script = e.base.join("apply-wallpaper.sh");
+    fs::write(
+        &script,
+        "#!/bin/bash\nprintf '%s\\n' \"$@\" > \"$0.args\"\n",
+    )
+    .unwrap();
+    let configured = e.send(
+        "PUT",
+        "/api/settings",
+        json!({
+            "wallpaper_apply_script": script.to_string_lossy(),
+            "wallpaper_apply_args": ["--image", "{wallpaper_path}"]
+        }),
+    );
+    assert_eq!(configured.status, 200);
+
+    let applied = e.send("POST", "/api/apply-wallpaper", json!({ "hash": hash }));
+    assert_eq!(applied.status, 200);
+    assert_eq!(applied.json(), json!({ "ok": true }));
+    let output_path = PathBuf::from(format!("{}.args", script.display()));
+    let arguments = fs::read_to_string(output_path).unwrap();
+    assert_eq!(
+        arguments,
+        format!(
+            "--image\n{}\n",
+            e.lib.join("Nature/Chisa $HOME; 1.png").display()
+        )
+    );
+
+    fs::write(
+        &script,
+        "#!/bin/bash\necho script-output-secret >&2\nexit 7\n",
+    )
+    .unwrap();
+    let failed = e.send("POST", "/api/apply-wallpaper", json!({ "hash": hash }));
+    assert_eq!(failed.status, 502);
+    assert!(!String::from_utf8_lossy(&failed.body).contains("script-output-secret"));
+    assert_eq!(
+        e.send(
+            "POST",
+            "/api/apply-wallpaper",
+            json!({ "hash": "f".repeat(64) })
+        )
+        .status,
+        404
+    );
+
+    e.send(
+        "PUT",
+        "/api/settings",
+        json!({ "wallpaper_apply_script": "" }),
+    );
+    assert_eq!(
+        e.send("POST", "/api/apply-wallpaper", json!({ "hash": hash }))
+            .status,
+        409
     );
 }
 

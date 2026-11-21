@@ -18,6 +18,9 @@ interface ImageDetailProps {
   sourcePending: boolean;
   onSaveSource: (request: { hash: string; site: Site; id: string }) => void;
   onLookupSource: (request: OriginLookupRequest) => void;
+  applyAvailable: boolean;
+  applyPending: boolean;
+  onApplyWallpaper: (hash: string) => void;
 }
 
 export function ImageDetail({
@@ -32,6 +35,9 @@ export function ImageDetail({
   sourcePending,
   onSaveSource,
   onLookupSource,
+  applyAvailable,
+  applyPending,
+  onApplyWallpaper,
 }: ImageDetailProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   useNativeDialog(dialogRef);
@@ -52,7 +58,7 @@ export function ImageDetail({
   return (
     <dialog
       ref={dialogRef}
-      className="sheet"
+      className="sheet image-detail-sheet"
       aria-label={image.name}
       aria-modal="true"
       onCancel={(event) => {
@@ -128,6 +134,17 @@ export function ImageDetail({
       </div>
       <footer>
         {image.hash ? <button className="btn" type="button" onClick={() => onRebuild(image.hash!)}>Rebuild thumbnail</button> : null}
+        {image.hash && !applyAvailable ? <span className="muted">Configure a script in Settings to apply wallpapers.</span> : null}
+        {image.hash ? (
+          <button
+            className="btn primary"
+            type="button"
+            disabled={!applyAvailable || applyPending}
+            onClick={() => onApplyWallpaper(image.hash!)}
+          >
+            {applyPending ? 'Applying…' : 'Apply wallpaper'}
+          </button>
+        ) : null}
         <button className="btn primary" type="button" onClick={onMove}>Move to folder…</button>
         <button className="btn danger" type="button" onClick={onDelete}>Delete</button>
       </footer>

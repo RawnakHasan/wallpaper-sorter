@@ -1,6 +1,8 @@
 use crate::numbering::GapMode;
 use serde::{Deserialize, Serialize};
 
+pub const WALLPAPER_PATH_ARGUMENT: &str = "{wallpaper_path}";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MatchMode {
@@ -60,6 +62,10 @@ pub struct Settings {
     pub zerochan_username: String,
     #[serde(default = "yes")]
     pub warn_before_unrated_sites: bool,
+    #[serde(default)]
+    pub wallpaper_apply_script: String,
+    #[serde(default)]
+    pub wallpaper_apply_args: Vec<String>,
 }
 
 fn default_danbooru_rating() -> String {
@@ -95,6 +101,8 @@ impl Default for Settings {
             konachan_rating: "s".to_string(),
             zerochan_username: String::new(),
             warn_before_unrated_sites: true,
+            wallpaper_apply_script: String::new(),
+            wallpaper_apply_args: Vec::new(),
         }
     }
 }
@@ -195,6 +203,28 @@ impl Config {
                 "settings.zerochan_username must be at most 80 characters without control characters",
             ));
         }
+        if cfg.settings.wallpaper_apply_script.len() > 4096
+            || cfg
+                .settings
+                .wallpaper_apply_script
+                .chars()
+                .any(char::is_control)
+        {
+            return Err(<toml::de::Error as serde::de::Error>::custom(
+                "settings.wallpaper_apply_script must be at most 4096 bytes without control characters",
+            ));
+        }
+        if cfg.settings.wallpaper_apply_args.len() > 64
+            || cfg
+                .settings
+                .wallpaper_apply_args
+                .iter()
+                .any(|arg| arg.len() > 4096 || arg.chars().any(char::is_control))
+        {
+            return Err(<toml::de::Error as serde::de::Error>::custom(
+                "settings.wallpaper_apply_args must contain at most 64 arguments of at most 4096 bytes without control characters",
+            ));
+        }
         Ok(cfg)
     }
 
@@ -229,6 +259,8 @@ mod tests {
         assert_eq!(defaults.konachan_rating, "s");
         assert!(defaults.warn_before_unrated_sites);
         assert!(defaults.zerochan_username.is_empty());
+        assert!(defaults.wallpaper_apply_script.is_empty());
+        assert!(defaults.wallpaper_apply_args.is_empty());
 
         let config = Config::from_toml("[settings]\nzerochan_username = \"saved-user\"\n").unwrap();
         assert_eq!(config.settings.zerochan_username, "saved-user");
@@ -240,5 +272,22 @@ mod tests {
     fn invalid_konachan_rating_and_zerochan_username_are_rejected() {
         assert!(Config::from_toml("[settings]\nkonachan_rating = \"unsafe\"\n").is_err());
         assert!(Config::from_toml("[settings]\nzerochan_username = \"bad\\nname\"\n").is_err());
+    }
+
+    #[test]
+    fn wallpaper_apply_settings_are_bounded_and_backwards_compatible() {
+        assert!(Config::from_toml("library = \"/tmp/library\"\n").is_ok());
+        assert!(Config::from_toml(
+            "[settings]\nwallpaper_apply_args = [\"--image\", \"{wallpaper_path}\"]\n"
+        )
+        .is_ok());
+        assert!(
+            Config::from_toml("[settings]\nwallpaper_apply_script = \"bad\\npath\"\n").is_err()
+        );
+        assert!(Config::from_toml(&format!(
+            "[settings]\nwallpaper_apply_args = [{}]\n",
+            (0..65).map(|_| "\"x\"").collect::<Vec<_>>().join(",")
+        ))
+        .is_err());
     }
 }

@@ -9,17 +9,21 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sorter_core::matcher::{split_name, tokens};
-use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site};
+use sorter_core::{
+    classify, expand_home, Action, Dest, GapMode, LeaveReason, Plan, Site, WALLPAPER_PATH_ARGUMENT,
+};
 use sorter_engine::cfgedit::{
     add_folder, add_intake, add_tag, delete_tag_checked, merge_folder as edit_merge_folder,
     remove_intake, rename_folder as edit_rename_folder, set_fetch_ratings, set_folder_prefix,
-    set_gap_mode, set_setup_complete, set_zerochan_preferences, update_intake, update_tag_checked,
-    validate_tag, TagSpec,
+    set_gap_mode, set_setup_complete, set_wallpaper_apply, set_zerochan_preferences, update_intake,
+    update_tag_checked, validate_tag, TagSpec,
 };
 use sorter_engine::{Kind, Origin, Outcome, UndoError};
 use std::collections::HashMap;
+use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 use tiny_http::{Header, Method, Request, Response, Server};
 
@@ -347,6 +351,10 @@ struct OriginLookupBody {
     id: String,
 }
 #[derive(Deserialize)]
+struct ApplyWallpaperBody {
+    hash: String,
+}
+#[derive(Deserialize)]
 struct SettingsBody {
     #[serde(default)]
     gap_mode: Option<String>,
@@ -366,6 +374,10 @@ struct SettingsBody {
     zerochan_username: Option<String>,
     #[serde(default)]
     warn_before_unrated_sites: Option<bool>,
+    #[serde(default)]
+    wallpaper_apply_script: Option<String>,
+    #[serde(default)]
+    wallpaper_apply_args: Option<Vec<String>>,
 }
 #[derive(Deserialize)]
 struct FetchBody {
@@ -559,6 +571,10 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 .submit(ctx.shared.clone(), path, body.items)
                 .map_err(|error| ApiError::new(400, error))?;
             Ok(Resp::json(202, &job))
+        }
+        (Method::Post, ["api", "apply-wallpaper"]) => {
+            let body: ApplyWallpaperBody = read_json(req)?;
+            apply_wallpaper(ctx, body)
         }
         (Method::Get, ["api", "fetch", job_id]) => {
             let id = job_id
@@ -955,6 +971,8 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 || b.konachan_rating.is_some()
                 || b.zerochan_username.is_some()
                 || b.warn_before_unrated_sites.is_some()
+                || b.wallpaper_apply_script.is_some()
+                || b.wallpaper_apply_args.is_some()
             {
                 ctx.shared
                     .edit_config(|text| {
@@ -1000,6 +1018,21 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                                     .unwrap_or(&current_settings.zerochan_username),
                                 b.warn_before_unrated_sites
                                     .unwrap_or(current_settings.warn_before_unrated_sites),
+                            )?
+                        } else {
+                            text
+                        };
+                        let text = if b.wallpaper_apply_script.is_some()
+                            || b.wallpaper_apply_args.is_some()
+                        {
+                            set_wallpaper_apply(
+                                &text,
+                                b.wallpaper_apply_script
+                                    .as_deref()
+                                    .unwrap_or(&current_settings.wallpaper_apply_script),
+                                b.wallpaper_apply_args
+                                    .as_deref()
+                                    .unwrap_or(&current_settings.wallpaper_apply_args),
                             )?
                         } else {
                             text
@@ -1066,6 +1099,83 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
         }
         _ => Err(ApiError::new(404, "not found")),
     }
+}
+
+fn apply_wallpaper(ctx: &Ctx, body: ApplyWallpaperBody) -> Result<Resp, ApiError> {
+    if body.hash.len() != 64 || !body.hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(ApiError::new(
+            400,
+            "hash must be a 64-character hexadecimal image hash",
+        ));
+    }
+
+    let (script, args, image_path) = {
+        let p = ctx.shared.lock();
+        let script = p.cfg.settings.wallpaper_apply_script.clone();
+        if script.trim().is_empty() {
+            return Err(ApiError::new(
+                409,
+                "configure a wallpaper script in Settings first",
+            ));
+        }
+        let entry = p
+            .index
+            .entries()
+            .find(|entry| entry.hash == body.hash)
+            .ok_or_else(|| ApiError::new(404, "image is no longer in the Library"))?;
+        let image_path = p.resolve(&entry.path)?;
+        if !image_path.is_file() || sorter_engine::hash_file(&image_path)? != body.hash {
+            return Err(ApiError::new(404, "image is no longer in the Library"));
+        }
+        (
+            script,
+            p.cfg.settings.wallpaper_apply_args.clone(),
+            image_path,
+        )
+    };
+
+    let script_path = expand_home(&script);
+    if !script_path.is_absolute() {
+        return Err(ApiError::new(
+            400,
+            "wallpaper script path must be absolute or start with ~/",
+        ));
+    }
+    let metadata = fs::metadata(&script_path)
+        .map_err(|error| ApiError::new(400, format!("wallpaper script is unavailable: {error}")))?;
+    if !metadata.is_file() {
+        return Err(ApiError::new(
+            400,
+            "wallpaper script path must name a regular file",
+        ));
+    }
+
+    let mut command = Command::new("/bin/bash");
+    command
+        .arg(&script_path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    for arg in args {
+        if arg == WALLPAPER_PATH_ARGUMENT {
+            command.arg(&image_path);
+        } else {
+            command.arg(arg);
+        }
+    }
+    let status = command.status().map_err(|error| {
+        ApiError::new(502, format!("could not start wallpaper script: {error}"))
+    })?;
+    if !status.success() {
+        return Err(ApiError::new(
+            502,
+            status
+                .code()
+                .map(|code| format!("wallpaper script exited with status {code}"))
+                .unwrap_or_else(|| "wallpaper script was terminated".to_string()),
+        ));
+    }
+    Ok(Resp::json(200, &json!({ "ok": true })))
 }
 
 fn parse_mode(s: &str) -> Result<GapMode, ApiError> {

@@ -118,9 +118,10 @@ folder is not a logged file action.
 | `GET /api/folder-merge?from=&to=` / `POST /api/folder-merge` `{from, to}` | preview and move images into another folder using its numbering and duplicate rules |
 | `GET /api/folder-prefix?folder=&prefix=` / `PUT /api/folder-prefix` `{folder, prefix}` | preview and change a folder's numbering prefix |
 | `POST /api/undo` `{batch}` or `{id}` | undo a batch or one action |
+| `POST /api/apply-wallpaper` `{hash}` | run the configured Bash script for the matching Library image |
 | `PUT /api/origins` `{hash, site, id}` | set or edit an image's source by hand |
 | `POST /api/origins/lookup` `{hash, site, id}` | look up tags and metadata without downloading; may sort an Inbox image |
-| `GET/PUT /api/settings` | settings, including `gap_mode`, `setup_complete`, per-site rating/purity, the editable Zerochan username, and unrated-site warning preference |
+| `GET/PUT /api/settings` | settings, including `gap_mode`, `setup_complete`, per-site rating/purity, the editable Zerochan username, unrated-site warning preference, and wallpaper script arguments |
 | `POST /api/fetch` `{items: [{site?, input}]}` | queue 1–100 Wallhaven, Danbooru, yande.re, Safebooru, Konachan.net, or Zerochan IDs/post links; links identify their site |
 | `GET /api/fetch/{job_id}` | per-item fetch progress and outcome |
 | `GET /api/search?site=&q=&page=` | search or browse Wallhaven, Danbooru, yande.re, Safebooru, or Konachan.net; results include daemon-local preview URLs |
@@ -151,6 +152,12 @@ the active config file with owner-only permissions. Saved API keys remain write-
 non-secret usernames and the Danbooru user ID are shown so they can be edited. If a
 Danbooru character has no matching tag, the Overview offers to create one; confirming suggests its series folder
 and sorts the fetched image there, while “Not now” dismisses the suggestion.
+
+Settings can store a Bash script path and an ordered list of literal arguments. The `{wallpaper_path}` argument
+token expands to the selected Library image's absolute path as one argv item; each other argument is passed
+unchanged, without evaluating a command string. The script runs only when **Apply wallpaper** is clicked in an
+image's Details panel. The request waits for the script to exit; there is no execution timeout. This external action
+does not move or edit the image and cannot be undone by the sorter.
 
 Konachan.net exposes tag categories separately from its flat post tag string; this client requests each tag record and
 uses only character and copyright categories as hints, while artist metadata is stored separately. Its API docs do not

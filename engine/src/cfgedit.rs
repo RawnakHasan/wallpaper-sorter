@@ -449,6 +449,36 @@ pub fn set_zerochan_preferences(
     Ok(doc.to_string())
 }
 
+pub fn set_wallpaper_apply(text: &str, script: &str, args: &[String]) -> Result<String, String> {
+    if script.len() > 4096 || script.chars().any(char::is_control) {
+        return Err(
+            "wallpaper script path must be at most 4096 bytes without control characters"
+                .to_string(),
+        );
+    }
+    if args.len() > 64
+        || args
+            .iter()
+            .any(|arg| arg.len() > 4096 || arg.chars().any(char::is_control))
+    {
+        return Err(
+            "wallpaper script arguments must contain at most 64 items of at most 4096 bytes without control characters"
+                .to_string(),
+        );
+    }
+    let mut doc = parse(text)?;
+    if doc.get("settings").is_none() {
+        doc["settings"] = Item::Table(Table::new());
+    }
+    doc["settings"]["wallpaper_apply_script"] = value(script);
+    let mut values = Array::new();
+    for arg in args {
+        values.push(arg.as_str());
+    }
+    doc["settings"]["wallpaper_apply_args"] = value(values);
+    Ok(doc.to_string())
+}
+
 pub fn undo_rename_folder(
     text: &str,
     before: &str,

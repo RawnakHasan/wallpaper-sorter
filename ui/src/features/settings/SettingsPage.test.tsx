@@ -100,6 +100,36 @@ it('shows a recoverable error when settings cannot be loaded', async () => {
   client.clear();
 });
 
+it('saves an ordered wallpaper script argument list with the wallpaper path token', async () => {
+  const updates: unknown[] = [];
+  server.use(
+    http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
+    http.put('http://127.0.0.1/api/settings', async ({ request }) => {
+      const body = await request.json() as Record<string, unknown>;
+      updates.push(body);
+      return HttpResponse.json({ ...settings, ...body });
+    }),
+  );
+  const { client } = renderSettings();
+
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Bash script location' }), {
+    target: { value: '~/bin/apply-wallpaper.sh' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Add text argument' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Argument 1' }), {
+    target: { value: '--image' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Add wallpaper path' }));
+  expect(screen.getByRole('region', { name: 'Wallpaper command preview' })).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Save wallpaper script' }));
+  await waitFor(() => expect(updates).toEqual([{
+    wallpaper_apply_script: '~/bin/apply-wallpaper.sh',
+    wallpaper_apply_args: ['--image', '{wallpaper_path}'],
+  }]));
+  client.clear();
+});
+
 it('saves API credentials without reading them back and persists the rating safeguards', async () => {
   let secretUpdate: unknown;
   const settingUpdates: unknown[] = [];

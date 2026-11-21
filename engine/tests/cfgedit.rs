@@ -1,8 +1,8 @@
 use sorter_core::{Config, MatchMode};
 use sorter_engine::cfgedit::{
     add_folder, add_intake, add_tag, delete_tag, merge_folder, rename_folder, set_fetch_ratings,
-    set_folder_prefix, set_gap_mode, set_starter_paths, set_zerochan_preferences, update_intake,
-    update_tag, TagSpec,
+    set_folder_prefix, set_gap_mode, set_starter_paths, set_wallpaper_apply,
+    set_zerochan_preferences, update_intake, update_tag, TagSpec,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -196,6 +196,21 @@ fn zerochan_preferences_are_persisted_without_reformatting_unrelated_config() {
     assert_eq!(cfg.settings.zerochan_username, "sample-user");
     assert!(!cfg.settings.warn_before_unrated_sites);
     assert!(set_zerochan_preferences(text, "bad\nname", true).is_err());
+}
+
+#[test]
+fn wallpaper_apply_settings_preserve_comments_and_store_ordered_arguments() {
+    let text = "# keep this comment\nlibrary = \"/tmp/library\"\n";
+    let args = vec!["--image".to_string(), "{wallpaper_path}".to_string()];
+    let updated = set_wallpaper_apply(&text, "~/bin/set-wallpaper.sh", &args).unwrap();
+    assert!(updated.contains("# keep this comment"));
+    let cfg = Config::from_toml(&updated).unwrap();
+    assert_eq!(
+        cfg.settings.wallpaper_apply_script,
+        "~/bin/set-wallpaper.sh"
+    );
+    assert_eq!(cfg.settings.wallpaper_apply_args, args);
+    assert!(set_wallpaper_apply(&text, "bad\npath", &[]).is_err());
 }
 
 #[cfg(unix)]

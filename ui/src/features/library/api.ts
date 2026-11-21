@@ -1,4 +1,5 @@
 import { getJson, sendJson } from '../../lib/api-client';
+import { z } from 'zod';
 import { fileActionResponseSchema } from '../files/schemas';
 import {
   createFolderRequestSchema,
@@ -16,6 +17,21 @@ import {
 export const libraryFoldersQueryKey = ['folders'] as const;
 export const libraryImagesQueryKey = (folder: string) => ['library-images', folder] as const;
 export const gapFillPreviewQueryKey = (folder: string, mode: GapFillMode) => ['gap-fill', folder, mode] as const;
+
+const applyWallpaperRequestSchema = z.object({
+  hash: z.string().regex(/^[0-9a-f]{64}$/i),
+}).strict();
+const applyWallpaperResponseSchema = z.object({ ok: z.literal(true) }).strict();
+
+export function applyWallpaper(hash: string) {
+  return sendJson(
+    'POST',
+    '/api/apply-wallpaper',
+    { hash },
+    applyWallpaperRequestSchema,
+    applyWallpaperResponseSchema,
+  );
+}
 
 export function getLibraryFolders() {
   return getJson('/api/folders', libraryFoldersSchema);

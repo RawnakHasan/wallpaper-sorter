@@ -125,6 +125,40 @@ it('renders library site tags as separate tag chips in image details', async () 
   client.clear();
 });
 
+it('applies the selected Library image using its hash', async () => {
+  const hash = 'a'.repeat(64);
+  const applyRequests: unknown[] = [];
+  const configuredStatus = {
+    ...status,
+    settings: { ...status.settings, wallpaper_apply_script: '/home/user/apply-wallpaper.sh' },
+  };
+  server.use(
+    http.get('http://127.0.0.1/api/folders', () => HttpResponse.json(folders)),
+    http.get('http://127.0.0.1/api/status', () => HttpResponse.json(configuredStatus)),
+    http.get('http://127.0.0.1/api/images', () => HttpResponse.json([{
+      path: 'Nature/Nature 1.png',
+      name: 'Nature 1.png',
+      number: 1,
+      size: 120,
+      hash,
+      origin: null,
+    }])),
+    http.get('http://127.0.0.1/api/tags', () => HttpResponse.json([])),
+    http.post('http://127.0.0.1/api/apply-wallpaper', async ({ request }) => {
+      applyRequests.push(await request.json());
+      return HttpResponse.json({ ok: true });
+    }),
+  );
+  const { client } = renderLibrary();
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Details of Nature 1.png' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Apply wallpaper' }));
+
+  await waitFor(() => expect(applyRequests).toEqual([{ hash }]));
+  expect(await screen.findByText('Wallpaper applied')).toBeTruthy();
+  client.clear();
+});
+
 it('opens full-resolution Library images from the grid and navigates the current folder', async () => {
   const images = [
     { path: 'Nature/Nature 1.png', name: 'Nature 1.png', number: 1, size: 120, hash: 'image-hash-1', origin: null },

@@ -14,6 +14,7 @@ import { refreshThumbnail } from '../../thumbnails/api';
 import { useSelectionStore } from '../../../stores/selection';
 import { useToastStore } from '../../../stores/toast';
 import {
+  applyWallpaper,
   applyFolderChange,
   createLibraryFolder,
   fillLibraryGaps,
@@ -160,6 +161,11 @@ export function useLibraryActions({ currentFolder, images, duplicateFolder }: Us
     },
     onError: (error) => showToast(messageOf(error), { error: true }),
   });
+  const applyWallpaperMutation = useMutation({
+    mutationFn: applyWallpaper,
+    onSuccess: () => showToast('Wallpaper applied', { success: true }),
+    onError: (error) => showToast(messageOf(error), { error: true }),
+  });
   const folderChangeMutation = useMutation({ mutationFn: applyFolderChange });
   const gapMutation = useMutation({
     mutationFn: (request: { folder: string; mode: GapFillMode }) => fillLibraryGaps(request.folder, request.mode),
@@ -285,7 +291,7 @@ export function useLibraryActions({ currentFolder, images, duplicateFolder }: Us
     managementKey, setManagementKey, managementError, setManagementError, gapFolder, setGapFolder,
     gapError, setGapError, dropTarget, setDropTarget, thumbVersions, draggedFiles,
     createMutation, moveMutation, deleteMutation, folderChangeMutation, gapMutation,
-    sourceMutation, lookupMutation,
+    sourceMutation, lookupMutation, applyWallpaperMutation,
     navigateToFolder, prefetchFolder, selectedFiles, openMove, deleteSelected, rebuildThumbnails,
     openDeleteImage, openMoveImage, startImageDrag, dropImagesOnFolder, folderChangeDone, fillGaps,
   };

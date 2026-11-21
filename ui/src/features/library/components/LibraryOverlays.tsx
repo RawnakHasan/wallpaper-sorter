@@ -27,6 +27,9 @@ interface LibraryOverlaysProps {
   sourcePending: boolean;
   onSaveSource: (request: { hash: string; site: Site; id: string }) => void;
   onLookupSource: (request: OriginLookupRequest) => void;
+  applyAvailable: boolean;
+  applyPending: boolean;
+  onApplyWallpaper: (hash: string) => void;
   moveFiles: LibraryFile[] | null;
   folders: LibraryFolder[];
   moveTags: Tag[];
@@ -71,6 +74,9 @@ export function LibraryOverlays({
   sourcePending,
   onSaveSource,
   onLookupSource,
+  applyAvailable,
+  applyPending,
+  onApplyWallpaper,
   moveFiles,
   folders,
   moveTags,
@@ -113,6 +119,9 @@ export function LibraryOverlays({
           sourcePending={sourcePending}
           onSaveSource={onSaveSource}
           onLookupSource={onLookupSource}
+          applyAvailable={applyAvailable}
+          applyPending={applyPending}
+          onApplyWallpaper={onApplyWallpaper}
         />
       ) : null}
       {fullscreenPath ? (

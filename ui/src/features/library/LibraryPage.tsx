@@ -39,6 +39,7 @@ export function LibraryPage() {
     gapError, setGapError, dropTarget, setDropTarget, thumbVersions, draggedFiles,
     createMutation, moveMutation, deleteMutation, folderChangeMutation, gapMutation,
     sourceMutation, lookupMutation,
+    applyWallpaperMutation,
     navigateToFolder, prefetchFolder, selectedFiles, openMove, deleteSelected, rebuildThumbnails,
     openDeleteImage, openMoveImage, startImageDrag, dropImagesOnFolder, folderChangeDone, fillGaps,
   } = actions;
@@ -205,6 +206,9 @@ export function LibraryPage() {
         sourcePending={sourceMutation.isPending || lookupMutation.isPending}
         onSaveSource={(request) => sourceMutation.mutate(request)}
         onLookupSource={(request) => lookupMutation.mutate(request)}
+        applyAvailable={Boolean(statusQuery.data.settings.wallpaper_apply_script.trim())}
+        applyPending={applyWallpaperMutation.isPending}
+        onApplyWallpaper={(hash) => applyWallpaperMutation.mutate(hash)}
         moveFiles={moveFiles}
         folders={folders}
         moveTags={moveTags}

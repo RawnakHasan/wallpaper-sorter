@@ -15,6 +15,8 @@ export const settingsSchema = z.object({
   zerochan_username_saved: z.boolean().default(false),
   zerochan_username: z.string().default(''),
   warn_before_unrated_sites: z.boolean().default(true),
+  wallpaper_apply_script: z.string().default(''),
+  wallpaper_apply_args: z.array(z.string()).default([]),
 }).passthrough();
 
 export const statusSchema = z.object({

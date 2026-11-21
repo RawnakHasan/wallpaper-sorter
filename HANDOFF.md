@@ -233,6 +233,9 @@ tables are the real specification; do not regenerate them from the code.
   intake folder, no `..`).
 - The web server listens on 127.0.0.1 only, rejects other `Host` headers, requires JSON for changing requests and
   checks `Origin`. The page is served with a CSP that forbids inline scripts and styles.
+- Wallpaper application accepts only a content hash for an image already in the Library. It runs the configured
+  script through Bash with an argv array; `{wallpaper_path}` expands to one absolute-path argument. Never build or
+  evaluate a shell command string. Script output is not returned, and the script runs only after an explicit UI action.
 - Fetching accepts supported Wallhaven, Danbooru, yande.re, and Safebooru post IDs or page links, never arbitrary URLs. Remote requests use
   HTTPS, exact site host allowlists for image URLs and redirects, per-site pacing, and a 32 MiB image limit. API
   credentials are sent only to the API host, stored beside the active config in `secrets.toml` with owner-only
@@ -279,7 +282,8 @@ tables are the real specification; do not regenerate them from the code.
 - The Library folder header shows source counts; each image counts under its first known source, or Unknown if none.
 - The Overview fetch panel accepts one ID or post-page link per line. Bare IDs use the selected site; a supported
   link identifies its site. Settings stores Wallhaven and Danbooru credentials, Konachan.net's maximum rating, the
-  Zerochan username, and the unrated-site warning preference.
+  Zerochan username, the unrated-site warning preference, and the optional wallpaper script/argument list. Library
+  image Details has an Apply wallpaper action when a script is configured.
 - Saved non-secret identities are displayed with Edit controls. API keys remain write-only and show saved/replacement
   state rather than their value. Browse includes Konachan.net; Zerochan browsing is not implemented, though Fetch
   downloads from the owner-approved `static.zerochan.net` host.
@@ -342,6 +346,8 @@ their saved source site and ID. Phase 5 adds in-app search/browsing for Wallhave
 Konachan.net, with daemon-served, cached previews; Wallhaven post tags load on demand from its documented details API.
 Phase 6 adds Konachan.net and Zerochan Fetch plus metadata lookup. Zerochan downloads are restricted to the exact
 owner-approved `static.zerochan.net` host; Zerochan image browsing remains disabled.
+Wallpaper application is implemented from Library Details using a Settings-configured Bash script and ordered
+literal arguments; the wallpaper-path token is passed as one argument without shell interpolation.
 
 | Feature | Sketch |
 |---|---|
@@ -349,6 +355,7 @@ owner-approved `static.zerochan.net` host; Zerochan image browsing remains disab
 | Size caps | Thumbnail cache (delete oldest), `log.jsonl` (keep recent entries; origin records stay forever). |
 | Videos | The extension list is a setting; `Video/` files would need their own thumbnails. Parked by the owner ("later"). |
 | Additional site APIs | Phase 3: yande.re and Safebooru implemented. Phase 4: bulk origin enrichment implemented. Phase 5: in-app search/browsing for Wallhaven, Danbooru, yande.re, Safebooru, and Konachan.net, with daemon-local previews. Phase 6: Konachan.net and Zerochan Fetch/metadata lookup; Zerochan downloads are limited to owner-approved `static.zerochan.net`, while browsing remains disabled. Pixiv remains out of scope. |
+| Wallpaper application | Implemented: Settings stores a Bash script and ordered argument list. Library Details invokes it for a Library image by content hash, passing `{wallpaper_path}` as one argv item. |
 
 ### 4.4 Smaller known limits
 
@@ -364,6 +371,8 @@ owner-approved `static.zerochan.net` host; Zerochan image browsing remains disab
 - "Close gaps: move the last images into the gaps" fills **every** gap at once.
 - Fetching, search, and previews have only been exercised against local fake API/CDN servers; confirm live response
   fields, CDN redirects, and rating behavior before relying on them against the sites.
+- Wallpaper application runs synchronously and currently has no timeout; a script that does not exit keeps its API
+  request open.
 - Preview thumbnails are lazy and cached. The shared per-site API limiter is applied to metadata/search requests and
   Fetch downloads; daemon preview requests to allowlisted CDN hosts do not consume the API quota. Wallhaven search
   listings omit tags, so the Details dialog fetches its documented `/w/{id}` record only when opened.
@@ -403,6 +412,9 @@ owner-approved `static.zerochan.net` host; Zerochan image browsing remains disab
 - Delete goes to a trash inside the library and is undoable; the trash is emptied only on request.
 - UI: minimal and flat, dark first, one accent colour, self-hosted fonts (Hanken Grotesk, JetBrains Mono), runs offline.
 - Pixiv stays with the owner's browser extension; no Pixiv API.
+- Wallpaper application invokes only the configured script after an explicit click. Arguments are passed directly to
+  Bash as separate argv items; the sorter does not evaluate shell syntax, capture script output, or undo external
+  changes made by the script.
 - API metadata tags are matching hint phrases, not filename words; Wallhaven uses all tags, Danbooru uses character and copyright categories only.
 - Metadata lookup updates origin records without downloading an image. It supports Wallhaven, Danbooru, yande.re,
   Safebooru, Konachan.net, and Zerochan; Zerochan requires a saved username in the User-Agent.

@@ -1,6 +1,7 @@
 import { WatchedEntry } from './components/WatchedEntry';
 import { IntakeSheet } from './components/IntakeSheet';
 import { FetchSettings } from './components/FetchSettings';
+import { WallpaperApplySettings } from './components/WallpaperApplySettings';
 import { useSettingsPage } from './hooks/useSettingsPage';
 import { gapText, messageOf, themes } from './utils';
 
@@ -81,6 +82,7 @@ export function SettingsPage() {
         <p className="faint">Copies of images you already have go to the “{status.settings.duplicates_folder}” folder.</p>
       </div>
       <FetchSettings settings={status.settings} />
+      <WallpaperApplySettings settings={status.settings} />
       <div className="panel">
         <h2>Appearance</h2>
         <div className="seg" role="group" aria-label="Theme">
