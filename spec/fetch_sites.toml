@@ -1,0 +1,85 @@
+# Hand-written expectations for fetch adapters. Site-specific outputs are authoritative.
+
+[[endpoint]]
+site = "Konachan.net"
+metadata = "/post.json?limit=1&tags=id%3A{id}"
+tag_category = "/tag.json?name={tag}"
+
+[[endpoint]]
+site = "Zerochan"
+metadata = "/{id}?json"
+
+[[parse]]
+site = "Konachan.net"
+input = "https://konachan.net/post/show/12345"
+id = "12345"
+valid = true
+
+[[parse]]
+site = "Konachan.net"
+input = "12345"
+id = "12345"
+valid = true
+
+[[parse]]
+site = "Konachan.net"
+input = "0"
+id = ""
+valid = false
+
+[[parse]]
+site = "Zerochan"
+input = "https://www.zerochan.net/3793685"
+id = "3793685"
+valid = true
+
+[[parse]]
+site = "Zerochan"
+input = "3793685"
+id = "3793685"
+valid = true
+
+[[parse]]
+site = "Zerochan"
+input = "0"
+id = ""
+valid = false
+
+[[rating]]
+site = "Konachan.net"
+rating = "s"
+maximum = "s"
+allowed = true
+
+[[rating]]
+site = "Konachan.net"
+rating = "q"
+maximum = "s"
+allowed = false
+
+[[rating]]
+site = "Konachan.net"
+rating = "e"
+maximum = "q"
+allowed = false
+
+[[rating]]
+site = "Zerochan"
+rating = "unrated"
+maximum = "unrated"
+allowed = true
+
+[[hints]]
+site = "Konachan.net"
+flat_tags = ["chisa_(wuthering_waves)", "wuthering_waves", "skadi_(arknights)", "artist_name"]
+characters = ["chisa_(wuthering_waves)", "skadi_(arknights)"]
+copyrights = ["wuthering_waves"]
+artists = ["artist_name"]
+hint_words = ["chisa", "wuthering waves", "skadi", "arknights"]
+artist_metadata = "artist name"
+
+[[hints]]
+site = "Zerochan"
+flat_tags = ["Chisa", "Wuthering Waves", "Fanart"]
+all_tags = ["Chisa", "Wuthering Waves", "Fanart"]
+hint_words = ["Chisa", "Wuthering Waves", "Fanart"]

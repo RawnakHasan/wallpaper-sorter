@@ -97,7 +97,7 @@ fn moving_records_origin_dimensions_and_index() {
 fn a_copy_from_another_site_is_a_duplicate_and_adds_a_source() {
     let d = Dirs::new();
     let a = d.dl.join("Kuchiba.Chisa.full.4511113.png");
-    let b = d.dl.join("Konachan.com - 404420 chisa wuthering_waves.png");
+    let b = d.dl.join("Konachan.net - 404420 chisa wuthering_waves.png");
     put(&a, &png(100, 100, "same"));
     put(&b, &png(100, 100, "same"));
 
@@ -107,7 +107,7 @@ fn a_copy_from_another_site_is_a_duplicate_and_adds_a_source() {
     assert!(out.report.error.is_none());
     assert_eq!(
         names(&d.lib.join("Duplicates")),
-        ["Konachan.com - 404420 chisa wuthering_waves.png"]
+        ["Konachan.net - 404420 chisa wuthering_waves.png"]
     );
     assert_eq!(names(&d.lib.join("Wuthering-Waves/Chisa")), ["Chisa 1.png"]);
     assert_eq!(p.origins.len(), 1);

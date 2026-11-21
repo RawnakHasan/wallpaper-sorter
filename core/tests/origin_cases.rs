@@ -79,3 +79,19 @@ fn yandere_origin_serialization_uses_its_label_and_reads_legacy_records() {
         Site::YandeRe
     );
 }
+
+#[test]
+fn konachan_net_label_reads_legacy_site_records() {
+    assert_eq!(
+        serde_json::to_string(&Site::Konachan).unwrap(),
+        "\"Konachan.net\""
+    );
+    assert_eq!(
+        serde_json::from_str::<Site>("\"Konachan\"").unwrap(),
+        Site::Konachan
+    );
+    assert_eq!(
+        sorter_core::url_for(Site::Konachan, "12345"),
+        "https://konachan.net/post/show/12345"
+    );
+}

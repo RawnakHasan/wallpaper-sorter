@@ -54,6 +54,12 @@ pub struct Settings {
     pub yandere_rating: String,
     #[serde(default = "default_safebooru_rating")]
     pub safebooru_rating: String,
+    #[serde(default = "default_konachan_rating")]
+    pub konachan_rating: String,
+    #[serde(default, skip_serializing)]
+    pub zerochan_username: String,
+    #[serde(default = "yes")]
+    pub warn_before_unrated_sites: bool,
 }
 
 fn default_danbooru_rating() -> String {
@@ -67,6 +73,9 @@ fn default_yandere_rating() -> String {
 }
 fn default_safebooru_rating() -> String {
     "general".to_string()
+}
+fn default_konachan_rating() -> String {
+    "s".to_string()
 }
 
 impl Default for Settings {
@@ -83,6 +92,9 @@ impl Default for Settings {
             wallhaven_purity: "sfw".to_string(),
             yandere_rating: "s".to_string(),
             safebooru_rating: "general".to_string(),
+            konachan_rating: "s".to_string(),
+            zerochan_username: String::new(),
+            warn_before_unrated_sites: true,
         }
     }
 }
@@ -171,6 +183,18 @@ impl Config {
                 "settings.safebooru_rating must be general, safe, questionable, or explicit",
             ));
         }
+        if !["s", "q", "e"].contains(&cfg.settings.konachan_rating.as_str()) {
+            return Err(<toml::de::Error as serde::de::Error>::custom(
+                "settings.konachan_rating must be s, q, or e",
+            ));
+        }
+        if cfg.settings.zerochan_username.len() > 80
+            || cfg.settings.zerochan_username.chars().any(char::is_control)
+        {
+            return Err(<toml::de::Error as serde::de::Error>::custom(
+                "settings.zerochan_username must be at most 80 characters without control characters",
+            ));
+        }
         Ok(cfg)
     }
 
@@ -192,5 +216,29 @@ impl Config {
             }
         }
         dest.rsplit('/').next().unwrap_or(dest).replace('-', " ")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Config, Settings};
+
+    #[test]
+    fn new_fetch_settings_default_safely_and_redact_zerochan_username() {
+        let defaults = Settings::default();
+        assert_eq!(defaults.konachan_rating, "s");
+        assert!(defaults.warn_before_unrated_sites);
+        assert!(defaults.zerochan_username.is_empty());
+
+        let config = Config::from_toml("[settings]\nzerochan_username = \"saved-user\"\n").unwrap();
+        assert_eq!(config.settings.zerochan_username, "saved-user");
+        let response = serde_json::to_value(config.settings).unwrap();
+        assert!(response.get("zerochan_username").is_none());
+    }
+
+    #[test]
+    fn invalid_konachan_rating_and_zerochan_username_are_rejected() {
+        assert!(Config::from_toml("[settings]\nkonachan_rating = \"unsafe\"\n").is_err());
+        assert!(Config::from_toml("[settings]\nzerochan_username = \"bad\\nname\"\n").is_err());
     }
 }

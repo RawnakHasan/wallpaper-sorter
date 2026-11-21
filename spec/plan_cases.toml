@@ -287,6 +287,24 @@ incoming = ["/lib/danbooru-123456.jpg"]
 incoming_hints = { "/lib/danbooru-123456.jpg" = ["chisa", "wuthering waves"] }
 expect = ["move: /lib/danbooru-123456.jpg -> Wuthering-Waves/Chisa/Chisa 1.jpg"]
 
+[[case]]
+name = "Konachan.net categorized hints sort a numeric-ID download"
+incoming = ["/lib/konachan-12345.jpg"]
+incoming_hints = { "/lib/konachan-12345.jpg" = ["chisa", "wuthering waves"] }
+expect = ["move: /lib/konachan-12345.jpg -> Wuthering-Waves/Chisa/Chisa 1.jpg"]
+
+[[case]]
+name = "Zerochan all-tag hints sort a numeric-ID download"
+incoming = ["/lib/zerochan-3793685.jpg"]
+incoming_hints = { "/lib/zerochan-3793685.jpg" = ["chisa", "wuthering waves", "fanart"] }
+expect = ["move: /lib/zerochan-3793685.jpg -> Wuthering-Waves/Chisa/Chisa 1.jpg"]
+
+[[case]]
+name = "Zerochan conflicting tags stay in the Inbox"
+incoming = ["/lib/zerochan-3793685.jpg"]
+incoming_hints = { "/lib/zerochan-3793685.jpg" = ["chisa", "skadi"] }
+expect = ["leave: /lib/zerochan-3793685.jpg (conflict: chisa;skadi)"]
+
 # Hand-written expectations for ambiguous metadata matches. Candidate destinations are
 # the deepest unrelated folders, paired with the keyword phrase that matched each folder.
 [[decision_case]]

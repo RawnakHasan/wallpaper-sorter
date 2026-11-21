@@ -476,7 +476,7 @@ fn the_tag_tester() {
         (json!("INBOX"), json!("Conflict"))
     );
     assert!(v["new_name"].is_null());
-    let v = e.send("POST", "/api/tags/test", json!({ "filename": "Konachan.com - 999996 solo long_hair dress sky clouds waterfall.jpg" })).json();
+    let v = e.send("POST", "/api/tags/test", json!({ "filename": "Konachan.net - 999996 solo long_hair dress sky clouds waterfall.jpg" })).json();
     assert_eq!(v["rule"], "No match");
     assert!(v["ignored"].as_str().unwrap().contains("generic ignored"));
 }
@@ -1153,7 +1153,10 @@ fn fetch_settings_and_credentials_are_validated_and_write_only() {
             "danbooru_rating": "s",
             "wallhaven_purity": "sketchy",
             "yandere_rating": "q",
-            "safebooru_rating": "safe"
+            "safebooru_rating": "safe",
+            "konachan_rating": "s",
+            "zerochan_username_saved": false,
+            "warn_before_unrated_sites": true
         })
     );
     assert_eq!(
@@ -1173,6 +1176,43 @@ fn fetch_settings_and_credentials_are_validated_and_write_only() {
         )
         .status,
         400
+    );
+}
+
+#[test]
+fn zerochan_username_is_saved_but_never_returned_and_warning_is_configurable() {
+    let e = setup(|_, _| {});
+    assert_eq!(
+        e.get("/api/settings").json()["zerochan_username_saved"],
+        false
+    );
+    let saved = e.send(
+        "PUT",
+        "/api/settings",
+        json!({
+            "zerochan_username": "private-user-name",
+            "warn_before_unrated_sites": false,
+            "konachan_rating": "q"
+        }),
+    );
+    assert_eq!(saved.status, 200);
+    let response = String::from_utf8_lossy(&saved.body);
+    assert!(!response.contains("private-user-name"));
+    assert_eq!(saved.json()["zerochan_username_saved"], true);
+    assert_eq!(saved.json()["warn_before_unrated_sites"], false);
+    assert_eq!(saved.json()["konachan_rating"], "q");
+    assert_eq!(
+        e.get("/api/status").json()["settings"]["zerochan_username_saved"],
+        true
+    );
+    assert!(!String::from_utf8_lossy(&e.get("/api/status").body).contains("private-user-name"));
+    let config = fs::read_to_string(&e.cfg_path).unwrap();
+    assert!(config.contains("zerochan_username = \"private-user-name\""));
+    assert!(!e.cfg_path.parent().unwrap().join("secrets.toml").exists());
+    assert_eq!(
+        e.send("PUT", "/api/settings", json!({ "zerochan_username": "" }))
+            .json()["zerochan_username_saved"],
+        false
     );
 }
 

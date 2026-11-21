@@ -399,6 +399,7 @@ pub fn set_fetch_ratings(
     wallhaven_purity: &str,
     yandere_rating: &str,
     safebooru_rating: &str,
+    konachan_rating: &str,
 ) -> Result<String, String> {
     if !["g", "s", "q", "e"].contains(&danbooru_rating) {
         return Err("unknown Danbooru rating".to_string());
@@ -412,6 +413,9 @@ pub fn set_fetch_ratings(
     if !["general", "safe", "questionable", "explicit"].contains(&safebooru_rating) {
         return Err("unknown Safebooru rating".to_string());
     }
+    if !["s", "q", "e"].contains(&konachan_rating) {
+        return Err("unknown Konachan.net rating".to_string());
+    }
     let mut doc = parse(text)?;
     if doc.get("settings").is_none() {
         doc["settings"] = Item::Table(Table::new());
@@ -420,6 +424,28 @@ pub fn set_fetch_ratings(
     doc["settings"]["wallhaven_purity"] = value(wallhaven_purity);
     doc["settings"]["yandere_rating"] = value(yandere_rating);
     doc["settings"]["safebooru_rating"] = value(safebooru_rating);
+    doc["settings"]["konachan_rating"] = value(konachan_rating);
+    Ok(doc.to_string())
+}
+
+pub fn set_zerochan_preferences(
+    text: &str,
+    username: &str,
+    warn_before_unrated_sites: bool,
+) -> Result<String, String> {
+    let username = username.trim();
+    if username.len() > 80 || username.chars().any(char::is_control) {
+        return Err(
+            "Zerochan username must be at most 80 characters without control characters"
+                .to_string(),
+        );
+    }
+    let mut doc = parse(text)?;
+    if doc.get("settings").is_none() {
+        doc["settings"] = Item::Table(Table::new());
+    }
+    doc["settings"]["zerochan_username"] = value(username);
+    doc["settings"]["warn_before_unrated_sites"] = value(warn_before_unrated_sites);
     Ok(doc.to_string())
 }
 

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub enum Site {
     Wallhaven,
     Zerochan,
+    #[serde(rename = "Konachan.net", alias = "Konachan")]
     Konachan,
     #[serde(rename = "yande.re", alias = "YandeRe")]
     YandeRe,
@@ -22,7 +23,7 @@ impl Site {
         match self {
             Site::Wallhaven => "Wallhaven",
             Site::Zerochan => "Zerochan",
-            Site::Konachan => "Konachan",
+            Site::Konachan => "Konachan.net",
             Site::YandeRe => "yande.re",
             Site::Danbooru => "Danbooru",
             Site::Safebooru => "Safebooru",
@@ -51,6 +52,9 @@ pub struct Source {
 impl Site {
     /// The site for a label such as "yande.re" (any case).
     pub fn from_label(label: &str) -> Option<Site> {
+        if label.eq_ignore_ascii_case("Konachan") || label.eq_ignore_ascii_case("Konachan.net") {
+            return Some(Site::Konachan);
+        }
         [
             Site::Wallhaven,
             Site::Zerochan,
@@ -108,7 +112,7 @@ pub fn url_for(site: Site, id: &str) -> String {
     match site {
         Site::Wallhaven => format!("https://wallhaven.cc/w/{id}"),
         Site::Zerochan => format!("https://www.zerochan.net/{id}"),
-        Site::Konachan => format!("https://konachan.com/post/show/{id}"),
+        Site::Konachan => format!("https://konachan.net/post/show/{id}"),
         Site::YandeRe => format!("https://yande.re/post/show/{id}"),
         Site::Danbooru if id.chars().all(|c| c.is_ascii_digit()) => {
             format!("https://danbooru.donmai.us/posts/{id}")
@@ -146,9 +150,15 @@ pub fn parse_source(file_name: &str, parent_folder: &str) -> Source {
         }
         return Source::unknown();
     }
-    if let Some(rest) = strip_prefix_ci(s, "konachan.com - ") {
+    if let Some(rest) = strip_prefix_ci(s, "konachan.net - ") {
         let id = leading_digits(rest);
         if !id.is_empty() {
+            return simple(Site::Konachan, id);
+        }
+    }
+    if let Some(rest) = strip_prefix_ci(s, "konachan-") {
+        let id = leading_digits(rest);
+        if !id.is_empty() && id.len() == rest.len() {
             return simple(Site::Konachan, id);
         }
     }
@@ -178,6 +188,11 @@ pub fn parse_source(file_name: &str, parent_folder: &str) -> Source {
         let id = &s[i + 6..];
         if !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()) {
             return simple(Site::Zerochan, id);
+        }
+    }
+    if let Some(rest) = strip_prefix_ci(s, "zerochan-") {
+        if !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()) {
+            return simple(Site::Zerochan, rest);
         }
     }
     // Danbooru: "__<tags>__<md5>"

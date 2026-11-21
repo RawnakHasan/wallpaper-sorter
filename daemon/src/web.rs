@@ -13,7 +13,8 @@ use sorter_core::{classify, Action, Dest, GapMode, LeaveReason, Plan, Site};
 use sorter_engine::cfgedit::{
     add_folder, add_intake, add_tag, delete_tag_checked, merge_folder as edit_merge_folder,
     remove_intake, rename_folder as edit_rename_folder, set_fetch_ratings, set_folder_prefix,
-    set_gap_mode, set_setup_complete, update_intake, update_tag_checked, validate_tag, TagSpec,
+    set_gap_mode, set_setup_complete, set_zerochan_preferences, update_intake, update_tag_checked,
+    validate_tag, TagSpec,
 };
 use sorter_engine::{Kind, Origin, Outcome, UndoError};
 use std::collections::HashMap;
@@ -359,6 +360,12 @@ struct SettingsBody {
     yandere_rating: Option<String>,
     #[serde(default)]
     safebooru_rating: Option<String>,
+    #[serde(default)]
+    konachan_rating: Option<String>,
+    #[serde(default)]
+    zerochan_username: Option<String>,
+    #[serde(default)]
+    warn_before_unrated_sites: Option<bool>,
 }
 #[derive(Deserialize)]
 struct FetchBody {
@@ -454,7 +461,10 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
         (Method::Get, ["api", "data"]) => data(ctx, &query),
         (Method::Get, ["api", "activity"]) => activity(ctx, &query),
         (Method::Get, ["api", "tags"]) => Ok(Resp::json(200, &tags_json(ctx))),
-        (Method::Get, ["api", "settings"]) => Ok(Resp::json(200, &ctx.shared.lock().cfg.settings)),
+        (Method::Get, ["api", "settings"]) => {
+            let settings = ctx.shared.lock().cfg.settings.clone();
+            Ok(Resp::json(200, &public_settings(&settings)?))
+        }
         (Method::Get, ["api", "search"]) => {
             let secrets_path = ctx
                 .secrets_path
@@ -925,6 +935,9 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 || b.wallhaven_purity.is_some()
                 || b.yandere_rating.is_some()
                 || b.safebooru_rating.is_some()
+                || b.konachan_rating.is_some()
+                || b.zerochan_username.is_some()
+                || b.warn_before_unrated_sites.is_some()
             {
                 ctx.shared
                     .edit_config(|text| {
@@ -937,6 +950,7 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                             || b.wallhaven_purity.is_some()
                             || b.yandere_rating.is_some()
                             || b.safebooru_rating.is_some()
+                            || b.konachan_rating.is_some()
                         {
                             set_fetch_ratings(
                                 &text,
@@ -952,6 +966,23 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                                 b.safebooru_rating
                                     .as_deref()
                                     .unwrap_or(&current_settings.safebooru_rating),
+                                b.konachan_rating
+                                    .as_deref()
+                                    .unwrap_or(&current_settings.konachan_rating),
+                            )?
+                        } else {
+                            text
+                        };
+                        let text = if b.zerochan_username.is_some()
+                            || b.warn_before_unrated_sites.is_some()
+                        {
+                            set_zerochan_preferences(
+                                &text,
+                                b.zerochan_username
+                                    .as_deref()
+                                    .unwrap_or(&current_settings.zerochan_username),
+                                b.warn_before_unrated_sites
+                                    .unwrap_or(current_settings.warn_before_unrated_sites),
                             )?
                         } else {
                             text
@@ -964,7 +995,8 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                     })
                     .map_err(|e| ApiError::new(400, e))?;
             }
-            Ok(Resp::json(200, &ctx.shared.lock().cfg.settings))
+            let settings = ctx.shared.lock().cfg.settings.clone();
+            Ok(Resp::json(200, &public_settings(&settings)?))
         }
         (Method::Post, ["api", "duplicates", "restore"]) => {
             let b: RestoreDuplicatesBody = read_json(req)?;
@@ -1166,6 +1198,7 @@ fn tags_json(ctx: &Ctx) -> Value {
 fn status(ctx: &Ctx) -> Result<Resp, ApiError> {
     let p = ctx.shared.lock();
     let intake_watch = ctx.shared.intake_watch_status();
+    let settings = public_settings(&p.cfg.settings)?;
     Ok(Resp::json(
         200,
         &json!({
@@ -1188,10 +1221,23 @@ fn status(ctx: &Ctx) -> Result<Resp, ApiError> {
                 "duplicates": p.duplicates()?.len(),
                 "records": p.origins.len(),
             },
-            "settings": p.cfg.settings,
+            "settings": settings,
             "setup_complete": p.cfg.setup_complete,
         }),
     ))
+}
+
+fn public_settings(settings: &sorter_core::Settings) -> Result<Value, ApiError> {
+    let mut value = serde_json::to_value(settings)
+        .map_err(|error| ApiError::new(500, format!("could not serialize settings: {error}")))?;
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| ApiError::new(500, "settings did not serialize as an object"))?;
+    object.insert(
+        "zerochan_username_saved".into(),
+        json!(!settings.zerochan_username.trim().is_empty()),
+    );
+    Ok(value)
 }
 
 fn origin_json(o: &Origin) -> Value {

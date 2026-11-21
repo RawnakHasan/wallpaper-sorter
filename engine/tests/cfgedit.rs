@@ -1,7 +1,8 @@
 use sorter_core::{Config, MatchMode};
 use sorter_engine::cfgedit::{
     add_folder, add_intake, add_tag, delete_tag, merge_folder, rename_folder, set_fetch_ratings,
-    set_folder_prefix, set_gap_mode, set_starter_paths, update_intake, update_tag, TagSpec,
+    set_folder_prefix, set_gap_mode, set_starter_paths, set_zerochan_preferences, update_intake,
+    update_tag, TagSpec,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -172,16 +173,29 @@ fn starter_paths_are_escaped_structurally() {
 #[test]
 fn fetch_ratings_are_set_only_to_supported_values() {
     let text = "library = \"/tmp/library\"\n";
-    let updated = set_fetch_ratings(text, "s", "sketchy", "q", "safe").unwrap();
+    let updated = set_fetch_ratings(text, "s", "sketchy", "q", "safe", "q").unwrap();
     let cfg = Config::from_toml(&updated).unwrap();
     assert_eq!(cfg.settings.danbooru_rating, "s");
     assert_eq!(cfg.settings.wallhaven_purity, "sketchy");
     assert_eq!(cfg.settings.yandere_rating, "q");
     assert_eq!(cfg.settings.safebooru_rating, "safe");
-    assert!(set_fetch_ratings(text, "unsafe", "sfw", "s", "general").is_err());
-    assert!(set_fetch_ratings(text, "g", "unsafe", "s", "general").is_err());
-    assert!(set_fetch_ratings(text, "g", "sfw", "unsafe", "general").is_err());
-    assert!(set_fetch_ratings(text, "g", "sfw", "s", "unsafe").is_err());
+    assert_eq!(cfg.settings.konachan_rating, "q");
+    assert!(set_fetch_ratings(text, "unsafe", "sfw", "s", "general", "s").is_err());
+    assert!(set_fetch_ratings(text, "g", "unsafe", "s", "general", "s").is_err());
+    assert!(set_fetch_ratings(text, "g", "sfw", "unsafe", "general", "s").is_err());
+    assert!(set_fetch_ratings(text, "g", "sfw", "s", "unsafe", "s").is_err());
+    assert!(set_fetch_ratings(text, "g", "sfw", "s", "general", "unsafe").is_err());
+}
+
+#[test]
+fn zerochan_preferences_are_persisted_without_reformatting_unrelated_config() {
+    let text = "# keep this comment\nlibrary = \"/tmp/library\"\n";
+    let updated = set_zerochan_preferences(text, "sample-user", false).unwrap();
+    assert!(updated.contains("# keep this comment"));
+    let cfg = Config::from_toml(&updated).unwrap();
+    assert_eq!(cfg.settings.zerochan_username, "sample-user");
+    assert!(!cfg.settings.warn_before_unrated_sites);
+    assert!(set_zerochan_preferences(text, "bad\nname", true).is_err());
 }
 
 #[cfg(unix)]

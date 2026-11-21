@@ -84,10 +84,14 @@ struct SiteEndpoints {
     danbooru_api: String,
     yandere_api: String,
     safebooru_api: String,
+    konachan_api: String,
+    zerochan_api: String,
     wallhaven_image_hosts: Vec<String>,
     danbooru_image_hosts: Vec<String>,
     yandere_image_hosts: Vec<String>,
     safebooru_image_hosts: Vec<String>,
+    konachan_image_hosts: Vec<String>,
+    zerochan_image_hosts: Vec<String>,
     allow_http: bool,
 }
 
@@ -98,6 +102,8 @@ impl SiteEndpoints {
             danbooru_api: "https://danbooru.donmai.us".into(),
             yandere_api: "https://yande.re".into(),
             safebooru_api: "https://safebooru.org".into(),
+            konachan_api: "https://konachan.net".into(),
+            zerochan_api: "https://www.zerochan.net".into(),
             wallhaven_image_hosts: vec![
                 "th.wallhaven.cc".into(),
                 "w.wallhaven.cc".into(),
@@ -110,6 +116,8 @@ impl SiteEndpoints {
                 "yande.re".into(),
             ],
             safebooru_image_hosts: vec!["safebooru.org".into()],
+            konachan_image_hosts: vec!["konachan.net".into()],
+            zerochan_image_hosts: Vec::new(),
             allow_http: false,
         }
     }
@@ -123,6 +131,10 @@ impl SiteEndpoints {
                 "{}/index.php?page=dapi&s=post&q=index&id={id}&json=1",
                 self.safebooru_api
             ),
+            Site::Konachan => {
+                format!("{}/post.json?limit=1&tags=id%3A{id}", self.konachan_api)
+            }
+            Site::Zerochan => format!("{}/{id}?json", self.zerochan_api),
             _ => unreachable!("only supported sites are parsed"),
         }
     }
@@ -133,6 +145,8 @@ impl SiteEndpoints {
             Site::Danbooru => vec![url_authority(&self.danbooru_api).unwrap_or_default()],
             Site::YandeRe => vec![url_authority(&self.yandere_api).unwrap_or_default()],
             Site::Safebooru => vec![url_authority(&self.safebooru_api).unwrap_or_default()],
+            Site::Konachan => vec![url_authority(&self.konachan_api).unwrap_or_default()],
+            Site::Zerochan => vec![url_authority(&self.zerochan_api).unwrap_or_default()],
             _ => Vec::new(),
         }
     }
@@ -143,6 +157,8 @@ impl SiteEndpoints {
             Site::Danbooru => &self.danbooru_image_hosts,
             Site::YandeRe => &self.yandere_image_hosts,
             Site::Safebooru => &self.safebooru_image_hosts,
+            Site::Konachan => &self.konachan_image_hosts,
+            Site::Zerochan => &self.zerochan_image_hosts,
             _ => &[],
         }
     }
@@ -199,6 +215,7 @@ impl RateLimiter {
             Site::Wallhaven => Duration::from_millis(1350),
             Site::Danbooru => Duration::from_secs(1),
             Site::YandeRe | Site::Safebooru => Duration::from_secs(1),
+            Site::Konachan | Site::Zerochan => Duration::from_secs(1),
             _ => Duration::ZERO,
         };
         let label = site.label();
@@ -229,6 +246,7 @@ pub(crate) struct FetchManager {
     endpoints: SiteEndpoints,
     agent: Agent,
     previews: Arc<Mutex<HashMap<String, PreviewSource>>>,
+    konachan_tag_cache: Arc<Mutex<HashMap<String, u64>>>,
 }
 
 impl Default for FetchManager {
@@ -252,6 +270,7 @@ impl FetchManager {
             endpoints,
             agent,
             previews: Arc::new(Mutex::new(HashMap::new())),
+            konachan_tag_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -270,7 +289,7 @@ impl FetchManager {
             return Err("page must be between 1 and 100".into());
         }
         let site = Site::from_label(site_label)
-            .filter(|site| supported_fetch_site(*site))
+            .filter(|site| supported_search_site(*site))
             .ok_or_else(|| "choose a supported site".to_string())?;
         let secrets = secrets::load(secrets_path)?;
         let settings = shared.lock().cfg.settings.clone();
@@ -284,6 +303,7 @@ impl FetchManager {
             true,
             &self.agent,
             &self.limiter,
+            None,
         )?;
         require_json(&response)?;
         let value = read_json_response(response)?;
@@ -379,6 +399,7 @@ impl FetchManager {
             false,
             &self.agent,
             &self.limiter,
+            None,
         )?;
         if !response
             .header("Content-Type")
@@ -489,6 +510,7 @@ impl FetchManager {
                         &manager.endpoints,
                         &manager.agent,
                         &manager.limiter,
+                        &manager.konachan_tag_cache,
                         id,
                         index,
                     );
@@ -542,14 +564,23 @@ impl FetchManager {
         let item = parse_input(Some(site), id)?;
         let secrets = secrets::load(&secrets_path)?;
         let settings = shared.lock().cfg.settings.clone();
-        let data = fetch_metadata(&item, &secrets, &self.endpoints, &self.agent, &self.limiter)?;
-        check_rating(
+        let data = fetch_metadata(
+            &item,
+            &secrets,
+            &settings,
+            &self.endpoints,
+            &self.agent,
+            &self.limiter,
+            &self.konachan_tag_cache,
+        )?;
+        check_rating_with_konachan(
             item.site,
             &data.rating,
             &settings.danbooru_rating,
             &settings.wallhaven_purity,
             &settings.yandere_rating,
             &settings.safebooru_rating,
+            &settings.konachan_rating,
         )?;
 
         let mut source = Source::manual(item.site, &item.id);
@@ -691,6 +722,10 @@ fn parse_url(input: &str) -> Result<ParsedItem, String> {
                     .ok_or_else(|| "Safebooru URL has no post ID".to_string())?,
             )
         }
+        "konachan.net" if path.starts_with("/post/show/") => {
+            (Site::Konachan, &path["/post/show/".len()..])
+        }
+        "zerochan.net" | "www.zerochan.net" => (Site::Zerochan, path.trim_matches('/')),
         _ => return Err("URL is not a supported image-site post".into()),
     };
     if id.contains('/') || id.is_empty() {
@@ -706,7 +741,7 @@ fn parse_url(input: &str) -> Result<ParsedItem, String> {
 fn validate_id(site: Site, id: &str) -> Result<(), String> {
     let valid = match site {
         Site::Wallhaven => id.len() == 6 && id.chars().all(|c| c.is_ascii_alphanumeric()),
-        Site::Danbooru | Site::YandeRe | Site::Safebooru => {
+        Site::Danbooru | Site::YandeRe | Site::Safebooru | Site::Konachan | Site::Zerochan => {
             !id.is_empty()
                 && id.len() <= 12
                 && id.chars().all(|c| c.is_ascii_digit())
@@ -722,6 +757,18 @@ fn validate_id(site: Site, id: &str) -> Result<(), String> {
 }
 
 fn supported_fetch_site(site: Site) -> bool {
+    matches!(
+        site,
+        Site::Wallhaven
+            | Site::Danbooru
+            | Site::YandeRe
+            | Site::Safebooru
+            | Site::Konachan
+            | Site::Zerochan
+    )
+}
+
+fn supported_search_site(site: Site) -> bool {
     matches!(
         site,
         Site::Wallhaven | Site::Danbooru | Site::YandeRe | Site::Safebooru
@@ -830,13 +877,14 @@ fn parse_search_response(
         let Some(rating) = rating else {
             continue;
         };
-        if check_rating(
+        if check_rating_with_konachan(
             site,
             rating,
             &settings.danbooru_rating,
             &settings.wallhaven_purity,
             &settings.yandere_rating,
             &settings.safebooru_rating,
+            &settings.konachan_rating,
         )
         .is_err()
         {
@@ -939,6 +987,7 @@ fn process_one(
     endpoints: &SiteEndpoints,
     agent: &Agent,
     limiter: &RateLimiter,
+    konachan_tag_cache: &Mutex<HashMap<String, u64>>,
     job_id: u64,
     item_index: usize,
 ) -> Result<ItemResult, String> {
@@ -947,15 +996,30 @@ fn process_one(
         let pipeline = shared.lock();
         (pipeline.root.clone(), pipeline.cfg.settings.clone())
     };
-    let data = fetch_metadata(item, &secrets, endpoints, agent, limiter)?;
-    check_rating(
+    let data = fetch_metadata(
+        item,
+        &secrets,
+        &settings,
+        endpoints,
+        agent,
+        limiter,
+        konachan_tag_cache,
+    )?;
+    check_rating_with_konachan(
         item.site,
         &data.rating,
         &settings.danbooru_rating,
         &settings.wallhaven_purity,
         &settings.yandere_rating,
         &settings.safebooru_rating,
+        &settings.konachan_rating,
     )?;
+    if item.site == Site::Zerochan && endpoints.image_hosts(item.site).is_empty() {
+        return Err(
+            "Zerochan image host is not documented; refusing download (metadata returned static.zerochan.net)"
+                .into(),
+        );
+    }
     let image_url = match data.image_url.as_deref() {
         Some(url) => url,
         None => {
@@ -998,7 +1062,14 @@ fn process_one(
         .open(&part_path)
         .map_err(|_| "cannot create a temporary download file".to_string())?;
     let downloaded = download_image(
-        item.site, image_url, endpoints, agent, limiter, &secrets, file,
+        item.site,
+        image_url,
+        endpoints,
+        agent,
+        limiter,
+        &secrets,
+        Some(&settings.zerochan_username),
+        file,
     );
     if let Err(error) = downloaded {
         match fs::remove_file(&part_path) {
@@ -1076,9 +1147,11 @@ fn process_one(
 fn fetch_metadata(
     item: &ParsedItem,
     secrets: &ApiSecrets,
+    settings: &Settings,
     endpoints: &SiteEndpoints,
     agent: &Agent,
     limiter: &RateLimiter,
+    konachan_tag_cache: &Mutex<HashMap<String, u64>>,
 ) -> Result<FetchData, String> {
     let api_url = endpoints.api_url(item.site, &item.id);
     let api_hosts = endpoints.api_hosts(item.site);
@@ -1091,6 +1164,7 @@ fn fetch_metadata(
         true,
         agent,
         limiter,
+        (item.site == Site::Zerochan).then_some(settings.zerochan_username.as_str()),
     )?;
     require_json(&response)?;
     let value = read_json_response(response)?;
@@ -1217,8 +1291,175 @@ fn fetch_metadata(
                 character_suggestions: Vec::new(),
             })
         }
+        Site::Konachan => fetch_konachan_metadata(
+            item,
+            &value,
+            secrets,
+            endpoints,
+            agent,
+            limiter,
+            konachan_tag_cache,
+        ),
+        Site::Zerochan => {
+            if value["id"].as_u64().map(|id| id.to_string()).as_deref() != Some(&item.id) {
+                return Err("Zerochan returned a different image ID".into());
+            }
+            let tags = value["tags"]
+                .as_array()
+                .ok_or_else(|| "Zerochan response has no tags list".to_string())?
+                .iter()
+                .filter_map(Value::as_str)
+                .take(256)
+                .filter(|tag| !tag.trim().is_empty() && tag.len() <= 120)
+                .map(|tag| tag.trim().to_string());
+            Ok(FetchData {
+                image_url: value["full"].as_str().map(str::to_string),
+                extension: value["full"]
+                    .as_str()
+                    .and_then(|url| url.rsplit('.').next())
+                    .map(str::to_string),
+                rating: "unrated".into(),
+                tags: zerochan_hints(tags),
+                artist: None,
+                artist_id: None,
+                character_suggestions: Vec::new(),
+            })
+        }
         _ => Err("unsupported fetch site".into()),
     }
+}
+
+fn fetch_konachan_metadata(
+    item: &ParsedItem,
+    value: &Value,
+    secrets: &ApiSecrets,
+    endpoints: &SiteEndpoints,
+    agent: &Agent,
+    limiter: &RateLimiter,
+    tag_cache: &Mutex<HashMap<String, u64>>,
+) -> Result<FetchData, String> {
+    let post = value
+        .as_array()
+        .and_then(|posts| {
+            posts
+                .iter()
+                .find(|post| json_id_matches(&post["id"], &item.id))
+        })
+        .ok_or_else(|| "Konachan.net returned no post for this ID".to_string())?;
+    let rating = post["rating"]
+        .as_str()
+        .ok_or_else(|| "Konachan.net response is missing rating".to_string())?
+        .to_string();
+    let flat_tags: Vec<String> = post["tags"]
+        .as_str()
+        .ok_or_else(|| "Konachan.net response has no tags list".to_string())?
+        .split_whitespace()
+        .take(256)
+        .filter(|tag| tag.len() <= 120)
+        .map(str::to_string)
+        .collect();
+    let mut tag_types = HashMap::with_capacity(flat_tags.len());
+    for tag in &flat_tags {
+        let cached_type = tag_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .get(tag)
+            .copied();
+        let tag_type = if let Some(tag_type) = cached_type {
+            tag_type
+        } else {
+            let tag_type = fetch_konachan_tag_type(tag, secrets, endpoints, agent, limiter)?;
+            tag_cache
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .insert(tag.clone(), tag_type);
+            tag_type
+        };
+        tag_types.insert(tag.clone(), tag_type);
+    }
+
+    let characters: Vec<String> = flat_tags
+        .iter()
+        .filter(|tag| tag_types.get(*tag) == Some(&4))
+        .cloned()
+        .collect();
+    let copyrights: Vec<String> = flat_tags
+        .iter()
+        .filter(|tag| tag_types.get(*tag) == Some(&3))
+        .cloned()
+        .collect();
+    let artists: Vec<String> = flat_tags
+        .iter()
+        .filter(|tag| tag_types.get(*tag) == Some(&1))
+        .map(|tag| tag.replace('_', " "))
+        .collect();
+    let tags = konachan_hints(&characters, &copyrights);
+    let character_suggestions = danbooru_character_suggestions(&characters.join(" "));
+
+    Ok(FetchData {
+        image_url: post["file_url"]
+            .as_str()
+            .filter(|url| !url.is_empty())
+            .map(str::to_string),
+        extension: post["file_ext"].as_str().map(str::to_string),
+        rating,
+        tags,
+        artist: artists.into_iter().next(),
+        artist_id: None,
+        character_suggestions,
+    })
+}
+
+fn konachan_hints(characters: &[String], copyrights: &[String]) -> Vec<String> {
+    unique_tags(
+        characters
+            .iter()
+            .chain(copyrights.iter())
+            .flat_map(|tag| danbooru_hints(tag)),
+    )
+}
+
+fn fetch_konachan_tag_type(
+    tag: &str,
+    secrets: &ApiSecrets,
+    endpoints: &SiteEndpoints,
+    agent: &Agent,
+    limiter: &RateLimiter,
+) -> Result<u64, String> {
+    let url = format!(
+        "{}/tag.json?name={}",
+        endpoints.konachan_api,
+        encode_query(tag)
+    );
+    let response = get_follow(
+        Site::Konachan,
+        &url,
+        &endpoints.api_hosts(Site::Konachan),
+        endpoints.allow_http,
+        secrets,
+        true,
+        agent,
+        limiter,
+        None,
+    )?;
+    require_json(&response)?;
+    let value = read_json_response(response)?;
+    let records = value
+        .as_array()
+        .ok_or_else(|| "Konachan.net tag API returned an invalid response".to_string())?;
+    Ok(records
+        .iter()
+        .find(|record| record["name"].as_str() == Some(tag))
+        .and_then(|record| record["type"].as_u64())
+        .unwrap_or(0))
+}
+
+fn zerochan_hints(tags: impl IntoIterator<Item = String>) -> Vec<String> {
+    unique_tags(
+        tags.into_iter()
+            .map(|tag| tag.trim().to_string())
+            .filter(|tag| !tag.is_empty()),
+    )
 }
 
 fn json_id_matches(value: &Value, id: &str) -> bool {
@@ -1287,6 +1528,7 @@ fn unique_tags(tags: impl IntoIterator<Item = String>) -> Vec<String> {
     unique
 }
 
+#[cfg(test)]
 fn check_rating(
     site: Site,
     rating: &str,
@@ -1294,6 +1536,26 @@ fn check_rating(
     wallhaven_max: &str,
     yandere_max: &str,
     safebooru_max: &str,
+) -> Result<(), String> {
+    check_rating_with_konachan(
+        site,
+        rating,
+        danbooru_max,
+        wallhaven_max,
+        yandere_max,
+        safebooru_max,
+        "s",
+    )
+}
+
+fn check_rating_with_konachan(
+    site: Site,
+    rating: &str,
+    danbooru_max: &str,
+    wallhaven_max: &str,
+    yandere_max: &str,
+    safebooru_max: &str,
+    konachan_max: &str,
 ) -> Result<(), String> {
     let (rank, maximum, setting) = match site {
         Site::Danbooru => (
@@ -1322,6 +1584,13 @@ fn check_rating(
                 .position(|v| *v == safebooru_max),
             "Safebooru rating",
         ),
+        Site::Konachan => (
+            ["s", "q", "e"].iter().position(|v| *v == rating),
+            ["s", "q", "e"].iter().position(|v| *v == konachan_max),
+            "Konachan.net rating",
+        ),
+        Site::Zerochan if rating == "unrated" => return Ok(()),
+        Site::Zerochan => return Err("Zerochan metadata rating must be unrated".into()),
         _ => return Err("unsupported fetch site".into()),
     };
     let rank = rank.ok_or_else(|| format!("{setting} returned an unknown value"))?;
@@ -1334,6 +1603,8 @@ fn check_rating(
             } else if site == Site::Wallhaven {
                 ["sfw", "sketchy", "nsfw"][maximum]
             } else if site == Site::YandeRe {
+                ["s", "q", "e"][maximum]
+            } else if site == Site::Konachan {
                 ["s", "q", "e"][maximum]
             } else {
                 ["general", "safe", "questionable", "explicit"][maximum]
@@ -1350,6 +1621,7 @@ fn download_image(
     agent: &Agent,
     limiter: &RateLimiter,
     secrets: &ApiSecrets,
+    zerochan_username: Option<&str>,
     mut output: File,
 ) -> Result<(), String> {
     let response = get_follow(
@@ -1361,6 +1633,7 @@ fn download_image(
         false,
         agent,
         limiter,
+        zerochan_username,
     )?;
     let content_type = response
         .header("Content-Type")
@@ -1404,6 +1677,7 @@ fn get_follow(
     api_request: bool,
     agent: &Agent,
     limiter: &RateLimiter,
+    zerochan_username: Option<&str>,
 ) -> Result<Response, String> {
     let mut current = url.to_string();
     let mut retried_rate_limit = false;
@@ -1411,7 +1685,7 @@ fn get_follow(
         let parsed = parse_remote_url(&current, allowed_authorities, allow_http)?;
         limiter.wait(site);
         let mut request = agent.get(&current);
-        let user_agent = user_agent(site, secrets)?;
+        let user_agent = user_agent(site, secrets, zerochan_username)?;
         request = request.set("User-Agent", &user_agent);
         if api_request
             && allowed_authorities
@@ -1541,7 +1815,11 @@ fn parse_retry_after(value: &str) -> Option<Duration> {
     )
 }
 
-fn user_agent(site: Site, secrets: &ApiSecrets) -> Result<String, String> {
+fn user_agent(
+    site: Site,
+    secrets: &ApiSecrets,
+    zerochan_username: Option<&str>,
+) -> Result<String, String> {
     let version = env!("CARGO_PKG_VERSION");
     if site == Site::Danbooru {
         let id = secrets
@@ -1553,6 +1831,15 @@ fn user_agent(site: Site, secrets: &ApiSecrets) -> Result<String, String> {
                     .to_string()
             })?;
         return Ok(format!("wallpaper-sorter/{version} (user #{id})"));
+    }
+    if site == Site::Zerochan {
+        let username = zerochan_username
+            .map(str::trim)
+            .filter(|username| !username.is_empty())
+            .ok_or_else(|| {
+                "Zerochan requires a username; add your Zerochan username in Settings".to_string()
+            })?;
+        return Ok(format!("Wallpaper Sorter - {username}"));
     }
     Ok(format!("wallpaper-sorter/{version} (local desktop client)"))
 }
@@ -1667,6 +1954,8 @@ fn site_slug(site: Site) -> &'static str {
     match site {
         Site::Wallhaven => "wallhaven",
         Site::Danbooru => "danbooru",
+        Site::Konachan => "konachan",
+        Site::Zerochan => "zerochan",
         _ => "unknown",
     }
 }
@@ -1775,15 +2064,17 @@ fn result_from_outcome(
 #[cfg(test)]
 mod tests {
     use super::{
-        check_rating, danbooru_character_suggestions, danbooru_hints, get_follow, parse_input,
-        parse_remote_url, parse_retry_after, process_one, user_agent, FetchManager, FetchState,
-        ParsedItem, RateLimiter, SiteEndpoints,
+        check_rating, check_rating_with_konachan, danbooru_character_suggestions, danbooru_hints,
+        get_follow, konachan_hints, parse_input, parse_remote_url, parse_retry_after, process_one,
+        user_agent, zerochan_hints, FetchManager, FetchRequest, FetchState, ParsedItem,
+        RateLimiter, SiteEndpoints,
     };
     use crate::daemon::{Daemon, Options};
     use crate::secrets::ApiSecrets;
     use crate::thumbs::Thumbs;
     use image::ImageFormat;
     use sorter_core::{Config, Site};
+    use std::collections::HashMap;
     use std::fs;
     use std::io::{BufRead, BufReader, Cursor, Write};
     use std::net::TcpListener;
@@ -1791,8 +2082,9 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
+    use std::sync::Mutex;
     use std::thread::JoinHandle;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
     use ureq::AgentBuilder;
 
     static TEST_ID: AtomicU64 = AtomicU64::new(0);
@@ -1870,6 +2162,31 @@ mod tests {
         (address, worker)
     }
 
+    fn stalled_response_server() -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let address = listener.local_addr().unwrap().to_string();
+        let worker = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut line = String::new();
+            loop {
+                line.clear();
+                reader.read_line(&mut line).unwrap();
+                if line == "\r\n" || line.is_empty() {
+                    break;
+                }
+            }
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(250));
+            let _ = stream.write_all(b"[]");
+        });
+        (address, worker)
+    }
+
     fn png() -> Vec<u8> {
         let mut bytes = Cursor::new(Vec::new());
         image::DynamicImage::new_rgb8(2, 2)
@@ -1917,12 +2234,27 @@ mod tests {
             danbooru_api: format!("http://{address}"),
             yandere_api: format!("http://{address}"),
             safebooru_api: format!("http://{address}"),
+            konachan_api: format!("http://{address}"),
+            zerochan_api: format!("http://{address}"),
             wallhaven_image_hosts: vec![address.to_string()],
             danbooru_image_hosts: vec![address.to_string()],
             yandere_image_hosts: vec![address.to_string()],
             safebooru_image_hosts: vec![address.to_string()],
+            konachan_image_hosts: vec![address.to_string()],
+            zerochan_image_hosts: vec![address.to_string()],
             allow_http: true,
         }
+    }
+
+    fn configured_daemon(label: &str, config_text: &str) -> (PathBuf, Daemon) {
+        let root = temp_dir(label);
+        let config_path = root.join("config.toml");
+        fs::write(&config_path, config_text).unwrap();
+        let config = Config::from_toml(config_text).unwrap();
+        let daemon =
+            Daemon::start_with(root.clone(), config, Options::default(), Some(config_path))
+                .unwrap();
+        (root, daemon)
     }
 
     #[test]
@@ -1961,6 +2293,502 @@ mod tests {
                 .site,
             Site::Wallhaven
         );
+    }
+
+    #[test]
+    fn fake_konachan_net_fetch_uses_categories_and_persists_artist_and_rating() {
+        let (address, server) = fake_server(vec![
+            response(
+                200,
+                "application/json",
+                include_str!("fixtures/konachan.json").as_bytes().to_vec(),
+            ),
+            response(
+                200,
+                "application/json",
+                include_str!("fixtures/konachan-tag-character.json")
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            response(
+                200,
+                "application/json",
+                include_str!("fixtures/konachan-tag-copyright.json")
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            response(
+                200,
+                "application/json",
+                include_str!("fixtures/konachan-tag-artist.json")
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            response(200, "image/png", png()),
+        ]);
+        let text = concat!(
+            "[[tag]]\nkeywords = [\"chisa\"]\ndest = \"Wuthering-Waves/Chisa\"\n",
+            "[[tag]]\nkeywords = [\"wuthering waves\"]\ndest = \"Wuthering-Waves\"\n",
+            "[[tag]]\nkeywords = [\"artist name\"]\ndest = \"Artists\"\n",
+        );
+        let (root, daemon) = configured_daemon("konachan-fetch", text);
+        fs::write(root.join("secrets.toml"), "").unwrap();
+        let shared = daemon.handle();
+        let mut endpoints = endpoints(&address);
+        endpoints.konachan_api = format!("http://{address}");
+        let result = process_one(
+            &parse_input(Some("Konachan.net"), "12345").unwrap(),
+            &shared,
+            &root.join("secrets.toml"),
+            &endpoints,
+            &AgentBuilder::new().redirects(0).build(),
+            &RateLimiter::without_delay(),
+            &Mutex::new(HashMap::new()),
+            1,
+            0,
+        )
+        .unwrap();
+        let requests = server.join().unwrap();
+
+        assert!(matches!(result.state, FetchState::Sorted));
+        assert_eq!(
+            result.location.as_deref(),
+            Some("Wuthering-Waves/Chisa/Chisa 1.png")
+        );
+        let origin = shared.lock().origins.all().next().unwrap().clone();
+        assert_eq!(origin.tags, ["chisa", "wuthering waves"]);
+        assert_eq!(origin.rating.as_deref(), Some("s"));
+        assert_eq!(origin.sources[0].site, Site::Konachan);
+        assert_eq!(origin.sources[0].artist.as_deref(), Some("artist name"));
+        assert_eq!(requests.len(), 5);
+        assert!(requests[0].contains("/post.json?limit=1&tags=id%3A12345"));
+        assert!(requests[1].contains("/tag.json?name=chisa_%28wuthering_waves%29"));
+        assert!(requests[2].contains("/tag.json?name=wuthering_waves"));
+        assert!(requests[3].contains("/tag.json?name=artist_name"));
+        drop(daemon);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn fake_zerochan_fetch_sorts_unrated_tags_and_detects_duplicate() {
+        let image = png();
+        let (address, server) = fake_server(vec![
+            response(
+                200,
+                "application/json",
+                include_str!("fixtures/zerochan.json").as_bytes().to_vec(),
+            ),
+            response(200, "image/png", image.clone()),
+            response(
+                200,
+                "application/json",
+                include_str!("fixtures/zerochan.json").as_bytes().to_vec(),
+            ),
+            response(200, "image/png", image),
+        ]);
+        let text = concat!(
+            "[settings]\nzerochan_username = \"safe-test-user\"\n",
+            "[[tag]]\nkeywords = [\"chisa\"]\ndest = \"Wuthering-Waves/Chisa\"\n",
+            "[[tag]]\nkeywords = [\"wuthering waves\"]\ndest = \"Wuthering-Waves\"\n",
+        );
+        let (root, daemon) = configured_daemon("zerochan-fetch", text);
+        fs::write(root.join("secrets.toml"), "").unwrap();
+        let shared = daemon.handle();
+        let endpoints = endpoints(&address);
+        let agent = AgentBuilder::new().redirects(0).build();
+        let limiter = RateLimiter::without_delay();
+        let tag_cache = Mutex::new(HashMap::new());
+        let item = parse_input(Some("Zerochan"), "3793685").unwrap();
+
+        let first = process_one(
+            &item,
+            &shared,
+            &root.join("secrets.toml"),
+            &endpoints,
+            &agent,
+            &limiter,
+            &tag_cache,
+            1,
+            0,
+        )
+        .unwrap();
+        let second = process_one(
+            &item,
+            &shared,
+            &root.join("secrets.toml"),
+            &endpoints,
+            &agent,
+            &limiter,
+            &tag_cache,
+            2,
+            0,
+        )
+        .unwrap();
+        let requests = server.join().unwrap();
+        let origin = shared
+            .lock()
+            .origins
+            .all()
+            .find(|origin| {
+                origin
+                    .sources
+                    .iter()
+                    .any(|source| source.site == Site::Zerochan)
+            })
+            .unwrap()
+            .clone();
+
+        assert!(matches!(first.state, FetchState::Sorted));
+        assert!(matches!(second.state, FetchState::Duplicate));
+        assert_eq!(origin.tags, ["Chisa", "Wuthering Waves", "Fanart"]);
+        assert_eq!(origin.rating.as_deref(), Some("unrated"));
+        assert_eq!(origin.sources[0].artist, None);
+        assert_eq!(requests.len(), 4);
+        for request in &requests {
+            assert!(request.contains("User-Agent: Wallpaper Sorter - safe-test-user"));
+            assert_eq!(request.matches("safe-test-user").count(), 1);
+        }
+        drop(daemon);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn fake_zerochan_conflicting_hints_remain_in_the_inbox() {
+        let (address, server) = fake_server(vec![
+            response(
+                200,
+                "application/json",
+                include_str!("fixtures/zerochan-conflict.json")
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            response(200, "image/png", png()),
+        ]);
+        let text = concat!(
+            "[settings]\nzerochan_username = \"conflict-test\"\n",
+            "[[tag]]\nkeywords = [\"chisa\"]\ndest = \"Characters\"\n",
+            "[[tag]]\nkeywords = [\"beach\"]\ndest = \"Nature\"\n",
+        );
+        let (root, daemon) = configured_daemon("zerochan-conflict", text);
+        fs::write(root.join("secrets.toml"), "").unwrap();
+        let shared = daemon.handle();
+        let result = process_one(
+            &parse_input(Some("Zerochan"), "3793685").unwrap(),
+            &shared,
+            &root.join("secrets.toml"),
+            &endpoints(&address),
+            &AgentBuilder::new().redirects(0).build(),
+            &RateLimiter::without_delay(),
+            &Mutex::new(HashMap::new()),
+            1,
+            0,
+        )
+        .unwrap();
+
+        let origin = shared.lock().origins.all().next().unwrap().clone();
+        assert_eq!(origin.tags, ["Chisa", "Beach"]);
+        assert!(
+            matches!(result.state, FetchState::Inbox),
+            "unexpected fetch state: {}",
+            result.message
+        );
+        assert!(result.message.to_ascii_lowercase().contains("conflict"));
+        assert!(root.join("zerochan-3793685.png").is_file());
+        assert_eq!(server.join().unwrap().len(), 2);
+        drop(daemon);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn zerochan_refuses_undocumented_image_host_but_keeps_metadata_lookup_available() {
+        let (address, server) = fake_server(vec![response(
+            200,
+            "application/json",
+            include_str!("fixtures/zerochan.json").as_bytes().to_vec(),
+        )]);
+        let text = "[settings]\nzerochan_username = \"saved-user\"\n";
+        let (root, daemon) = configured_daemon("zerochan-unknown-host", text);
+        fs::write(root.join("secrets.toml"), "").unwrap();
+        let shared = daemon.handle();
+        let mut endpoints = endpoints(&address);
+        endpoints.zerochan_image_hosts.clear();
+        let result = match process_one(
+            &parse_input(Some("Zerochan"), "3793685").unwrap(),
+            &shared,
+            &root.join("secrets.toml"),
+            &endpoints,
+            &AgentBuilder::new().redirects(0).build(),
+            &RateLimiter::without_delay(),
+            &Mutex::new(HashMap::new()),
+            1,
+            0,
+        ) {
+            Ok(_) => panic!("undocumented image host should be refused"),
+            Err(error) => error,
+        };
+        assert!(result.contains("image host is not documented"));
+        assert!(result.contains("static.zerochan.net"));
+        assert_eq!(server.join().unwrap().len(), 1);
+        drop(daemon);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn zerochan_without_username_is_rejected_before_any_request() {
+        assert!(user_agent(Site::Zerochan, &ApiSecrets::default(), None)
+            .unwrap_err()
+            .contains("add your Zerochan username in Settings"));
+    }
+
+    #[test]
+    fn zerochan_fetch_job_reports_missing_username_without_network_access() {
+        let text = "";
+        let (root, daemon) = configured_daemon("zerochan-no-username", text);
+        let secrets_path = root.join("secrets.toml");
+        fs::write(&secrets_path, "").unwrap();
+        let manager = FetchManager::default();
+        let initial = manager
+            .submit(
+                daemon.handle(),
+                secrets_path,
+                vec![FetchRequest {
+                    site: Some("Zerochan".into()),
+                    input: "3793685".into(),
+                }],
+            )
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let job = loop {
+            let job = manager.get(initial.id).unwrap();
+            if job.done || Instant::now() >= deadline {
+                break job;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        assert!(job.done);
+        assert!(matches!(job.items[0].state, FetchState::Error));
+        assert!(job.items[0]
+            .message
+            .as_deref()
+            .unwrap()
+            .contains("add your Zerochan username in Settings"));
+        drop(daemon);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn zerochan_metadata_lookup_updates_origin_without_requesting_the_image_host() {
+        let root = temp_dir("zerochan-metadata-lookup");
+        fs::write(root.join("zerochan-3793685.png"), png()).unwrap();
+        let config_path = root.join("config.toml");
+        let config_text = "[settings]\nzerochan_username = \"lookup-user\"\n";
+        fs::write(&config_path, config_text).unwrap();
+        let daemon = Daemon::start_with(
+            root.clone(),
+            Config::from_toml(config_text).unwrap(),
+            Options::default(),
+            Some(config_path),
+        )
+        .unwrap();
+        let shared = daemon.handle();
+        let hash = shared.lock().origins.all().next().unwrap().hash.clone();
+        let (address, server) = fake_server(vec![response(
+            200,
+            "application/json",
+            include_str!("fixtures/zerochan.json").as_bytes().to_vec(),
+        )]);
+        let mut endpoints = endpoints(&address);
+        endpoints.zerochan_image_hosts.clear();
+        let mut manager = FetchManager::new(endpoints);
+        manager.limiter = Arc::new(RateLimiter::without_delay());
+
+        let result = manager
+            .lookup_origin(
+                shared.clone(),
+                root.join("secrets.toml"),
+                &hash,
+                "Zerochan",
+                "3793685",
+            )
+            .unwrap();
+        let origin = shared.lock().origins.all().next().unwrap().clone();
+
+        assert_eq!(result.tags_updated, 3);
+        assert_eq!(result.sorted_to, None);
+        assert_eq!(origin.tags, ["Chisa", "Wuthering Waves", "Fanart"]);
+        assert_eq!(origin.rating.as_deref(), Some("unrated"));
+        assert_eq!(server.join().unwrap().len(), 1);
+        drop(daemon);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn new_sites_honor_retry_after_and_timeout_without_external_requests() {
+        for site in [Site::Konachan, Site::Zerochan] {
+            let (address, server) = fake_server(vec![
+                {
+                    let mut response = response(429, "application/json", b"{}".to_vec());
+                    response.headers.push(("Retry-After", "0".into()));
+                    response
+                },
+                response(200, "application/json", b"{}".to_vec()),
+            ]);
+            let mut site_endpoints = endpoints(&address);
+            site_endpoints.konachan_api = format!("http://{address}");
+            site_endpoints.zerochan_api = format!("http://{address}");
+            let username = (site == Site::Zerochan).then_some("test-user");
+            let result = get_follow(
+                site,
+                &site_endpoints.api_url(site, "12345"),
+                &site_endpoints.api_hosts(site),
+                true,
+                &ApiSecrets::default(),
+                true,
+                &AgentBuilder::new().redirects(0).build(),
+                &RateLimiter::without_delay(),
+                username,
+            )
+            .unwrap();
+            assert_eq!(result.status(), 200);
+            assert_eq!(server.join().unwrap().len(), 2);
+
+            let (slow_address, slow_server) = stalled_response_server();
+            let mut slow_endpoints = endpoints(&slow_address);
+            slow_endpoints.konachan_api = format!("http://{slow_address}");
+            slow_endpoints.zerochan_api = format!("http://{slow_address}");
+            let response = get_follow(
+                site,
+                &slow_endpoints.api_url(site, "12345"),
+                &slow_endpoints.api_hosts(site),
+                true,
+                &ApiSecrets::default(),
+                true,
+                &AgentBuilder::new()
+                    .timeout_read(Duration::from_millis(50))
+                    .redirects(0)
+                    .build(),
+                &RateLimiter::without_delay(),
+                username,
+            )
+            .unwrap();
+            assert!(super::read_json_response(response)
+                .unwrap_err()
+                .contains("could not read"));
+            slow_server.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn konachan_and_zerochan_reject_unallowlisted_redirects() {
+        for site in [Site::Konachan, Site::Zerochan] {
+            let (address, server) = fake_server(vec![{
+                let mut response = response(302, "application/json", Vec::new());
+                response
+                    .headers
+                    .push(("Location", "https://evil.example/post.json".into()));
+                response
+            }]);
+            let mut endpoints = endpoints(&address);
+            endpoints.konachan_api = format!("http://{address}");
+            endpoints.zerochan_api = format!("http://{address}");
+            let secrets = ApiSecrets::default();
+            let username = (site == Site::Zerochan).then_some("user");
+            let error = get_follow(
+                site,
+                &endpoints.api_url(site, "12345"),
+                &endpoints.api_hosts(site),
+                true,
+                &secrets,
+                true,
+                &AgentBuilder::new().redirects(0).build(),
+                &RateLimiter::without_delay(),
+                username,
+            )
+            .unwrap_err();
+            assert!(
+                error.contains("host is not allowlisted"),
+                "{site:?}: {error}"
+            );
+            assert_eq!(server.join().unwrap().len(), 1);
+        }
+    }
+
+    #[test]
+    fn new_site_fetch_spec_is_executable() {
+        let spec: toml::Value =
+            toml::from_str(include_str!("../../spec/fetch_sites.toml")).unwrap();
+        let production = SiteEndpoints::production();
+        for endpoint in spec["endpoint"].as_array().unwrap() {
+            let site = Site::from_label(endpoint["site"].as_str().unwrap()).unwrap();
+            let metadata = endpoint["metadata"]
+                .as_str()
+                .unwrap()
+                .replace("{id}", "12345");
+            let base = match site {
+                Site::Konachan => &production.konachan_api,
+                Site::Zerochan => &production.zerochan_api,
+                _ => panic!("unexpected new-site endpoint"),
+            };
+            assert!(production.api_url(site, "12345").ends_with(&metadata));
+            assert!(production.api_url(site, "12345").starts_with(base));
+        }
+        for case in spec["parse"].as_array().unwrap() {
+            let site = case["site"].as_str().unwrap();
+            let input = case["input"].as_str().unwrap();
+            let expected_id = case["id"].as_str().unwrap();
+            let expected_valid = case["valid"].as_bool().unwrap();
+            let actual = parse_input(Some(site), input);
+            assert_eq!(actual.is_ok(), expected_valid, "{site}: {input}");
+            if expected_valid {
+                assert_eq!(actual.unwrap().id, expected_id, "{site}: {input}");
+            }
+        }
+        for case in spec["rating"].as_array().unwrap() {
+            let site = Site::from_label(case["site"].as_str().unwrap()).unwrap();
+            let rating = case["rating"].as_str().unwrap();
+            let maximum = case["maximum"].as_str().unwrap();
+            let actual =
+                check_rating_with_konachan(site, rating, "g", "sfw", "s", "general", maximum);
+            assert_eq!(
+                actual.is_ok(),
+                case["allowed"].as_bool().unwrap(),
+                "{} rating {} against {}",
+                site.label(),
+                rating,
+                maximum
+            );
+        }
+        for case in spec["hints"].as_array().unwrap() {
+            let site = case["site"].as_str().unwrap();
+            let expected: Vec<String> = case["hint_words"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| value.as_str().unwrap().to_string())
+                .collect();
+            let actual = if site == "Konachan.net" {
+                let strings = |name: &str| {
+                    case[name]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|value| value.as_str().unwrap().to_string())
+                        .collect::<Vec<_>>()
+                };
+                let actual = konachan_hints(&strings("characters"), &strings("copyrights"));
+                assert_eq!(strings("artists"), ["artist_name"]);
+                actual
+            } else {
+                zerochan_hints(
+                    case["all_tags"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|value| value.as_str().unwrap().to_string()),
+                )
+            };
+            assert_eq!(actual, expected, "{site}");
+        }
     }
 
     #[test]
@@ -2071,18 +2899,25 @@ mod tests {
 
     #[test]
     fn danbooru_user_agent_requires_a_numeric_user_id() {
-        let error = user_agent(Site::Danbooru, &ApiSecrets::default()).unwrap_err();
+        let error = user_agent(Site::Danbooru, &ApiSecrets::default(), None).unwrap_err();
         assert!(error.contains("requires a numeric user ID"));
         let secrets = ApiSecrets {
             danbooru_user_id: Some("12x".into()),
             ..ApiSecrets::default()
         };
-        assert!(user_agent(Site::Danbooru, &secrets).is_err());
+        assert!(user_agent(Site::Danbooru, &secrets, None).is_err());
     }
 
     #[test]
     fn new_site_download_hosts_are_exactly_allowlisted() {
         let endpoints = SiteEndpoints::production();
+        assert!(parse_remote_url(
+            "https://konachan.net/image/post.png",
+            endpoints.image_hosts(Site::Konachan),
+            false,
+        )
+        .is_ok());
+        assert!(endpoints.image_hosts(Site::Zerochan).is_empty());
         assert!(parse_remote_url(
             "https://files.yande.re/image.png",
             endpoints.image_hosts(Site::YandeRe),
@@ -2193,6 +3028,7 @@ mod tests {
             &endpoints,
             &agent,
             &RateLimiter::without_delay(),
+            &Mutex::new(HashMap::new()),
             1,
             0,
         )
@@ -2247,6 +3083,7 @@ mod tests {
             &endpoints(&address),
             &AgentBuilder::new().redirects(0).build(),
             &RateLimiter::without_delay(),
+            &Mutex::new(HashMap::new()),
             3,
             0,
         )
@@ -2320,6 +3157,7 @@ mod tests {
                 &endpoints,
                 &agent,
                 &RateLimiter::without_delay(),
+                &Mutex::new(HashMap::new()),
                 1,
                 0,
             )
@@ -2373,6 +3211,7 @@ mod tests {
             &endpoints(&address),
             &AgentBuilder::new().redirects(0).build(),
             &RateLimiter::without_delay(),
+            &Mutex::new(HashMap::new()),
             2,
             0,
         );
@@ -2402,6 +3241,7 @@ mod tests {
             true,
             &AgentBuilder::new().redirects(0).build(),
             &RateLimiter::without_delay(),
+            Some("wallpaper-sorter-test"),
         )
         .unwrap();
         assert_eq!(response.status(), 200);
