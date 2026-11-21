@@ -21,6 +21,7 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
   const [danbooruUsername, setDanbooruUsername] = useState('');
   const [danbooruKey, setDanbooruKey] = useState('');
   const [danbooruUserId, setDanbooruUserId] = useState('');
+  const [zerochanUsername, setZerochanUsername] = useState('');
   const ratingsMutation = useMutation({
     mutationFn: updateSettings,
     onSuccess: async () => {
@@ -38,6 +39,15 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
       setDanbooruUserId('');
       showToast('API credentials saved', { success: true });
       await queryClient.invalidateQueries({ queryKey: secretsQueryKey });
+    },
+    onError: (error) => showToast(error instanceof Error ? error.message : String(error), { error: true }),
+  });
+  const zerochanMutation = useMutation({
+    mutationFn: updateSettings,
+    onSuccess: async () => {
+      setZerochanUsername('');
+      showToast('Zerochan username saved', { success: true });
+      await queryClient.invalidateQueries({ queryKey: statusQueryKey });
     },
     onError: (error) => showToast(error instanceof Error ? error.message : String(error), { error: true }),
   });
@@ -115,6 +125,72 @@ export function FetchSettings({ settings }: FetchSettingsProps) {
           <option value="questionable">Include questionable</option>
           <option value="explicit">Include explicit</option>
         </select>
+      </div>
+      <div className="field">
+        <label htmlFor="konachan-rating">Maximum Konachan.net rating</label>
+        <select
+          id="konachan-rating"
+          className="select"
+          aria-label="Maximum Konachan.net rating"
+          value={settings.konachan_rating}
+          disabled={ratingsMutation.isPending}
+          onChange={(event) => ratingsMutation.mutate({ konachan_rating: event.currentTarget.value as Status['settings']['konachan_rating'] })}
+        >
+          <option value="s">Safe only (safest)</option>
+          <option value="q">Include questionable</option>
+          <option value="e">Include explicit</option>
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor="zerochan-username">Zerochan username</label>
+        <input
+          id="zerochan-username"
+          className="input wide"
+          autoComplete="off"
+          maxLength={80}
+          value={zerochanUsername}
+          placeholder={settings.zerochan_username_saved ? 'Saved; enter a new name to replace' : 'Required to enable Zerochan'}
+          onChange={(event) => setZerochanUsername(event.currentTarget.value)}
+        />
+        <div className="row">
+          <button
+            className="btn small"
+            type="button"
+            disabled={zerochanMutation.isPending || !zerochanUsername.trim()}
+            onClick={() => zerochanMutation.mutate({ zerochan_username: zerochanUsername.trim() })}
+          >
+            Save Zerochan username
+          </button>
+          {settings.zerochan_username_saved ? (
+            <button
+              className="btn small"
+              type="button"
+              disabled={zerochanMutation.isPending}
+              onClick={() => zerochanMutation.mutate({ zerochan_username: '' })}
+            >
+              Remove Zerochan username
+            </button>
+          ) : null}
+        </div>
+        <p className="muted">
+          Zerochan requires this name in the request User-Agent and limits API use to 60 requests per minute.
+        </p>
+      </div>
+      <div className="field">
+        <label>
+          <input
+            type="checkbox"
+            checked={settings.warn_before_unrated_sites}
+            disabled={ratingsMutation.isPending}
+            onChange={(event) => ratingsMutation.mutate({
+              warn_before_unrated_sites: event.currentTarget.checked,
+            })}
+          />
+          {' '}Warn before using unrated sites
+        </label>
+        <p className="muted">
+          Zerochan has no content rating, so its downloads are never filtered by rating.
+        </p>
       </div>
       {secretsQuery.error ? (
         <p className="error" role="alert">

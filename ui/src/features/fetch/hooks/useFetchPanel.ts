@@ -4,7 +4,8 @@ import { useToastStore } from '../../../stores/toast';
 import { undoActivity } from '../../activity/api';
 import { assignFiles } from '../../files/api';
 import type { AssignFilesRequest } from '../../files/schemas';
-import { getStatus, statusQueryKey } from '../../status/api';
+import { getStatus, statusQueryKey, updateSettings } from '../../status/api';
+import type { Status } from '../../status/schemas';
 import { getTags, getTagFolders, tagFoldersQueryKey, tagsQueryKey } from '../../tags/api';
 import type { TagRequest } from '../../tags/schemas';
 import { fetchJobQueryKey, getFetchJob, submitFetch } from '../api';
@@ -34,10 +35,25 @@ function folderSegment(value: string) {
     .join(' ');
 }
 
+function isZerochanPostUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return ['zerochan.net', 'www.zerochan.net'].includes(url.hostname.toLowerCase())
+      && !url.username
+      && !url.password
+      && !url.port
+      && /^\/\d+\/?$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
 export function useFetchPanel() {
   const queryClient = useQueryClient();
   const showToast = useToastStore((state) => state.show);
-  const [site, setSite] = useState<'Wallhaven' | 'Danbooru' | 'yande.re' | 'Safebooru'>('Wallhaven');
+  const [site, setSite] = useState<
+    'Wallhaven' | 'Danbooru' | 'yande.re' | 'Safebooru' | 'Konachan.net' | 'Zerochan'
+  >('Wallhaven');
   const [input, setInput] = useState('');
   const [jobId, setJobId] = useState<number | null>(null);
   const [creatingTag, setCreatingTag] = useState<CharacterTagPrompt | null>(null);
@@ -75,7 +91,6 @@ export function useFetchPanel() {
   const statusQuery = useQuery({
     queryKey: statusQueryKey,
     queryFn: getStatus,
-    enabled: creatingTag !== null,
   });
 
   useEffect(() => {
@@ -206,7 +221,30 @@ export function useFetchPanel() {
       .map((line) => line.trim())
       .filter(Boolean)
       .map((value) => ({ site, input: value }));
-    if (items.length) submitMutation.mutate({ items });
+    if (!items.length) return;
+    submitMutation.mutate({ items });
+    if (items.some((item) => item.site === 'Zerochan' || isZerochanPostUrl(item.input))
+      && (statusQuery.data?.settings.warn_before_unrated_sites ?? true)) {
+      showToast(
+        'Zerochan has no content ratings, so downloads are not filtered and may include mature content.',
+        {
+          action: {
+            label: "Don't show again",
+            onClick: async () => {
+              try {
+                const updated = await updateSettings({ warn_before_unrated_sites: false });
+                queryClient.setQueryData<Status>(statusQueryKey, (current) => current
+                  ? { ...current, settings: { ...current.settings, ...updated } }
+                  : current);
+                await queryClient.invalidateQueries({ queryKey: statusQueryKey });
+              } catch (error) {
+                showToast(error instanceof Error ? error.message : String(error), { error: true });
+              }
+            },
+          },
+        },
+      );
+    }
   };
   const busy = submitMutation.isPending || (
     activeJobId !== null && !jobQuery.data?.done && !jobQuery.error

@@ -38,7 +38,8 @@ Local-first wallpaper sorter with a Rust core and a built-in React/TypeScript we
   - `cases.csv`           324 matcher cases (264 real filenames + 60 edge cases), made by `ref_matcher.py` / `gen_cases.py`
   - `numbering.csv`       29 hand-written numbering cases (`gen_numbering.py` writes it)
   - `plan_cases.toml`     31 hand-written plan cases (duplicates, gap modes, batches, re-sort stays)
-  - `origins.csv`         26 hand-written source and manual-entry cases
+  - `origins.csv`         hand-written source and manual-entry cases, including Konachan.net and fetched-name formats
+  - `fetch_sites.toml`    hand-written site URL/ID, rating, endpoint, and hint cases
 
 ## Try it
 
@@ -119,8 +120,8 @@ folder is not a logged file action.
 | `POST /api/undo` `{batch}` or `{id}` | undo a batch or one action |
 | `PUT /api/origins` `{hash, site, id}` | set or edit an image's source by hand |
 | `POST /api/origins/lookup` `{hash, site, id}` | look up tags and metadata without downloading; may sort an Inbox image |
-| `GET/PUT /api/settings` | settings, including `gap_mode`, `setup_complete`, and per-site maximum ratings/purity |
-| `POST /api/fetch` `{items: [{site?, input}]}` | queue 1–100 Wallhaven, Danbooru, yande.re, or Safebooru IDs/post links; links identify their site |
+| `GET/PUT /api/settings` | settings, including `gap_mode`, `setup_complete`, per-site rating/purity, Zerochan username saved status, and unrated-site warning preference |
+| `POST /api/fetch` `{items: [{site?, input}]}` | queue 1–100 Wallhaven, Danbooru, yande.re, Safebooru, Konachan.net, or Zerochan IDs/post links; links identify their site |
 | `GET /api/fetch/{job_id}` | per-item fetch progress and outcome |
 | `GET /api/search?site=&q=&page=` | search or browse a supported site's public posts; results include daemon-local preview URLs |
 | `GET /api/search/preview/{key}` | fetch an allowlisted search preview and serve its content-hash-cached thumbnail |
@@ -130,9 +131,14 @@ folder is not a logged file action.
 | `GET /api/thumb/<hash>`, `POST /api/thumb/<hash>/refresh`, `GET /api/image/<hash>` | cached thumbnail, regenerate a thumbnail, and full image, addressed by content hash |
 | `POST /api/duplicates/restore` | restore duplicate copies into a destination folder as new numbered images, undoable |
 
-Fetching accepts supported Wallhaven, Danbooru, yande.re, and Safebooru IDs or post-page links, not arbitrary URLs.
-The UI accepts one entry per line and reports each result separately. By default, Wallhaven is limited to SFW,
-Danbooru to General, yande.re to Safe, and Safebooru to General; these safeguards can be widened in Settings.
+Fetching accepts supported Wallhaven, Danbooru, yande.re, Safebooru, Konachan.net, and Zerochan IDs or post-page
+links, not arbitrary URLs. The UI accepts one entry per line and reports each result separately. By default,
+Wallhaven is limited to SFW, Danbooru to General, yande.re to Safe, Safebooru to General, and Konachan.net to Safe;
+these safeguards can be widened in Settings. Zerochan has no rating field, so it is persisted as `unrated`, is never
+rating-filtered, and triggers a configurable warning toast. Its API requires a saved Zerochan username in the
+User-Agent. The official docs do not identify a permitted full-size image host, so Zerochan image downloads are
+currently refused with an explicit error. The live metadata response named `s1.zerochan.net`, `s3.zerochan.net`, and
+`static.zerochan.net`; none are allowlisted for downloading.
 Browse uses these same rating limits. Search previews are fetched by the daemon from allowlisted site hosts and served
 locally to remain compatible with the page's Content Security Policy. Danbooru requires a numeric user ID for its
 request User-Agent; API credentials are optional for public reads.
@@ -141,10 +147,14 @@ the active config file with owner-only permissions. The API returns only whether
 Danbooru character has no matching tag, the Overview offers to create one; confirming suggests its series folder
 and sorts the fetched image there, while “Not now” dismisses the suggestion.
 
-API tags are saved with each image's permanent origin record and are used as matching hints (artist tags are not).
+Konachan.net exposes tag categories separately from its flat post tag string; this client requests each tag record and
+uses only character and copyright categories as hints, while artist metadata is stored separately. Its API docs do not
+specify a request limit or required User-Agent; the client uses a one-request-per-second budget. API tags are saved
+with each downloaded image's permanent origin record and are used as matching hints (artist tags are not).
 Inbox conflict choices identify the matching phrase and destination. The Details panel can edit an image's source
-and look up metadata for Wallhaven, Danbooru, yande.re, or Safebooru; lookup never downloads the image. When an image is assigned with a
-new tag, the UI requires explicit confirmation, lets the user choose its keywords and generic behavior, and reports
+and look up metadata for Wallhaven, Danbooru, yande.re, Safebooru, Konachan.net, or Zerochan; lookup never downloads
+the image. Zerochan lookup requires a saved username. When an image is assigned with a new tag, the UI requires
+explicit confirmation, lets the user choose its keywords and generic behavior, and reports
 other waiting images sorted by that tag.
 
 On the Data page, select records with supported site IDs and use **Look up tags** to enrich them in sequence.

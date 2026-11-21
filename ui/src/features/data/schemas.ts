@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const siteSchema = z.enum([
   'Wallhaven',
   'Zerochan',
-  'Konachan',
+  'Konachan.net',
   'yande.re',
   'Danbooru',
   'Safebooru',

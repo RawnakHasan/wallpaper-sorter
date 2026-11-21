@@ -58,6 +58,10 @@ export function FetchPanel() {
               <option value="Danbooru">Danbooru</option>
               <option value="yande.re">yande.re</option>
               <option value="Safebooru">Safebooru</option>
+              <option value="Konachan.net">Konachan.net</option>
+              <option value="Zerochan" disabled={!statusQuery.data?.settings.zerochan_username_saved}>
+                Zerochan · Unrated
+              </option>
             </select>
           </label>
           <label className="field fetch-input-field">
@@ -90,6 +94,7 @@ export function FetchPanel() {
           {jobQuery.data.items.map((item, index) => (
             <li key={`${item.input}-${index}`}>
               <span className={`tagchip fetch-state-${item.state}`}>{stateLabels[item.state]}</span>
+              {item.site === 'Zerochan' ? <span className="tagchip">Unrated</span> : null}
               <span className="m">{item.input}</span>
               <span className="muted">{item.message}</span>
             </li>

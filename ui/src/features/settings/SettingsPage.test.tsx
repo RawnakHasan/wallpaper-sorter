@@ -149,3 +149,52 @@ it('saves API credentials without reading them back and persists the rating safe
   expect(await screen.findByRole('button', { name: 'Remove Wallhaven key' })).toBeTruthy();
   client.clear();
 });
+
+it('saves Zerochan identity, Konachan rating, and the unrated-site warning preference', async () => {
+  const updates: unknown[] = [];
+  const currentSettings = {
+    ...settings,
+    konachan_rating: 's',
+    zerochan_username_saved: false,
+    warn_before_unrated_sites: true,
+  };
+  server.use(
+    http.get('http://127.0.0.1/api/status', () => HttpResponse.json({
+      ...status,
+      settings: currentSettings,
+    })),
+    http.get('http://127.0.0.1/api/secrets', () => HttpResponse.json({
+      wallhaven_saved: false,
+      danbooru_saved: false,
+    })),
+    http.put('http://127.0.0.1/api/settings', async ({ request }) => {
+      const body = await request.json() as Record<string, unknown>;
+      updates.push(body);
+      if (typeof body.zerochan_username === 'string') currentSettings.zerochan_username_saved = Boolean(body.zerochan_username);
+      if (typeof body.konachan_rating === 'string') currentSettings.konachan_rating = body.konachan_rating;
+      if (typeof body.warn_before_unrated_sites === 'boolean') currentSettings.warn_before_unrated_sites = body.warn_before_unrated_sites;
+      return HttpResponse.json(currentSettings);
+    }),
+  );
+  const { client } = renderSettings();
+
+  const zerochanName = await screen.findByRole('textbox', { name: 'Zerochan username' });
+  fireEvent.change(zerochanName, { target: { value: 'sample-user' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save Zerochan username' }));
+  await waitFor(() => expect(updates[0]).toEqual({ zerochan_username: 'sample-user' }));
+  expect(await screen.findByRole('button', { name: 'Remove Zerochan username' })).toBeTruthy();
+
+  fireEvent.change(screen.getByRole('combobox', { name: 'Maximum Konachan.net rating' }), {
+    target: { value: 'q' },
+  });
+  await waitFor(() => expect(updates[1]).toEqual({ konachan_rating: 'q' }));
+
+  const warning = screen.getByRole('checkbox', { name: /Warn before using unrated sites/ });
+  expect((warning as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(warning);
+  await waitFor(() => expect(updates[2]).toEqual({ warn_before_unrated_sites: false }));
+  await waitFor(() => expect((screen.getByRole('checkbox', { name: /Warn before using unrated sites/ }) as HTMLInputElement).checked).toBe(false));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Warn before using unrated sites/ }));
+  await waitFor(() => expect(updates[3]).toEqual({ warn_before_unrated_sites: true }));
+  client.clear();
+});

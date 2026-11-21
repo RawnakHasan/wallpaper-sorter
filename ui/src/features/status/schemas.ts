@@ -11,6 +11,9 @@ export const settingsSchema = z.object({
   wallhaven_purity: z.enum(['sfw', 'sketchy', 'nsfw']).default('sfw'),
   yandere_rating: z.enum(['s', 'q', 'e']).default('s'),
   safebooru_rating: z.enum(['general', 'safe', 'questionable', 'explicit']).default('general'),
+  konachan_rating: z.enum(['s', 'q', 'e']).default('s'),
+  zerochan_username_saved: z.boolean().default(false),
+  warn_before_unrated_sites: z.boolean().default(true),
 }).passthrough();
 
 export const statusSchema = z.object({

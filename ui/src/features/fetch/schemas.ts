@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const fetchSubmitRequestSchema = z.object({
   items: z.array(z.object({
-    site: z.enum(['Wallhaven', 'Danbooru', 'yande.re', 'Safebooru']).optional(),
+    site: z.enum(['Wallhaven', 'Danbooru', 'yande.re', 'Safebooru', 'Konachan.net', 'Zerochan']).optional(),
     input: z.string().max(2048),
   }).strict()).min(1).max(100),
 }).strict();

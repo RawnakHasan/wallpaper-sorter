@@ -251,3 +251,38 @@ it('parses a pasted source link and looks up metadata without leaving the Inbox'
   expect(await screen.findByText('Looked up 3 tags; image remains in the Inbox.')).toBeTruthy();
   client.clear();
 });
+
+it.each([
+  {
+    site: 'Konachan.net',
+    url: 'https://konachan.net/post/show/12345',
+    id: '12345',
+  },
+  {
+    site: 'Zerochan',
+    url: 'https://www.zerochan.net/3793685',
+    id: '3793685',
+  },
+])('parses a $site link and enables metadata lookup', async ({ site, url, id }) => {
+  const lookups: unknown[] = [];
+  server.use(
+    http.get('http://127.0.0.1/api/status', () => HttpResponse.json(status)),
+    http.get('http://127.0.0.1/api/inbox', () => HttpResponse.json([sourcedItem])),
+    http.post('http://127.0.0.1/api/origins/lookup', async ({ request }) => {
+      lookups.push(await request.json());
+      return HttpResponse.json({ tags_updated: 2, sorted_to: null, batch: null });
+    }),
+  );
+  const { client } = renderInbox();
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Details of sky.png' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Source ID or link' }), {
+    target: { value: url },
+  });
+  expect((screen.getByRole('combobox', { name: 'Source site' }) as HTMLSelectElement).value).toBe(site);
+  expect((screen.getByRole('textbox', { name: 'Source ID or link' }) as HTMLInputElement).value).toBe(id);
+  expect((screen.getByRole('button', { name: 'Look up tags' }) as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'Look up tags' }));
+  await waitFor(() => expect(lookups).toEqual([{ hash: 'sky-hash', site, id }]));
+  client.clear();
+});

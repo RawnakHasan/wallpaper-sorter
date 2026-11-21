@@ -12,7 +12,7 @@ interface OriginSourceEditorProps {
 const sites: Site[] = [
   'Wallhaven',
   'Zerochan',
-  'Konachan',
+  'Konachan.net',
   'yande.re',
   'Danbooru',
   'Safebooru',
@@ -21,7 +21,7 @@ const sites: Site[] = [
 ];
 
 function sourceSite(value?: string): Site {
-  const label = value === 'YandeRe' ? 'yande.re' : value;
+  const label = value === 'YandeRe' ? 'yande.re' : value === 'Konachan' ? 'Konachan.net' : value;
   const parsed = siteSchema.safeParse(label);
   return parsed.success ? parsed.data : 'Unknown';
 }
@@ -47,8 +47,8 @@ function sourceFromLink(value: string): { site: Site; id: string } | null {
     } else if (['zerochan.net', 'www.zerochan.net'].includes(host) && /^\/\d+$/.test(path)) {
       site = 'Zerochan';
       id = path.slice(1);
-    } else if (host === 'konachan.com' && path.startsWith('/post/show/')) {
-      site = 'Konachan';
+    } else if (host === 'konachan.net' && path.startsWith('/post/show/')) {
+      site = 'Konachan.net';
       id = path.slice('/post/show/'.length);
     } else if (host === 'yande.re' && path.startsWith('/post/show/')) {
       site = 'yande.re';
@@ -71,7 +71,7 @@ export function OriginSourceEditor({ hash, source, pending, onSave, onLookup }: 
   const [site, setSite] = useState<Site>(() => sourceSite(source?.site));
   const [id, setId] = useState(source?.id ?? '');
   const request = () => ({ hash: hash ?? '', site, id: id.trim() });
-  const canLookup = ['Wallhaven', 'Danbooru', 'yande.re', 'Safebooru'].includes(site);
+  const canLookup = ['Wallhaven', 'Danbooru', 'yande.re', 'Safebooru', 'Konachan.net', 'Zerochan'].includes(site);
 
   return (
     <div className="field">

@@ -5,6 +5,10 @@ export interface ToastOptions {
   error?: boolean;
   success?: boolean;
   undo?: () => unknown | Promise<unknown>;
+  action?: {
+    label: string;
+    onClick: () => unknown | Promise<unknown>;
+  };
 }
 
 interface ToastState {
@@ -30,6 +34,8 @@ export const useToastStore = create<ToastState>(() => ({
     const undo = options.undo;
     const action = undo
       ? { label: 'Undo', onClick: () => { void runUndo(undo); } }
+      : options.action
+        ? { label: options.action.label, onClick: () => { void options.action?.onClick(); } }
       : undefined;
     const toastOptions = { duration: undo ? 12000 : 4500, action };
 

@@ -92,7 +92,7 @@ export function OriginDetails({ record, pending, onClose, onSave }: OriginDetail
             <select ref={siteRef} className="select" aria-label="Site" defaultValue={firstSource?.site ?? 'Unknown'}>
               <option value="Wallhaven">Wallhaven</option>
               <option value="Zerochan">Zerochan</option>
-              <option value="Konachan">Konachan</option>
+              <option value="Konachan.net">Konachan.net</option>
               <option value="yande.re">yande.re</option>
               <option value="Danbooru">Danbooru</option>
               <option value="Safebooru">Safebooru</option>

@@ -30,7 +30,7 @@ about each image's origin, the activity log with undo, and settings.
 | Engine: applying a plan, log, undo, hash index, origin records, library operations, config editing | Done. Tests passed. |
 | Folder watcher (inotify), debounce, run loop, command line | Done. Tested on real inotify; the real binary was smoke-tested. |
 | Web server and JSON API, thumbnails | Done. HTTP and thumbnail tests pass. |
-| Web UI (`ui/`) | All ten routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. Phases 1–5 support Wallhaven, Danbooru, yande.re, and Safebooru; Konachan.com remains pending verification. |
+| Web UI (`ui/`) | All ten routes use React/TypeScript with TanStack Router and Query. The legacy `window.WS` runtime bridge is removed. Vitest and real-binary jsdom tests cover shared components and page flows; use the browser checklist below for visual checks. Phases 1–5 support Wallhaven, Danbooru, yande.re, and Safebooru; Konachan.net and Zerochan Fetch/metadata lookup are implemented, with Zerochan image downloads disabled pending host approval. |
 | Not built | Size caps for the log and the thumbnail cache; videos. |
 
 Phase 5 verification: `cargo test --workspace` (141 Rust tests), `cargo fmt --all -- --check`,
@@ -240,18 +240,25 @@ tables are the real specification; do not regenerate them from the code.
 - Site search uses fixed per-site API endpoints, validates returned preview hosts and every redirect, limits previews
   to 5 MiB and 40 million pixels, and serves content-hash-cached thumbnails through the daemon; the browser never
   loads remote images. Danbooru requests require a numeric user ID in the User-Agent.
-- Fetch rating defaults are Wallhaven `sfw`, Danbooru `g`, yande.re `s`, and Safebooru `general`; Settings can widen
-  each implemented site's limit. Fetch jobs report per-entry queued, downloading, and final states, and a 429 response
+- Fetch rating defaults are Wallhaven `sfw`, Danbooru `g`, yande.re `s`, Safebooru `general`, and Konachan.net `s`;
+  Settings can widen each implemented site's limit. Zerochan is always `unrated` and bypasses rating gates. Fetch jobs
+  report per-entry queued, downloading, and final states, and a 429 response
   is retried once when it supplies `Retry-After`.
 - Origin records retain fetched tags, rating, and artist metadata with serde defaults for old records. Wallhaven tags
   are all matching hints; Danbooru character and copyright tags are hints, while artist tags are stored only as artist
   metadata. Inbox conflict choices expose the deepest conflicting folder and matching phrase. Confirmed tag creation
-  can immediately sort other waiting files. Details supports manual source edits and metadata-only lookup for all four
-  implemented sites; a lookup that makes an Inbox match is undoable.
-- Phase 3 API support currently includes yande.re and Safebooru, with a one-request-per-second client pace, descriptive
-  User-Agent, safe-default rating limits, and exact API/image host allowlists. Konachan.com remains unsupported for
-  fetching: its official pages were inaccessible during verification, and the accessible Konachan.net API is a
-  different host that must not be assumed interchangeable.
+  can immediately sort other waiting files. Details supports manual source edits and metadata-only lookup for Wallhaven,
+  Danbooru, yande.re, Safebooru, Konachan.net, and Zerochan; a lookup that makes an Inbox match is undoable.
+- Konachan.net uses the official `/post.json` list endpoint filtered by the documented `tags=id:<id>` search and
+  `/tag.json?name=` category lookups. Its API exposes flat post tags; tag records expose general (0), artist (1),
+  copyright (3), and character (4) categories. Only character and copyright tags are hints; artist metadata is stored.
+  Settings defaults to safe (`s`) and can widen through questionable (`q`) to explicit (`e`). The docs specify no
+  numeric rate limit or required User-Agent; this client uses one request per second and a descriptive User-Agent.
+- Zerochan uses `GET /<id>?json`, requires `Wallpaper Sorter - <username>` in User-Agent, and documents 60 requests per
+  minute; the client uses one request per second. It has no rating field, so records are `unrated` and never filtered.
+  The API response included `s1.zerochan.net`, `s3.zerochan.net`, and `static.zerochan.net` image hosts, but the
+  documentation does not identify a permitted full-size image host; image downloads are refused pending exact-host
+  approval. Metadata-only lookup is available when a username is saved.
 - The Library folder tree keeps `style={{ paddingLeft }}` for depth indentation. React applies this through the CSSOM,
   which the CSP allows; confirm in a real browser console before claiming it is CSP-clean.
 - Filenames are untrusted: React renders them as text; do not use `dangerouslySetInnerHTML` or `innerHTML`.
@@ -270,7 +277,8 @@ tables are the real specification; do not regenerate them from the code.
   gradients, dark first. Fonts are self-hosted from `ui/fonts/`.
 - The Library folder header shows source counts; each image counts under its first known source, or Unknown if none.
 - The Overview fetch panel accepts one ID or post-page link per line. Bare IDs use the selected site; a supported
-  link identifies its site. Settings stores Wallhaven and Danbooru credentials and the maximum accepted ratings.
+  link identifies its site. Settings stores Wallhaven and Danbooru credentials, Konachan.net's maximum rating, the
+  Zerochan username, and the unrated-site warning preference.
 - When a fetched Danbooru character has no matching tag, the Overview offers to create one and assign that image
   into the new destination; the suggestion defaults under a matching series tag when one exists.
 - Because of the CSP, never set `style="..."` attributes or use inline handlers. Setting `el.style.x = ...` from
@@ -327,16 +335,15 @@ Current update: Phases 1 and 2 are implemented for Wallhaven and Danbooru. Phase
 conflict candidates, explicit tag creation from Inbox, source editing, and metadata-only lookup. Phase 3 adds fetch
 and lookup support for yande.re and Safebooru. Phase 4 adds bulk metadata enrichment from selected Data records by
 their saved source site and ID. Phase 5 adds in-app search/browsing for Wallhaven, Danbooru, yande.re, and Safebooru,
-with daemon-served, content-hash-cached previews. Zerochan remains optional and is not implemented. Konachan.com is
-deferred because its official API/terms pages could not be verified; do not infer that the accessible Konachan.net
-docs apply to it.
+with daemon-served, content-hash-cached previews. Phase 6 adds Konachan.net and Zerochan Fetch plus metadata lookup;
+Zerochan full-size image downloads remain blocked because the official docs do not name a downloadable image host.
 
 | Feature | Sketch |
 |---|---|
 | First-run welcome | Implemented: missing config plus `--library` creates a starter config; the Overview page tracks setup completion. |
 | Size caps | Thumbnail cache (delete oldest), `log.jsonl` (keep recent entries; origin records stay forever). |
 | Videos | The extension list is a setting; `Video/` files would need their own thumbnails. Parked by the owner ("later"). |
-| Additional site APIs | Phase 3: yande.re and Safebooru implemented; Konachan.com pending official verification. Phase 4: bulk origin enrichment implemented. Phase 5: in-app search/browsing for the four supported sites, with daemon-local previews. Zerochan remains optional. Pixiv remains out of scope. |
+| Additional site APIs | Phase 3: yande.re and Safebooru implemented. Phase 4: bulk origin enrichment implemented. Phase 5: in-app search/browsing for Wallhaven, Danbooru, yande.re, and Safebooru, with daemon-local previews. Phase 6: Konachan.net and Zerochan Fetch/metadata lookup; Zerochan image download awaits host approval. Pixiv remains out of scope. |
 
 ### 4.4 Smaller known limits
 
@@ -358,8 +365,11 @@ docs apply to it.
 - Complete the real-browser checklist in section 2.5 at wide and 390 px widths, in dark and light.
 - Verify Wallhaven and Danbooru fetching, metadata lookup, search, and previews against the live sites, including redirects and rating filters. Danbooru's official API documentation requires a unique User-Agent containing the user's ID; requests now stop with an actionable error unless the numeric ID is configured.
 - Review official terms and verify live API redirect/rate-limit behavior for yande.re and Safebooru. Their official API/rating docs do not specify a required User-Agent, numeric request limit, or redirect behavior; the client uses a descriptive User-Agent, one request per second, and strict allowlists. Safebooru documents General as a rating but does not define its semantics; the client uses it as the default most restrictive choice.
-- Implement Konachan.com only after its official API documentation and terms are accessible and verified. Do not reuse Konachan.net endpoints or assume IDs/domains are interchangeable.
-- Zerochan search remains optional; Konachan.com remains unsupported pending accessible official API and terms documentation.
+- Verify Konachan.net's terms page; the checked `/terms` URL returned 404. Its API and rating documentation were accessible.
+- Verify Zerochan terms; the checked `/terms` URL redirected to an ordinary page rather than terms. Approve an exact Zerochan
+  full-size image hostname before enabling image downloads; current metadata samples included `s1.zerochan.net`,
+  `s3.zerochan.net`, and `static.zerochan.net`, none of which are allowlisted for downloads.
+- Zerochan search remains optional; it is not part of this Fetch-only work.
 - Add a thumbnail-cache size limit and a `log.jsonl` size limit; keep origin records permanent.
 - Videos remain parked.
 - Pixiv API fetching remains parked.
@@ -385,12 +395,22 @@ docs apply to it.
 - UI: minimal and flat, dark first, one accent colour, self-hosted fonts (Hanken Grotesk, JetBrains Mono), runs offline.
 - Pixiv stays with the owner's browser extension; no Pixiv API.
 - API metadata tags are matching hint phrases, not filename words; Wallhaven uses all tags, Danbooru uses character and copyright categories only.
-- Metadata lookup updates origin records without downloading an image. It supports Wallhaven, Danbooru, yande.re, and Safebooru.
+- Metadata lookup updates origin records without downloading an image. It supports Wallhaven, Danbooru, yande.re,
+  Safebooru, Konachan.net, and Zerochan; Zerochan requires a saved username in the User-Agent.
+- Konachan.net documentation: [Moebooru API](https://konachan.net/help/api) and [ratings](https://konachan.net/help/ratings).
+  The post API returns a flat tag string, but the documented tag API returns category types (general 0, artist 1,
+  copyright 3, character 4). The client looks up these categories to keep only character/copyright tags as hints.
+  The docs do not state a rate limit, required User-Agent, or redirect policy; the client chooses one request/second,
+  a descriptive User-Agent, and per-redirect host validation. The checked `/terms` URL returned 404.
+- Zerochan documentation: [API](https://www.zerochan.net/api) requires a project name plus the user's Zerochan
+  username in User-Agent and sets a 60-requests/minute limit. It does not document redirect behavior, rating semantics,
+  or a permitted full-size image host. A live metadata response listed `s1.zerochan.net`, `s3.zerochan.net`, and
+  `static.zerochan.net`; downloads are refused until exact host approval. The checked `/terms` URL redirected to a
+  normal page, so terms were not verified.
 - Bulk metadata enrichment runs selected Data records sequentially through the metadata-only lookup API. It uses each record's first supported stored source with a nonempty ID, continues after per-record errors, refreshes the Data/Inbox/Library views, and offers undo for any Inbox files sorted during lookup.
 - yande.re API documentation: [API](https://yande.re/help/api), [ratings](https://yande.re/help/ratings). Safebooru documentation: [DAPI](https://safebooru.org/index.php?page=help&topic=dapi), [ratings](https://safebooru.org/index.php?page=help&topic=rating). The DAPI endpoint and JSON fields were also checked using a read-only sample response; automated tests use local fixtures only.
 - Search documentation reviewed: [Wallhaven API](https://wallhaven.cc/help/api) and [Terms of Service](https://wallhaven.cc/terms); [Danbooru API](https://danbooru.donmai.us/wiki_pages/help%3Aapi) and [Terms of Service](https://danbooru.donmai.us/terms_of_service). Wallhaven documents 24 results/page and 45 requests/minute; the client spaces requests at 1.35 seconds and applies its configured purity filter. Danbooru requires a unique User-Agent containing the numeric user ID, allows 10 read requests/second globally, and recommends about 1/second for longer sessions; the client requires that ID and paces requests at 1/second.
 - yande.re `/terms` returned 404 and the checked Safebooru terms URL redirected to the site homepage, so their current terms were not verified. The API/rating docs were reviewed; neither specifies a numeric request limit, required User-Agent, or redirect policy. Client requests are paced at 1/second and constrained to exact site/CDN allowlists. Safebooru's rating docs warn that ratings can be wrong and do not define General semantics; General remains the configured conservative default.
-- Konachan.net publishes [Moebooru API documentation](https://konachan.net/help/api) and [rating help](https://konachan.net/help/ratings), but this does not verify Konachan.com. The `.com` help pages returned 403 during this work.
 
 ---
 

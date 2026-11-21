@@ -46,7 +46,7 @@ export function BatchSourceSheet({ records, pending, onClose, onSave }: BatchSou
           >
             <option value="Wallhaven">Wallhaven</option>
             <option value="Zerochan">Zerochan</option>
-            <option value="Konachan">Konachan</option>
+            <option value="Konachan.net">Konachan.net</option>
             <option value="yande.re">yande.re</option>
             <option value="Danbooru">Danbooru</option>
             <option value="Safebooru">Safebooru</option>
