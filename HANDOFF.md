@@ -371,8 +371,8 @@ literal arguments; the wallpaper-path token is passed as one argument without sh
 - "Close gaps: move the last images into the gaps" fills **every** gap at once.
 - Fetching, search, and previews have only been exercised against local fake API/CDN servers; confirm live response
   fields, CDN redirects, and rating behavior before relying on them against the sites.
-- Wallpaper application runs synchronously and currently has no timeout; a script that does not exit keeps its API
-  request open.
+- Wallpaper application returns as soon as the script starts in a separate process group. The UI cannot report its
+  eventual exit status; scripts that need diagnostics must log them themselves because stdout/stderr are discarded.
 - Preview thumbnails are lazy and cached. The shared per-site API limiter is applied to metadata/search requests and
   Fetch downloads; daemon preview requests to allowlisted CDN hosts do not consume the API quota. Wallhaven search
   listings omit tags, so the Details dialog fetches its documented `/w/{id}` record only when opened.

@@ -163,7 +163,7 @@ export function useLibraryActions({ currentFolder, images, duplicateFolder }: Us
   });
   const applyWallpaperMutation = useMutation({
     mutationFn: applyWallpaper,
-    onSuccess: () => showToast('Wallpaper applied', { success: true }),
+    onSuccess: () => showToast('Wallpaper script started', { success: true }),
     onError: (error) => showToast(messageOf(error), { error: true }),
   });
   const folderChangeMutation = useMutation({ mutationFn: applyFolderChange });

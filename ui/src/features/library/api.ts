@@ -21,7 +21,7 @@ export const gapFillPreviewQueryKey = (folder: string, mode: GapFillMode) => ['g
 const applyWallpaperRequestSchema = z.object({
   hash: z.string().regex(/^[0-9a-f]{64}$/i),
 }).strict();
-const applyWallpaperResponseSchema = z.object({ ok: z.literal(true) }).strict();
+const applyWallpaperResponseSchema = z.object({ started: z.literal(true) }).strict();
 
 export function applyWallpaper(hash: string) {
   return sendJson(

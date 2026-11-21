@@ -146,7 +146,7 @@ it('applies the selected Library image using its hash', async () => {
     http.get('http://127.0.0.1/api/tags', () => HttpResponse.json([])),
     http.post('http://127.0.0.1/api/apply-wallpaper', async ({ request }) => {
       applyRequests.push(await request.json());
-      return HttpResponse.json({ ok: true });
+      return HttpResponse.json({ started: true }, { status: 202 });
     }),
   );
   const { client } = renderLibrary();
@@ -155,7 +155,7 @@ it('applies the selected Library image using its hash', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Apply wallpaper' }));
 
   await waitFor(() => expect(applyRequests).toEqual([{ hash }]));
-  expect(await screen.findByText('Wallpaper applied')).toBeTruthy();
+  expect(await screen.findByText('Wallpaper script started')).toBeTruthy();
   client.clear();
 });
 

@@ -156,8 +156,10 @@ and sorts the fetched image there, while “Not now” dismisses the suggestion.
 Settings can store a Bash script path and an ordered list of literal arguments. The `{wallpaper_path}` argument
 token expands to the selected Library image's absolute path as one argv item; each other argument is passed
 unchanged, without evaluating a command string. The script runs only when **Apply wallpaper** is clicked in an
-image's Details panel. The request waits for the script to exit; there is no execution timeout. This external action
-does not move or edit the image and cannot be undone by the sorter.
+image's Details panel. The API returns once Bash starts in a separate process group; it does not wait for the script
+to exit, and a background reaper collects exited processes. Script stdout and stderr are discarded, and the UI
+reports that the script started, not that wallpaper application completed. This external action does not move or
+edit the image and cannot be undone by the sorter.
 
 Konachan.net exposes tag categories separately from its flat post tag string; this client requests each tag record and
 uses only character and copyright categories as hints, while artist metadata is stored separately. Its API docs do not

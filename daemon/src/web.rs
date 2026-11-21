@@ -22,9 +22,13 @@ use sorter_engine::{Kind, Origin, Outcome, UndoError};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read};
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::sync::Arc;
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 use tiny_http::{Header, Method, Request, Response, Server};
 
 const INDEX_HTML: &str = include_str!("../ui-dist/index.html");
@@ -1101,6 +1105,39 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
     }
 }
 
+static WALLPAPER_CHILD_REAPER: OnceLock<Result<mpsc::Sender<Child>, String>> = OnceLock::new();
+
+fn wallpaper_child_reaper() -> Result<&'static mpsc::Sender<Child>, ApiError> {
+    let result = WALLPAPER_CHILD_REAPER.get_or_init(|| {
+        let (sender, receiver) = mpsc::channel::<Child>();
+        std::thread::Builder::new()
+            .name("wallpaper-script-reaper".to_string())
+            .spawn(move || {
+                let mut children = Vec::new();
+                loop {
+                    match receiver.recv_timeout(Duration::from_millis(250)) {
+                        Ok(child) => children.push(child),
+                        Err(mpsc::RecvTimeoutError::Timeout) => {}
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                    }
+                    children.retain_mut(|child: &mut Child| match child.try_wait() {
+                        Ok(Some(_)) => false,
+                        Ok(None) => true,
+                        Err(error) => {
+                            eprintln!("could not reap detached wallpaper script: {error}");
+                            true
+                        }
+                    });
+                }
+            })
+            .map_err(|error| error.to_string())?;
+        Ok(sender)
+    });
+    result
+        .as_ref()
+        .map_err(|error| ApiError::new(503, format!("could not initialize script reaper: {error}")))
+}
+
 fn apply_wallpaper(ctx: &Ctx, body: ApplyWallpaperBody) -> Result<Resp, ApiError> {
     if body.hash.len() != 64 || !body.hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(ApiError::new(
@@ -1150,12 +1187,15 @@ fn apply_wallpaper(ctx: &Ctx, body: ApplyWallpaperBody) -> Result<Resp, ApiError
         ));
     }
 
+    let reaper = wallpaper_child_reaper()?;
     let mut command = Command::new("/bin/bash");
     command
         .arg(&script_path)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    #[cfg(unix)]
+    command.process_group(0);
     for arg in args {
         if arg == WALLPAPER_PATH_ARGUMENT {
             command.arg(&image_path);
@@ -1163,19 +1203,21 @@ fn apply_wallpaper(ctx: &Ctx, body: ApplyWallpaperBody) -> Result<Resp, ApiError
             command.arg(arg);
         }
     }
-    let status = command.status().map_err(|error| {
+    let child = command.spawn().map_err(|error| {
         ApiError::new(502, format!("could not start wallpaper script: {error}"))
     })?;
-    if !status.success() {
+    if let Err(error) = reaper.send(child) {
+        let mut child = error.0;
+        if child.try_wait()?.is_none() {
+            child.kill()?;
+        }
+        child.wait()?;
         return Err(ApiError::new(
-            502,
-            status
-                .code()
-                .map(|code| format!("wallpaper script exited with status {code}"))
-                .unwrap_or_else(|| "wallpaper script was terminated".to_string()),
+            503,
+            "script reaper stopped; the wallpaper script was stopped",
         ));
     }
-    Ok(Resp::json(200, &json!({ "ok": true })))
+    Ok(Resp::json(202, &json!({ "started": true })))
 }
 
 fn parse_mode(s: &str) -> Result<GapMode, ApiError> {

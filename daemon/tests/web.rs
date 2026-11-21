@@ -1209,26 +1209,45 @@ fn configured_wallpaper_script_receives_the_image_path_as_one_literal_argument()
     assert_eq!(configured.status, 200);
 
     let applied = e.send("POST", "/api/apply-wallpaper", json!({ "hash": hash }));
-    assert_eq!(applied.status, 200);
-    assert_eq!(applied.json(), json!({ "ok": true }));
+    assert_eq!(applied.status, 202);
+    assert_eq!(applied.json(), json!({ "started": true }));
     let output_path = PathBuf::from(format!("{}.args", script.display()));
-    let arguments = fs::read_to_string(output_path).unwrap();
-    assert_eq!(
-        arguments,
-        format!(
-            "--image\n{}\n",
-            e.lib.join("Nature/Chisa $HOME; 1.png").display()
-        )
+    let expected_arguments = format!(
+        "--image\n{}\n",
+        e.lib.join("Nature/Chisa $HOME; 1.png").display()
     );
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let arguments = loop {
+        if let Ok(arguments) = fs::read_to_string(&output_path) {
+            if arguments == expected_arguments {
+                break arguments;
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "script did not write its arguments"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    assert_eq!(arguments, expected_arguments);
 
     fs::write(
         &script,
-        "#!/bin/bash\necho script-output-secret >&2\nexit 7\n",
+        "#!/bin/bash\necho script-output-secret >&2\nsleep 2\nprintf done > \"$0.done\"\nexit 7\n",
     )
     .unwrap();
-    let failed = e.send("POST", "/api/apply-wallpaper", json!({ "hash": hash }));
-    assert_eq!(failed.status, 502);
-    assert!(!String::from_utf8_lossy(&failed.body).contains("script-output-secret"));
+    let started_at = Instant::now();
+    let started = e.send("POST", "/api/apply-wallpaper", json!({ "hash": hash }));
+    assert_eq!(started.status, 202);
+    assert_eq!(started.json(), json!({ "started": true }));
+    assert!(started_at.elapsed() < Duration::from_secs(1));
+    assert!(!String::from_utf8_lossy(&started.body).contains("script-output-secret"));
+    let done_path = PathBuf::from(format!("{}.done", script.display()));
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !done_path.exists() {
+        assert!(Instant::now() < deadline, "detached script did not finish");
+        std::thread::sleep(Duration::from_millis(20));
+    }
     assert_eq!(
         e.send(
             "POST",
