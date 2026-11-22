@@ -4,6 +4,8 @@ These features exist in the v2 prototype or required UI brief but do not have a 
 
 ## Git page
 
+Status: implemented through the dedicated daemon Git module.
+
 Feature: repository status, changed files, commit, push and history.
 
 Required endpoint module:

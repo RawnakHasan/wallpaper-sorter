@@ -132,6 +132,10 @@ folder is not a logged file action.
 | `POST /api/intake` `{path, recursive, remove_empty_folders}` / `PUT /api/intake/N` / `DELETE /api/intake/N` | add, edit or remove an intake folder; watch state and errors are returned in `/api/status` |
 | `GET /api/thumb/<hash>`, `POST /api/thumb/<hash>/refresh`, `GET /api/image/<hash>` | cached thumbnail, regenerate a thumbnail, and full image, addressed by content hash |
 | `POST /api/duplicates/restore` | restore duplicate copies into a destination folder as new numbered images, undoable |
+| `GET /api/git/status?repo=` | local Git status, branch, remote and selected changed files for a repository folder |
+| `GET /api/git/log?repo=&limit=` | recent local Git history |
+| `POST /api/git/commit` `{repository, paths, message}` | stage selected repository-relative paths and create a commit using system git |
+| `POST /api/git/push` `{repository, remote, branch}` | push the branch through system git and the user's SSH/credential configuration |
 
 Fetching accepts supported Wallhaven, Danbooru, yande.re, Safebooru, Konachan.net, and Zerochan IDs or post-page
 links, not arbitrary URLs. The UI accepts one entry per line and reports each result separately. By default,
