@@ -59,7 +59,7 @@ export function ActivityPage() {
   const error = activityQuery.error ?? statusQuery.error;
   if (error) {
     return (
-      <div className="page">
+      <div className="page activity-page">
         <p className="error" role="alert">{messageOf(error)}</p>
         <button className="btn" onClick={() => { void activityQuery.refetch(); void statusQuery.refetch(); }}>Try again</button>
       </div>

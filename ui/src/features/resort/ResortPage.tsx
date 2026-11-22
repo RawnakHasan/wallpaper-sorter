@@ -30,7 +30,7 @@ export function ResortPage() {
   const error = foldersQuery.error ?? statusQuery.error;
   if (error) {
     return (
-      <div className="page">
+      <div className="page resort-page">
         <p className="error" role="alert">{messageOf(error)}</p>
         <button className="btn" onClick={() => { void foldersQuery.refetch(); void statusQuery.refetch(); }}>Try again</button>
       </div>
@@ -87,8 +87,11 @@ export function ResortPage() {
         {preview ? (
           <>
             <div className="resort-summary">
-              <b>{plural(changes.length, 'change')} ready</b>
-              <span className="muted">{extraSummary}</span>
+              <b className="resort-ready-text">{plural(changes.length, 'change')} ready</b>
+              <span className="pill pill-accent">Changes <b>{changes.length}</b></span>
+              <span className="pill pill-ok">Stay <b>{stays}</b></span>
+              <span className="pill pill-warn">Need a decision <b>{decisions.length + noMatch}</b></span>
+              <span className="muted resort-extra-summary">{extraSummary}</span>
               <button
                 className="btn primary"
                 disabled={!changes.length || applyMutation.isPending}
