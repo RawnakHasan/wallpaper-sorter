@@ -60,51 +60,76 @@ export function OverviewPage() {
         <h1>Overview</h1>
         <span className="sub">{status.counts.library_images} images in {status.library}</span>
         <span className="spacer" />
-        <Link className="btn" to="/resort">Re-sort library</Link>
+        <Link className="button button-primary" to="/resort">Re-sort library</Link>
       </div>
-      <div className="stats">
-        <Link className="stat" to="/inbox"><div className="n">{status.counts.inbox}</div><div className="l">waiting in the Inbox</div></Link>
-        <Link className="stat" to="/library"><div className="n">{status.counts.library_images}</div><div className="l">images in the library</div></Link>
-        <Link className="stat" to="/duplicates"><div className="n">{status.counts.duplicates}</div><div className="l">in Duplicates</div></Link>
-        <Link className="stat" to="/data"><div className="n">{status.counts.records}</div><div className="l">records of where images came from</div></Link>
-      </div>
-      <FetchPanel />
-      <h3>Recent activity</h3>
-      {activity.length ? (
-        <div className="batch">
-          {activity.map((event) => (
-            <ActivityRow
-              key={event.id}
-              event={event}
-              root={status.library}
-              onUndo={(id) => undoMutation.mutate(id)}
-              undoing={undoMutation.isPending}
-            />
-          ))}
+      <div className="overview-layout">
+        <div className="overview-left">
+          <FetchPanel />
+          <section className="panel recent-activity">
+            <h2>Recent activity</h2>
+            {activity.length ? (
+              <div className="activity-list">
+                {activity.map((event) => (
+                  <ActivityRow
+                    key={event.id}
+                    event={event}
+                    root={status.library}
+                    onUndo={(id) => undoMutation.mutate(id)}
+                    undoing={undoMutation.isPending}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="empty compact-empty">
+                <b>Nothing yet</b>
+                Sorted images show up here, with an Undo button.
+              </div>
+            )}
+          </section>
         </div>
-      ) : <div className="empty"><b>Nothing yet</b>Sorted images show up here, with an Undo button.</div>}
-      <h3>Watched folders</h3>
-      <div className="panel watched-folders">
-        <div className="watched-list">
-          <WatchedEntry path={status.library} badges={ [['library, top level', 'good']] } />
-          {status.intake.map((intake) => (
-            <WatchedEntry
-              key={intake.path}
-              path={intake.path}
-              badges={[
-                [intake.watching ? 'watching' : intake.exists ? 'not watching' : 'folder not found yet', intake.watching ? 'good' : 'warn'],
-                ...(intake.recursive ? [['includes subfolders', ''] as [string, string]] : []),
-              ]}
-              message={intake.error}
-            />
-          ))}
-        </div>
+        <aside className="overview-right">
+          <div className="count-grid">
+            <Link className="count-card count-inbox" to="/inbox">
+              <b className="count-number">{status.counts.inbox}</b>
+              <span>Inbox waiting</span>
+            </Link>
+            <Link className="count-card count-library" to="/library">
+              <b className="count-number">{status.counts.library_images}</b>
+              <span>Library images</span>
+            </Link>
+            <Link className="count-card count-duplicates" to="/duplicates">
+              <b className="count-number">{status.counts.duplicates}</b>
+              <span>Duplicates</span>
+            </Link>
+            <Link className="count-card count-data" to="/data">
+              <b className="count-number">{status.counts.records}</b>
+              <span>Data records</span>
+            </Link>
+          </div>
+          <section className="panel watched-folders">
+            <h2>Watched folders</h2>
+            <div className="watched-list">
+              <WatchedEntry path={status.library} badges={ [['library, top level', 'good']] } />
+              {status.intake.map((intake) => (
+                <WatchedEntry
+                  key={intake.path}
+                  path={intake.path}
+                  badges={[
+                    [intake.watching ? 'watching' : intake.exists ? 'not watching' : 'folder not found yet', intake.watching ? 'good' : 'warn'],
+                    ...(intake.recursive ? [['includes subfolders', ''] as [string, string]] : []),
+                  ]}
+                  message={intake.error}
+                />
+              ))}
+            </div>
+          </section>
+        </aside>
       </div>
       {!status.setup_complete ? (
         <div className="panel welcome">
-          <h3>Welcome to Wallpaper Sorter</h3>
-          <p className="muted">Library: {status.library}</p>
-          <button className="btn primary" disabled={setupMutation.isPending} onClick={() => setupMutation.mutate()}>
+          <h2>Welcome to Wallpaper Sorter</h2>
+          <p className="sub">Library: <span className="mono">{status.library}</span></p>
+          <button className="button button-primary" disabled={setupMutation.isPending} onClick={() => setupMutation.mutate()}>
             Finish setup
           </button>
         </div>
