@@ -1372,3 +1372,222 @@ kbd{border:1px solid var(--ln);border-bottom-width:2px;border-radius:4px;padding
   .tbl .hide-s{display:none}
   .lookalike-head{align-items:flex-start;flex-wrap:wrap}
 }
+
+/* Phase 5: Re-sort, Activity, Settings and Git */
+.resort-page .resort-scope{max-width:820px}
+.resort-page .resort-scope .field{margin-bottom:8px}
+.resort-output{max-width:1100px}
+.resort-summary{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:20px 0 16px;
+}
+.resort-summary .pill-warn{--pill-accent:var(--wn)}
+.resort-extra-summary{margin-left:4px}
+.resort-page .resort-list{
+  border:1px solid var(--ln);
+  border-radius:12px;
+  background:var(--sf);
+  overflow:hidden;
+}
+.resort-page .resort-row{
+  display:grid;
+  grid-template-columns:96px minmax(0,1fr) minmax(160px,280px);
+  gap:12px;
+  align-items:start;
+  padding:12px 20px;
+  border-top:1px solid var(--ln);
+  border-bottom:0;
+}
+.resort-page .resort-row:first-child{border-top:0}
+.resort-page .resort-row .m{font-family:var(--mono);font-size:12px}
+.resort-page .apply-resort-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:14px 20px;
+  border-top:1px solid var(--ln);
+  background:color-mix(in oklab,var(--bg) 60%,var(--sf));
+}
+
+.activity-page .narrow{max-width:820px}
+.activity-page .day{
+  margin:28px 0 10px;
+  font-size:12px;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:var(--t3);
+  font-weight:500;
+}
+.activity-page .batch{
+  margin:0 0 10px;
+  padding:0;
+  border:1px solid var(--ln);
+  border-radius:12px;
+  overflow:hidden;
+  background:var(--sf);
+}
+.activity-page .batch-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  min-height:44px;
+  padding:8px 20px;
+  border-bottom:1px solid var(--ln);
+  background:color-mix(in oklab,var(--bg) 60%,var(--sf));
+  color:var(--t2);
+  font-size:13px;
+}
+.activity-page .act{
+  display:grid;
+  grid-template-columns:52px 92px minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+  min-height:52px;
+  padding:12px 20px;
+  border-top:1px solid var(--ln);
+  border-bottom:0;
+}
+.activity-page .act:first-child{border-top:0}
+.activity-page .act.un{background:color-mix(in oklab,var(--ac) 5%,transparent)}
+.activity-page .act.un .grow{text-decoration:line-through;opacity:.55}
+
+.settings-page{max-width:1500px}
+.settings-masonry{
+  columns:440px 3;
+  column-gap:16px;
+}
+.settings-masonry>.panel{
+  width:100%;
+  margin:0 0 16px;
+  break-inside:avoid;
+  display:block;
+}
+.settings-panel-heading{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:6px;
+}
+.auto-save{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:var(--ok);
+  font-size:11px;
+}
+.auto-save::before{
+  content:"";
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:currentColor;
+}
+.settings-switch-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  margin-top:16px;
+  padding-top:16px;
+  border-top:1px solid var(--ln);
+}
+.settings-switch-row small{
+  display:block;
+  color:var(--t3);
+  font-size:12px;
+}
+.settings-masonry .field{margin-bottom:12px}
+.settings-masonry .field:last-child{margin-bottom:0}
+.settings-masonry .button-primary{margin-top:12px}
+
+.git-page{max-width:1180px}
+.git-settings-strip{
+  display:grid;
+  grid-template-columns:minmax(180px,1.4fr) minmax(140px,.8fr) minmax(120px,.6fr) auto auto;
+  gap:12px;
+  align-items:end;
+  margin-bottom:16px;
+  padding:14px 20px;
+  border:1px solid var(--ln);
+  border-radius:12px;
+  background:var(--sf);
+}
+.git-settings-strip label{display:grid;gap:4px}
+.git-exclude{align-self:center}
+.git-repository{margin-bottom:16px}
+.git-batch{padding:0;overflow:hidden}
+.git-batch-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:44px;
+  padding:8px 20px;
+  border-bottom:1px solid var(--ln);
+  background:color-mix(in oklab,var(--bg) 60%,var(--sf));
+}
+.git-change{
+  display:grid;
+  grid-template-columns:24px 92px minmax(0,1fr);
+  gap:12px;
+  align-items:center;
+  min-height:48px;
+  padding:10px 20px;
+  border-top:1px solid var(--ln);
+  cursor:pointer;
+}
+.git-change:first-of-type{border-top:0}
+.git-change input{width:20px;height:20px}
+.git-path{word-break:break-all}
+.git-commit-bar{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:14px 20px;
+  border-top:1px solid var(--ln);
+  background:color-mix(in oklab,var(--bg) 60%,var(--sf));
+}
+.git-commit-bar .grow{flex:1;min-width:200px}
+.section-day{
+  margin:28px 0 10px;
+  font-size:12px;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:var(--t3);
+  font-weight:500;
+}
+.git-history-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.git-history-head .section-day{margin:28px 0 10px}
+.git-log-row{
+  display:grid;
+  grid-template-columns:52px 92px minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+  min-height:52px;
+  padding:12px 20px;
+  border-top:1px solid var(--ln);
+}
+.git-log-row:first-child{border-top:0}
+.git-log-message{min-width:0;word-break:break-word}
+.git-footer{margin-top:12px}
+
+@media (max-width:860px){
+  .resort-page .resort-row{grid-template-columns:1fr;gap:6px}
+  .activity-page .act{grid-template-columns:48px 1fr auto}
+  .activity-page .act .chip{display:none}
+  .settings-masonry{columns:1}
+  .git-settings-strip{grid-template-columns:1fr}
+  .git-log-row{grid-template-columns:48px 1fr auto}
+  .git-log-row .chip{display:none}
+}
