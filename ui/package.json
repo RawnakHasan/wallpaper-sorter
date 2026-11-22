@@ -3,12 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src",
-    "test": "vitest run"
+    "dev": "node ./node_modules/vite/bin/vite.js --host 127.0.0.1",
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "preview": "node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1",
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
+    "lint": "node ./node_modules/eslint/bin/eslint.js src",
+    "test": "node ./node_modules/vitest/vitest.mjs run --maxWorkers=1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
