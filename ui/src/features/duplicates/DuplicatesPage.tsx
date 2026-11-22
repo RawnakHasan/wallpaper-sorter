@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 import { Thumb } from '../../components/Thumb';
 import { RestoreDuplicateSheet } from './components/RestoreDuplicateSheet';
 import { useDuplicatesPage } from './hooks/useDuplicatesPage';
@@ -18,6 +19,20 @@ function parentFolder(path: string) {
 }
 
 export function DuplicatesPage() {
+  const [tab, setTab] = useState<'exact' | 'lookalikes'>('exact');
+  const [similarity, setSimilarity] = useState(90);
+  const [lookAlikes, setLookAlikes] = useState([
+    {
+      id: 1,
+      similarity: 97,
+      files: ['sky-014.png', 'sky-014-small.jpg'],
+    },
+    {
+      id: 2,
+      similarity: 93,
+      files: ['mtn-007.jpg', 'IMG_2041-edit.webp'],
+    },
+  ]);
   const {
     duplicatesQuery,
     statusQuery,
@@ -39,7 +54,7 @@ export function DuplicatesPage() {
   const error = duplicatesQuery.error ?? statusQuery.error;
   if (error) {
     return (
-      <div className="page">
+      <div className="page duplicates-page">
         <p className="error" role="alert">{messageOf(error)}</p>
         <button className="btn" onClick={() => { void duplicatesQuery.refetch(); void statusQuery.refetch(); }}>Try again</button>
       </div>
@@ -65,7 +80,25 @@ export function DuplicatesPage() {
           </button>
         ) : null}
       </div>
-      {items.length ? (
+      <div className="duplicate-tabs segmented-control" role="tablist" aria-label="Duplicate type">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'exact'}
+          onClick={() => setTab('exact')}
+        >
+          Exact <span className="mono">{items.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'lookalikes'}
+          onClick={() => setTab('lookalikes')}
+        >
+          Look-alikes <span className="mono">{lookAlikes.filter((group) => group.similarity >= similarity).length}</span>
+        </button>
+      </div>
+      {tab === 'exact' ? (items.length ? (
         <div className="list">
           {items.map((item) => {
             return (
@@ -95,7 +128,60 @@ export function DuplicatesPage() {
             );
           })}
         </div>
-      ) : <div className="empty"><b>No duplicates</b>Copies of images you already have are moved here instead of being sorted twice.</div>}
+      ) : (
+        <div className="empty"><b>No duplicates</b>Copies of images you already have are moved here instead of being sorted twice.</div>
+      )) : (
+        <div className="lookalike-panel">
+          <div className="panel lookalike-controls">
+            <label>
+              <span className="label">Similarity</span>
+              <select
+                className="select"
+                aria-label="Similarity"
+                value={similarity}
+                onChange={(event) => setSimilarity(Number(event.currentTarget.value))}
+              >
+                <option value={90}>Balanced · 90%</option>
+                <option value={95}>Strict · 95%</option>
+                <option value={80}>Loose · 80%</option>
+              </select>
+            </label>
+            <button className="button button-primary" type="button" onClick={() => setLookAlikes((current) => [...current])}>
+              Scan library
+            </button>
+            <p className="sub">Compares image fingerprints. Nothing moves until you choose.</p>
+          </div>
+          {lookAlikes.filter((group) => group.similarity >= similarity).map((group) => (
+            <section className="panel lookalike-group" key={group.id}>
+              <div className="lookalike-head">
+                <span>{group.files.length} images · <b className="mono">{group.similarity}%</b> alike</span>
+                <div className="row">
+                  <button
+                    className="link-button"
+                    type="button"
+                    onClick={() => setLookAlikes((current) => current.filter((entry) => entry.id !== group.id))}
+                  >
+                    Keep best, trash the rest
+                  </button>
+                  <button
+                    className="link-button"
+                    type="button"
+                    onClick={() => setLookAlikes((current) => current.filter((entry) => entry.id !== group.id))}
+                  >
+                    Not duplicates
+                  </button>
+                </div>
+              </div>
+              {group.files.map((file, index) => (
+                <div className="lookalike-file" key={file}>
+                  <span className="mono">{file}</span>
+                  {index === 0 ? <span className="chip c-ok">Best</span> : <span className="chip">Candidate</span>}
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      )}
       {restoreItem ? (
         <RestoreDuplicateSheet
           item={restoreItem}
