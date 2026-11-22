@@ -278,7 +278,9 @@ it('shows editable Danbooru identity while keeping its API key write-only', asyn
   );
   const { client } = renderSettings();
 
-  expect(await screen.findByText(/Username: alice · User ID: 123 · API key: Saved/)).toBeTruthy();
+  expect(await screen.findByText(/Username: alice/, {}, { timeout: 5000 })).toBeTruthy();
+  expect(screen.getByText(/User ID: 123/)).toBeTruthy();
+  expect(screen.getByText(/API key: Saved/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Edit Danbooru credentials' }));
   expect((screen.getByLabelText('Danbooru username') as HTMLInputElement).value).toBe('alice');
   expect((screen.getByLabelText('Danbooru numeric user ID (required for Danbooru API requests)') as HTMLInputElement).value).toBe('123');

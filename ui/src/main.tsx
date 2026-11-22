@@ -6,6 +6,7 @@ import '@fontsource-variable/geist-mono';
 import { queryClient } from './lib/query-client';
 import { router } from './router';
 import '../app.css';
+import '../prototype.css';
 
 const app = createRoot(document.getElementById('app')!);
 app.render(

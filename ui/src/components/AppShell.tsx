@@ -9,7 +9,6 @@ import {
   useSearch,
 } from '@tanstack/react-router';
 import { Icon } from './Icon';
-import { TooltipControl } from './ui/Tooltip';
 import { OverlayScrollbar } from './OverlayScrollbar';
 import { closeLayer, hasLayer } from './dialogs';
 import { getStatus, requestRescan, statusQueryKey } from '../features/status/api';
@@ -186,7 +185,7 @@ export function AppShell() {
   }, [navigate]);
 
   return (
-    <div className="ws-app">
+    <div className="app">
       <header className="top">
         <span className="brand">Wallpaper Sorter</span>
         <span className="spacer" />
@@ -248,25 +247,23 @@ export function AppShell() {
           <Icon name="help" />
         </button>
       </header>
-      <div className="body">
         <nav className="rail" aria-label="Pages" ref={railRef}>
           <span className="rail-indicator" ref={indicatorRef} aria-hidden="true" />
           {NAV.map(([path, label, icon]) => (
-            <TooltipControl key={path} label={label}>
-              <Link
-                to={path}
-                className="rail-link"
-                aria-current={pathname === path ? 'page' : undefined}
-                activeOptions={{ exact: path === '/' }}
-                title={rail === 'collapsed' ? label : undefined}
-              >
-                <Icon name={icon} className="rail-icon" />
-                <span className="rail-label">{label}</span>
-                {path === '/inbox' && inboxCount > 0 ? (
-                  <span className="rail-badge" id="inbox-count">{inboxCount}</span>
-                ) : null}
-              </Link>
-            </TooltipControl>
+            <Link
+              key={path}
+              to={path}
+              className="rail-link"
+              aria-current={pathname === path ? 'page' : undefined}
+              activeOptions={{ exact: path === '/' }}
+              title={rail === 'collapsed' ? label : undefined}
+            >
+              <Icon name={icon} className="rail-icon" />
+              <span className="rail-label">{label}</span>
+              {path === '/inbox' && inboxCount > 0 ? (
+                <span className="rail-badge" id="inbox-count">{inboxCount}</span>
+              ) : null}
+            </Link>
           ))}
           <span className="rail-spacer" />
           <button
@@ -282,7 +279,6 @@ export function AppShell() {
         <main className={`main${pathname === '/library' ? ' library-scroll-shell' : ''}`} id="main" tabIndex={-1}>
           <Outlet />
         </main>
-      </div>
       <Toast />
       <OverlayScrollbar />
       <dialog className="shortcuts-dialog" ref={shortcutRef} aria-labelledby="shortcuts-title">
