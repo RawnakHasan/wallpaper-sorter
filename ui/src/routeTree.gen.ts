@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as DataRouteImport } from './routes/data'
 import { Route as DuplicatesRouteImport } from './routes/duplicates'
+import { Route as GitRouteImport } from './routes/git'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ResortRouteImport } from './routes/resort'
@@ -38,6 +39,11 @@ const DataRoute = DataRouteImport.update({
 const DuplicatesRoute = DuplicatesRouteImport.update({
   id: '/duplicates',
   path: '/duplicates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GitRoute = GitRouteImport.update({
+  id: '/git',
+  path: '/git',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -76,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/activity': typeof ActivityRoute
   '/data': typeof DataRoute
   '/duplicates': typeof DuplicatesRoute
+  '/git': typeof GitRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/resort': typeof ResortRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/activity': typeof ActivityRoute
   '/data': typeof DataRoute
   '/duplicates': typeof DuplicatesRoute
+  '/git': typeof GitRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/resort': typeof ResortRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/activity': typeof ActivityRoute
   '/data': typeof DataRoute
   '/duplicates': typeof DuplicatesRoute
+  '/git': typeof GitRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/resort': typeof ResortRoute
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/data'
     | '/duplicates'
+    | '/git'
     | '/inbox'
     | '/library'
     | '/resort'
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/data'
     | '/duplicates'
+    | '/git'
     | '/inbox'
     | '/library'
     | '/resort'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/data'
     | '/duplicates'
+    | '/git'
     | '/inbox'
     | '/library'
     | '/resort'
@@ -152,6 +164,7 @@ export interface RootRouteChildren {
   ActivityRoute: typeof ActivityRoute
   DataRoute: typeof DataRoute
   DuplicatesRoute: typeof DuplicatesRoute
+  GitRoute: typeof GitRoute
   InboxRoute: typeof InboxRoute
   LibraryRoute: typeof LibraryRoute
   ResortRoute: typeof ResortRoute
@@ -188,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/duplicates'
       fullPath: '/duplicates'
       preLoaderRoute: typeof DuplicatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/git': {
+      id: '/git'
+      path: '/git'
+      fullPath: '/git'
+      preLoaderRoute: typeof GitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -240,6 +260,7 @@ const rootRouteChildren: RootRouteChildren = {
   ActivityRoute: ActivityRoute,
   DataRoute: DataRoute,
   DuplicatesRoute: DuplicatesRoute,
+  GitRoute: GitRoute,
   InboxRoute: InboxRoute,
   LibraryRoute: LibraryRoute,
   ResortRoute: ResortRoute,
