@@ -31,7 +31,7 @@ export function DataPage() {
   const error = dataQuery.error ?? unknownCountQuery.error;
   if (error) {
     return (
-      <div className="page">
+      <div className="page data-page">
         <p className="error" role="alert">{messageOf(error)}</p>
         <button className="btn" onClick={() => { void dataQuery.refetch(); void unknownCountQuery.refetch(); }}>Try again</button>
       </div>
@@ -100,7 +100,7 @@ export function DataPage() {
           Unknown source ({unknownCountQuery.data.total})
         </button>
       </div>
-      <div className="row data-selection">
+      <div className={`row data-selection${selectedRecords.length ? ' active-selection' : ''}`}>
         <label className="check-row">
           <input
             type="checkbox"
