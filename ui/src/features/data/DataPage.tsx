@@ -170,6 +170,17 @@ export function DataPage() {
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') setSelectedRecord(record);
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                      event.preventDefault();
+                      const rows = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('tr.click') ?? []);
+                      const index = rows.indexOf(event.currentTarget);
+                      const target = rows[index + (event.key === 'ArrowDown' ? 1 : -1)];
+                      target?.focus();
+                    }
+                    if (event.key === ' ' || event.key.toLowerCase() === 'x') {
+                      event.preventDefault();
+                      toggleSelectedRecord(record);
+                    }
                   }}
                 >
                   <td>
