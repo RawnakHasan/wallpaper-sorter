@@ -3,6 +3,7 @@
 
 use crate::daemon::{ConfigUndoKind, Shared};
 use crate::fetch::{validate_lookup_source, FetchJob, FetchManager, FetchRequest};
+use crate::git;
 use crate::secrets::{self, SecretsUpdate};
 use crate::thumbs::Thumbs;
 use serde::de::DeserializeOwned;
@@ -384,6 +385,18 @@ struct SettingsBody {
     wallpaper_apply_args: Option<Vec<String>>,
 }
 #[derive(Deserialize)]
+struct GitCommitBody {
+    repository: String,
+    paths: Vec<String>,
+    message: String,
+}
+#[derive(Deserialize)]
+struct GitPushBody {
+    repository: String,
+    remote: String,
+    branch: String,
+}
+#[derive(Deserialize)]
 struct FetchBody {
     items: Vec<FetchRequest>,
 }
@@ -553,6 +566,36 @@ fn route(ctx: &Ctx, req: &mut Request) -> Result<Resp, ApiError> {
                 .ok_or_else(|| ApiError::new(503, "secrets require a saved config file"))?;
             let status = secrets::status(path).map_err(|error| ApiError::new(500, error))?;
             Ok(Resp::json(200, &status))
+        }
+        (Method::Get, ["api", "git", "status"]) => {
+            let repository = query
+                .get("repo")
+                .ok_or_else(|| ApiError::new(400, "repository is required"))?;
+            let status = git::status(repository).map_err(|error| ApiError::new(400, error))?;
+            Ok(Resp::json(200, &status))
+        }
+        (Method::Get, ["api", "git", "log"]) => {
+            let repository = query
+                .get("repo")
+                .ok_or_else(|| ApiError::new(400, "repository is required"))?;
+            let limit = query
+                .get("limit")
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(300);
+            let log = git::log(repository, limit).map_err(|error| ApiError::new(400, error))?;
+            Ok(Resp::json(200, &json!({ "items": log })))
+        }
+        (Method::Post, ["api", "git", "commit"]) => {
+            let body: GitCommitBody = read_json(req)?;
+            let result = git::commit(&body.repository, &body.paths, &body.message)
+                .map_err(|error| ApiError::new(400, error))?;
+            Ok(Resp::json(200, &result))
+        }
+        (Method::Post, ["api", "git", "push"]) => {
+            let body: GitPushBody = read_json(req)?;
+            let result = git::push(&body.repository, &body.remote, &body.branch)
+                .map_err(|error| ApiError::new(400, error))?;
+            Ok(Resp::json(200, &result))
         }
         (Method::Put, ["api", "secrets"]) => {
             let path = ctx

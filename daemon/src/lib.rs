@@ -3,6 +3,7 @@
 pub mod daemon;
 pub mod debounce;
 mod fetch;
+pub mod git;
 mod secrets;
 pub mod thumbs;
 pub mod watcher;
