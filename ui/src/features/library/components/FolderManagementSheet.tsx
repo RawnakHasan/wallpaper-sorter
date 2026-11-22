@@ -33,6 +33,16 @@ export function FolderManagementSheet({
   const prefixRef = useRef<HTMLInputElement>(null);
   const [previews, setPreviews] = useState<ChangePreviews>({});
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [logo, setLogo] = useState<{ dataUrl: string; tint: boolean } | null>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('ws-folder-logos') || '{}');
+      return saved?.[folder.path] ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   useNativeDialog(dialogRef);
   const destinations = folders.filter((entry) => entry.path !== folder.path && !entry.path.startsWith(`${folder.path}/`));
 
@@ -89,6 +99,36 @@ export function FolderManagementSheet({
     void previewChange({ kind: 'prefix', folder: folder.path, prefix: prefixRef.current?.value.trim() ?? '' });
   };
 
+  const saveLogo = (next: { dataUrl: string; tint: boolean } | null) => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('ws-folder-logos') || '{}');
+      if (next) saved[folder.path] = next;
+      else delete saved[folder.path];
+      localStorage.setItem('ws-folder-logos', JSON.stringify(saved));
+      setLogo(next);
+      setLogoError(null);
+      window.dispatchEvent(new CustomEvent('ws-folder-logo-changed', { detail: { path: folder.path } }));
+    } catch {
+      setLogoError('Could not save the folder logo in this browser.');
+    }
+  };
+
+  const readLogo = (file: File | undefined) => {
+    if (!file) return;
+    if (!/^image\/(svg\+xml|png|jpeg|webp)$/.test(file.type) || file.size > 2 * 1024 * 1024) {
+      setLogoError('Choose a PNG, JPG, WebP or SVG under 2 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setLogo({ dataUrl: reader.result, tint: logo?.tint ?? false });
+        setLogoError(null);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <dialog
       ref={dialogRef}
@@ -105,6 +145,44 @@ export function FolderManagementSheet({
     >
       <header><h2>Manage {folder.path}</h2></header>
       <div className="content">
+        <section className="folder-logo-section">
+          <h3>Folder logo</h3>
+          <p className="muted">Shown instead of the folder name in the sidebar and page title. PNG, JPG, WebP or SVG up to 2 MB.</p>
+          <div className="folder-logo-preview">
+            {logo ? (
+              <img
+                className={logo.tint ? 'folder-logo tint' : 'folder-logo'}
+                src={logo.dataUrl}
+                alt={`${folder.name} logo preview`}
+              />
+            ) : <span className="folder-logo-name">{folder.name}</span>}
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg"
+            hidden
+            onChange={(event) => readLogo(event.target.files?.[0])}
+          />
+          <div className="row">
+            <button className="btn" type="button" onClick={() => fileRef.current?.click()}>Choose image or SVG…</button>
+            <button className="btn danger" type="button" disabled={!logo} onClick={() => saveLogo(null)}>Remove logo</button>
+          </div>
+          {logo ? (
+            <label className="check-row folder-logo-tint">
+              <input
+                type="checkbox"
+                checked={logo.tint}
+                onChange={(event) => setLogo({ ...logo, tint: event.target.checked })}
+              />
+              Match light and dark
+            </label>
+          ) : null}
+          {logoError ? <p className="error" role="alert">{logoError}</p> : null}
+          {logo ? (
+            <button className="btn primary" type="button" onClick={() => saveLogo(logo)}>Save logo</button>
+          ) : null}
+        </section>
         <FolderChangeSection
           kind="rename"
           title="Rename"

@@ -84,6 +84,30 @@ export function LibraryImageViewer({
         ) : null}
         <img className="library-viewer-image" src={`/api/image/${image.hash}`} alt={image.name} />
       </div>
+      <aside className="library-viewer-sidebar" aria-label="Image details">
+        <h2 className="mono">{image.name}</h2>
+        <p className="sub">{index + 1} of {images.length}</p>
+        {image.origin?.width ? (
+          <dl className="kv">
+            <div>Resolution</div>
+            <div className="mono">{image.origin.width} × {image.origin.height}</div>
+            {image.origin.rating ? (
+              <>
+                <div>Rating</div>
+                <div>{image.origin.rating}</div>
+              </>
+            ) : null}
+          </dl>
+        ) : null}
+        {image.origin?.tags.length ? (
+          <>
+            <p className="label">Tags</p>
+            <div className="site-tags">
+              {image.origin.tags.map((tag) => <span className="tagchip" key={tag}>{tag}</span>)}
+            </div>
+          </>
+        ) : null}
+      </aside>
     </dialog>
   );
 }
