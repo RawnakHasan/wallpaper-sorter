@@ -1591,3 +1591,99 @@ kbd{border:1px solid var(--ln);border-bottom-width:2px;border-radius:4px;padding
   .git-log-row{grid-template-columns:48px 1fr auto}
   .git-log-row .chip{display:none}
 }
+
+/* Phase 6: shared states and final responsive safeguards */
+.state-skeleton{
+  display:grid;
+  gap:8px;
+  padding:12px;
+  border:1px solid var(--ln);
+  border-radius:12px;
+  background:var(--sf);
+  overflow:hidden;
+}
+.state-skeleton-row{
+  height:44px;
+  border-radius:8px;
+  background:linear-gradient(
+    90deg,
+    color-mix(in oklab,var(--t3) 7%,transparent),
+    color-mix(in oklab,var(--t3) 14%,transparent),
+    color-mix(in oklab,var(--t3) 7%,transparent)
+  );
+  background-size:200% 100%;
+  animation:state-skeleton-shimmer 1.4s linear infinite;
+}
+.empty-state{
+  display:grid;
+  justify-items:center;
+  gap:6px;
+  text-align:center;
+  padding:56px 16px;
+  color:var(--t2);
+}
+.empty-state h2{color:var(--tx)}
+.state-error{
+  display:grid;
+  justify-items:start;
+  gap:8px;
+  padding:20px;
+  border:1px solid var(--ln);
+  border-radius:12px;
+  background:var(--sf);
+  color:var(--er);
+}
+.state-error h2{color:var(--tx)}
+@keyframes state-skeleton-shimmer{
+  to{background-position:-200% 0}
+}
+
+@media (max-width:560px){
+  .ws-app>.top{gap:6px}
+  .ws-app>.top .brand{font-size:14px}
+  .ws-app>.top .conn{display:none}
+  .ws-app>.top .button{height:34px;padding:0 8px;font-size:12px}
+  .ws-app>.body>.main{padding-inline:12px}
+  .page-head{gap:8px}
+  .page-head .sub{width:100%}
+  .count-grid{gap:8px}
+  .count-card{min-height:84px;padding:12px}
+  .browse-bottom-pager{flex-direction:column}
+  .search-detail-sheet{overflow-y:auto}
+  .search-viewer-body{grid-template-rows:minmax(260px,1fr) auto}
+  .search-detail-image{max-height:260px}
+  .tag-tester-sticky .tester{padding:16px}
+  .tags-layout{gap:12px}
+  .tagrow{padding:10px 12px}
+  .data-page .data-selection.active-selection{
+    left:12px;
+    right:12px;
+    bottom:12px;
+    max-width:none;
+    transform:none;
+  }
+  .settings-masonry{columns:1}
+  .git-settings-strip{padding:12px}
+  .git-change{grid-template-columns:24px minmax(0,1fr);padding:10px 12px}
+  .git-change .chip{display:none}
+  .git-commit-bar{flex-wrap:wrap;padding:12px}
+  .git-commit-bar .grow{flex-basis:100%}
+  .git-log-row{grid-template-columns:48px minmax(0,1fr) auto;padding:10px 12px}
+  .git-log-row .chip{display:none}
+  .git-footer{font-size:12px}
+  .sheet{width:100vw}
+  .dialog-actions{flex-wrap:wrap}
+}
+
+@media (max-width:360px){
+  .ws-app>.top{padding-inline:8px}
+  .ws-app>.top .brand{max-width:118px;overflow:hidden;text-overflow:ellipsis}
+  .ws-app>.top .button{max-width:82px;overflow:hidden;text-overflow:ellipsis}
+  .rail{padding-inline:8px}
+  .rail-link{padding-inline:10px}
+  .count-grid{grid-template-columns:1fr}
+  .library-filterbar{gap:8px}
+  .segmented-control button{min-width:44px;padding-inline:6px}
+  .colour-swatches{gap:6px}
+  .colour-swatch{width:18px;height:18px}
+}
