@@ -42,7 +42,7 @@ export function InboxPage() {
   const error = inboxQuery.error ?? statusQuery.error;
   if (error) {
     return (
-      <div className="page">
+      <div className="page inbox-page">
         <p className="error" role="alert">{messageOf(error)}</p>
         <button className="btn" onClick={() => { void inboxQuery.refetch(); void statusQuery.refetch(); }}>Try again</button>
       </div>
