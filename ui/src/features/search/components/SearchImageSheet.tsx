@@ -71,33 +71,40 @@ export function SearchImageSheet({ site, items, initialIndex, onClose }: SearchI
           <Icon name="close" />
         </button>
       </header>
-      <div className="content">
-        <img className="search-detail-image" src={item.preview} alt={`${site} post ${item.id}`} />
-        <div className="row">
-          <span className="badge">{item.rating}</span>
-          <span className="spacer" />
-          {item.image_url ? (
-            <a className="btn small" href={item.image_url} target="_blank" rel="noopener noreferrer">
-              Open full-size image
-            </a>
-          ) : null}
-          <a className="btn small" href={item.url} target="_blank" rel="noopener noreferrer">
-            Open post
-          </a>
+      <div className="search-viewer-body">
+        <div className="search-viewer-media">
+          <img className="search-detail-image" src={item.preview} alt={`${site} post ${item.id}`} />
         </div>
-        {detailsQuery.isError ? (
-          <p className="error" role="alert">
-            {detailsQuery.error instanceof Error ? detailsQuery.error.message : String(detailsQuery.error)}
-          </p>
-        ) : null}
-        {detailsQuery.isLoading ? <p className="muted" role="status">Loading tags…</p> : null}
-        {tags.length ? (
-          <div className="search-tags">
-            {tags.map((tag) => <span className="tagchip" key={tag}>{tag}</span>)}
+        <aside className="search-viewer-sidebar" aria-label="Post details">
+          <h2 className="mono">{item.id}</h2>
+          <div className="row">
+            <span className="badge">{item.rating}</span>
+            {item.image_url ? (
+              <a className="btn small" href={item.image_url} target="_blank" rel="noopener noreferrer">
+                Open full-size image
+              </a>
+            ) : null}
+            <a className="btn small" href={item.url} target="_blank" rel="noopener noreferrer">
+              Open post
+            </a>
           </div>
-        ) : !detailsQuery.isLoading ? (
-          <p className="muted">No tags returned</p>
-        ) : null}
+          {detailsQuery.isError ? (
+            <p className="error" role="alert">
+              {detailsQuery.error instanceof Error ? detailsQuery.error.message : String(detailsQuery.error)}
+            </p>
+          ) : null}
+          {detailsQuery.isLoading ? <p className="muted" role="status">Loading tags…</p> : null}
+          {tags.length ? (
+            <>
+              <p className="label">Tags</p>
+              <div className="search-tags">
+                {tags.map((tag) => <span className="tagchip" key={tag}>{tag}</span>)}
+              </div>
+            </>
+          ) : !detailsQuery.isLoading ? (
+            <p className="muted">No tags returned</p>
+          ) : null}
+        </aside>
       </div>
     </dialog>
   );

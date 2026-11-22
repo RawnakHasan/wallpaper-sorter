@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToastStore } from '../../stores/toast';
 import { fetchJobQueryKey, getFetchJob, submitFetch } from '../fetch/api';
 import { searchPosts } from './api';
@@ -80,8 +81,23 @@ export function SearchPage() {
     setSearchVersion((version) => version + 1);
   };
 
+  const changePage = (nextPage: number) => {
+    if (!submitted) return;
+    const page = Math.max(1, nextPage);
+    setSelectedItemIndex(null);
+    setSubmitted({ ...submitted, page });
+    setSearchVersion((version) => version + 1);
+    const main = document.getElementById('main');
+    if (main && typeof main.scrollTo === 'function') {
+      main.scrollTo({
+        top: 0,
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      });
+    }
+  };
+
   return (
-    <div className="page">
+    <div className="page browse-page">
       <div className="page-head">
         <h1>Browse sites</h1>
         <span className="sub">Search public posts using each site’s API</span>
@@ -94,7 +110,12 @@ export function SearchPage() {
               className="select"
               aria-label="Site"
               value={site}
-              onChange={(event) => setSite(event.currentTarget.value as SearchSite)}
+              onChange={(event) => {
+                setSite(event.currentTarget.value as SearchSite);
+                setSubmitted((current) => current ? { ...current, site: event.currentTarget.value as SearchSite, page: 1 } : current);
+                setSelectedItemIndex(null);
+                setSearchVersion((version) => version + 1);
+              }}
             >
               {sites.map((entry) => <option key={entry} value={entry}>{entry}</option>)}
               <option value="" disabled>Zerochan (browsing unavailable)</option>
@@ -129,20 +150,24 @@ export function SearchPage() {
             </span>
             <span className="spacer" />
             <button
-              className="btn"
+              className="btn small icon-btn"
               type="button"
+              aria-label="Previous"
+              title="Previous"
               disabled={submitted!.page <= 1 || resultsQuery.isFetching}
-              onClick={() => setSubmitted({ ...submitted!, page: submitted!.page - 1 })}
+              onClick={() => changePage(submitted!.page - 1)}
             >
-              Previous
+              <ChevronLeft aria-hidden="true" />
             </button>
             <button
-              className="btn"
+              className="btn small icon-btn"
               type="button"
+              aria-label="Next"
+              title="Next"
               disabled={!resultsQuery.data.has_more || resultsQuery.isFetching}
-              onClick={() => setSubmitted({ ...submitted!, page: submitted!.page + 1 })}
+              onClick={() => changePage(submitted!.page + 1)}
             >
-              Next
+              <ChevronRight aria-hidden="true" />
             </button>
           </div>
           {resultsQuery.data.items.length ? (
@@ -188,6 +213,7 @@ export function SearchPage() {
                     {item.tags.length ? (
                       <div className="search-tags">
                         {item.tags.slice(0, 12).map((tag) => <span className="tagchip" key={tag}>{tag}</span>)}
+                        {item.tags.length > 12 ? <span className="tagchip">+{item.tags.length - 12}</span> : null}
                       </div>
                     ) : resultsQuery.data.site === 'Wallhaven'
                       ? <p className="muted">Open the image to load its tags</p>
@@ -197,6 +223,29 @@ export function SearchPage() {
               ))}
             </div>
           ) : <div className="empty"><b>No matching posts</b>Try different tags or widen the rating limit in Settings.</div>}
+          <div className="browse-bottom-pager">
+            <span className="sub">
+              Page <span className="mono">{submitted!.page}</span> · {resultsQuery.data.site}
+            </span>
+            <div className="row">
+              <button
+                className="btn"
+                type="button"
+                disabled={submitted!.page <= 1 || resultsQuery.isFetching}
+                onClick={() => changePage(submitted!.page - 1)}
+              >
+                Previous
+              </button>
+              <button
+                className="btn primary"
+                type="button"
+                disabled={!resultsQuery.data.has_more || resultsQuery.isFetching}
+                onClick={() => changePage(submitted!.page + 1)}
+              >
+                Next page
+              </button>
+            </div>
+          </div>
         </>
       ) : null}
       {selectedItemIndex !== null && submitted && resultsQuery.data?.items[selectedItemIndex] ? (
